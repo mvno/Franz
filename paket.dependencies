@@ -1,0 +1,15 @@
+source https://nuget.org/api/v2
+
+nuget FSharp.Formatting
+nuget FAKE
+nuget FsCheck
+nuget SourceLink.Fake
+nuget Unquote
+nuget xunit 2.0.0 framework: >= net452
+nuget xunit.abstractions 2.0.0 framework: >= net452
+nuget xunit.assert 2.0.0 framework: >= net452
+nuget xunit.core 2.0.0 framework: >= net452
+nuget xunit.extensibility.core 2.0.0 framework: >= net452
+nuget xunit.runner.console
+
+github fsharp/FAKE modules/Octokit/Octokit.fsx
