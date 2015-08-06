@@ -17,6 +17,9 @@ type PartiontionIds = List<Id>
 type NextPartitionId = Id
 type TopicPartitions = Dictionary<string, (PartiontionIds * NextPartitionId)>
 
+type IProducer =
+    abstract member SendMessage : string * string * RequiredAcks * int -> unit
+
 /// High level kafka producer
 type Producer(brokerSeeds) =
     let topicPartitions = new TopicPartitions()
@@ -81,6 +84,9 @@ type Producer(brokerSeeds) =
     /// Get all available brokers
     member self.GetAllBrokers() =
         lowLevelRouter.GetAllBrokers()
+    interface IProducer with
+        member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout)
 
 /// Information about offsets
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
@@ -238,6 +244,12 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName) =
                 | _ -> ()
             refreshMetadataOnException innerCommit
 
+type IConsumer =
+    abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
+    abstract member GetOffsets : unit -> PartitionOffset array
+    abstract member SetOffsets : PartitionOffset array -> unit
+    abstract member OffsetManager : IConsumerOffsetManager
+
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, offsetManager : IConsumerOffsetManager) =
     let lowLevelRouter = new BrokerRouter()
@@ -303,3 +315,11 @@ type Consumer(brokerSeeds, topicName, offsetManager : IConsumerOffsetManager) =
     /// Sets the current consumer offsets
     member self.SetOffsets(offsets) =
         offsets |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun key -> x.Offset), fun key value -> x.Offset) |> ignore)
+    interface IConsumer with
+        member self.Consume(cancellationToken) =
+            self.Consume(cancellationToken)
+        member self.GetOffsets() =
+            self.GetOffsets()
+        member self.SetOffsets(offsets) =
+            self.SetOffsets(offsets)
+        member self.OffsetManager = self.OffsetManager
