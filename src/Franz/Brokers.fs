@@ -22,6 +22,7 @@ type TopicPartitionLeader = { TopicName : string; PartitionIds : Id array }
 
 /// Broker information and actions
 type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array) =
+    let _sendLock = new Object()
     let mutable client : TcpClient = null
     /// Gets the broker TcpClient
     member self.Client with get() = client
@@ -39,17 +40,18 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
         client.Connect(endPoint.Address, endPoint.Port)
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
-        let send () =
-            let stream = self.Client.GetStream()
-            stream |> request.Serialize
-            request.DeserializeResponse(stream)
-        try
-            send()
-        with
-        | e ->
-            dprintfn "Got exception while sending request... Trying again..."
-            self.Connect()
-            send()
+        lock _sendLock (fun () -> 
+            let send () =
+                let stream = self.Client.GetStream()
+                stream |> request.Serialize
+                request.DeserializeResponse(stream)
+            try
+                send()
+            with
+            | e ->
+                dprintfn "Got exception while sending request... Trying again..."
+                self.Connect()
+                send())
 
 /// Indicates ok or failure message
 type BrokerRouterReturnMessage<'T> =
