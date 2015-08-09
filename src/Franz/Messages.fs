@@ -80,8 +80,8 @@ module Messages =
         /// Deserialize the response.
         abstract member DeserializeResponse : Stream -> 'TResponse
 
-        default self.ApiVersion = int16 0
-        default self.ClientId = "Franz"
+        default __.ApiVersion = int16 0
+        default __.ClientId = "Franz"
         
         /// The correlation id.
         member val CorrelationId : CorrelationId = 0 with get, set
@@ -95,7 +95,7 @@ module Messages =
             stream |> BigEndianWriter.WriteString self.ClientId
     
         /// Write the message size.
-        member self.WriteSize (stream : Stream) =
+        member __.WriteSize (stream : Stream) =
             let size = int32 stream.Length
             stream.Seek(int64 0, SeekOrigin.Begin) |> ignore
             stream |> BigEndianWriter.WriteInt32 (size - 4)
@@ -442,7 +442,7 @@ module Messages =
     type MetadataRequest(topicNames) =
         inherit Request<MetadataResponse>()
         /// The api key
-        override self.ApiKey = ApiKey.MetadataRequest
+        override __.ApiKey = ApiKey.MetadataRequest
         /// Gets or sets the topic names
         member val TopicNames : string array = topicNames with get, set
         /// Serialize the message
@@ -451,7 +451,7 @@ module Messages =
             for topicName in self.TopicNames do
                 stream |> BigEndianWriter.WriteString topicName
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             MetadataResponse.Deserialize stream
     
     /// Creates a offset request.
@@ -463,7 +463,7 @@ module Messages =
         /// Gets the topics.
         member val Topics = topics with get, set
         /// The api key
-        override self.ApiKey = ApiKey.OffsetRequest
+        override __.ApiKey = ApiKey.OffsetRequest
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteInt32 self.ReplicaId
@@ -476,7 +476,7 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt64 partition.Time
                     stream |> BigEndianWriter.WriteInt32 partition.MaxNumberOfOffsets
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             OffsetResponse.Deserialize(stream)
 
     /// Produce request
@@ -493,7 +493,7 @@ module Messages =
         /// Gets the topics
         member val Topics = topics with get
         /// The api key
-        override self.ApiKey = ApiKey.ProduceRequest
+        override __.ApiKey = ApiKey.ProduceRequest
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteInt16 (requiredAcks |> int16)
@@ -507,7 +507,7 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt32 partition.MessageSetSize
                     stream |> partition.MessageSet.Serialize
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             ProduceResponse.Deserialize(stream)
 
     /// Fetch request
@@ -522,7 +522,7 @@ module Messages =
         /// Gets the topics
         member val Topics = topics with get
         /// The api key
-        override self.ApiKey = ApiKey.FetchRequest
+        override __.ApiKey = ApiKey.FetchRequest
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteInt32 self.ReplicaId
@@ -537,7 +537,7 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt64 partition.FetchOffset
                     stream |> BigEndianWriter.WriteInt32 partition.MaxBytes
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             FetchResponse.Deserialize(stream)
 
     /// Offset fetch request
@@ -548,9 +548,9 @@ module Messages =
         /// Gets the topics
         member val Topics = topics with get
         /// The api key
-        override self.ApiKey = ApiKey.OffsetFetchRequest
+        override __.ApiKey = ApiKey.OffsetFetchRequest
         /// The api version
-        override self.ApiVersion = apiVersion
+        override __.ApiVersion = apiVersion
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
@@ -560,7 +560,7 @@ module Messages =
                 stream |> BigEndianWriter.WriteInt32 topic.Partitions.Length
                 topic.Partitions |> Array.iter (fun x -> stream |> BigEndianWriter.WriteInt32 x)
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             OffsetFetchResponse.Deserialize(stream)
 
     /// Offset commit request version 1
@@ -575,9 +575,9 @@ module Messages =
         /// Gets the topics
         member val Topics = topics with get
         /// The api key
-        override self.ApiKey = ApiKey.OffsetCommitRequest
+        override __.ApiKey = ApiKey.OffsetCommitRequest
         /// The api version
-        override self.ApiVersion = int16 1
+        override __.ApiVersion = int16 1
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
@@ -593,7 +593,7 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt64 partition.TimeStamp
                     stream |> BigEndianWriter.WriteString partition.Metadata
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             OffsetCommitResponse.Deserialize(stream)
             
     /// Offset commit request version 0
@@ -604,7 +604,7 @@ module Messages =
         /// Gets the topics
         member val Topics = topics with get
         /// The api key
-        override self.ApiKey = ApiKey.OffsetCommitRequest
+        override __.ApiKey = ApiKey.OffsetCommitRequest
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
@@ -617,7 +617,7 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt64 partition.Offset
                     stream |> BigEndianWriter.WriteString partition.Metadata
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             OffsetCommitResponse.Deserialize(stream)
 
     /// Consumer metadata request
@@ -626,10 +626,10 @@ module Messages =
         /// Gets the consumer group
         member val ConsumerGroup = consumerGroup with get
         /// The api key
-        override self.ApiKey = ApiKey.ConsumerMetadataRequest
+        override __.ApiKey = ApiKey.ConsumerMetadataRequest
         /// Serialize the message
         override self.SerializeMessage(stream) =
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
         /// Deserialize the response
-        override self.DeserializeResponse(stream) =
+        override __.DeserializeResponse(stream) =
             ConsumerMetadataResponse.Deserialize(stream)

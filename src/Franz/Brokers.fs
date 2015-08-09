@@ -2,9 +2,7 @@
 
 open System
 open Franz.Internal
-open System.Runtime.InteropServices
 open System.Net.Sockets
-open System.Text
 
 [<AutoOpen>]
 module ErrorCodeExtensions =
@@ -25,17 +23,17 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     let _sendLock = new Object()
     let mutable client : TcpClient = null
     /// Gets the broker TcpClient
-    member self.Client with get() = client
+    member __.Client with get() = client
     /// Gets the broker endpoint
-    member self.EndPoint with get() = endPoint
+    member __.EndPoint with get() = endPoint
     /// Is the TcpClient connected
-    member self.IsConnected with get() = client <> null && client.Connected
+    member __.IsConnected with get() = client <> null && client.Connected
     /// Gets or sets which topic partitions the broker is leader for
     member val LeaderFor = leaderFor with get, set
     /// Gets the node id
-    member self.NodeId with get() = nodeId
+    member __.NodeId with get() = nodeId
     /// Connect the broker
-    member self.Connect() =
+    member __.Connect() =
         client <- new TcpClient()
         client.Connect(endPoint.Address, endPoint.Port)
     /// Send a request to the broker
@@ -48,7 +46,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             try
                 send()
             with
-            | e ->
+            | _ ->
                 dprintfn "Got exception while sending request... Trying again..."
                 self.Connect()
                 send())
@@ -104,10 +102,10 @@ type BrokerRouter() as self =
         router.Error.Add(fun x -> errorEvent.Trigger(x))
     /// Event used in case of unhandled exception in internal agent
     [<CLIEvent>]
-    member self.Error = errorEvent.Publish
+    member __.Error = errorEvent.Publish
     /// Event triggered when metadata is refreshed
     [<CLIEvent>]
-    member self.MetadataRefreshed = metadataRefreshed.Publish
+    member __.MetadataRefreshed = metadataRefreshed.Publish
     /// Connect the router to the cluster using the broker seeds.
     member self.Connect(brokerSeeds) =
         if brokerSeeds = null then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
@@ -140,7 +138,7 @@ type BrokerRouter() as self =
             | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
         connect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
     /// Refresh metadata for the broker cluster
-    member private self.RefreshMetadata(brokers, lastRoundRobinIndex) =
+    member private __.RefreshMetadata(brokers, lastRoundRobinIndex) =
         dprintfn "Refreshing metadata..."
         let (index, response) =
             let rec getMetadata brokers attempt =
@@ -151,7 +149,7 @@ type BrokerRouter() as self =
                         let response = broker.Send(new MetadataRequest([||]))
                         (index, response)
                     with
-                    | e ->
+                    | _ ->
                         if not broker.IsConnected then broker.Connect()
                         let response = broker.Send(new MetadataRequest([||]))
                         (index, response)
@@ -203,16 +201,16 @@ type BrokerRouter() as self =
                 Ok(broker, lastRoundRobinIndex)
         find brokers lastRoundRobinIndex 0
     /// Add broker to the list of available brokers
-    member self.AddBroker(broker : Broker) =
+    member __.AddBroker(broker : Broker) =
         router.Post(AddBroker(broker))
     /// Refresh cluster metadata
-    member self.RefreshMetadata() =
+    member __.RefreshMetadata() =
         router.PostAndReply(fun reply -> RefreshMetadata(reply))
     /// Get all available brokers
-    member self.GetAllBrokers() =
+    member __.GetAllBrokers() =
         router.PostAndReply(fun reply -> GetAllBrokers(reply))
     /// Get broker by topic and partition id
-    member self.GetBroker(topic, partitionId) =
+    member __.GetBroker(topic, partitionId) =
         match router.PostAndReply(fun reply -> GetBroker(topic, partitionId, reply)) with
         | Ok x -> x
         | Failure e -> raise e

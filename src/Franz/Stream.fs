@@ -3,7 +3,6 @@ namespace Franz.Stream
 open System
 open System.IO
 open System.Text
-open Franz.Internal
 
 [<AbstractClass; Sealed>]
 type BigEndianWriter() =

@@ -2,8 +2,6 @@
 
 [<AutoOpen>]
 module Crc32 =
-    open System
-
     let crcTable = 
         let inline nextValue acc =
             if 0u <> (acc &&& 1u) then 0xedb88320u ^^^ (acc >>> 1) else acc >>> 1
