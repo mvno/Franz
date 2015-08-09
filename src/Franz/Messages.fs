@@ -19,12 +19,19 @@ module Messages =
     type MessageSize = int32
     /// Valid API keys for requests
     type ApiKey =
+        /// Indicates a produce request
         | ProduceRequest = 0
+        /// Indicates a fecth request
         | FetchRequest = 1
+        /// Indicates a offset request
         | OffsetRequest = 2
+        /// Indicates a metadata request
         | MetadataRequest = 3
+        /// Indicates a offset commit request
         | OffsetCommitRequest = 8
+        /// Indicates a offset fetch request
         | OffsetFetchRequest = 9
+        /// Indicates a consumer metadata request
         | ConsumerMetadataRequest = 10
     /// API versions, currently valid values are 0 and 1
     type ApiVersion = int16
@@ -44,20 +51,35 @@ module Messages =
     type Attributes = int8
     /// Possible error codes from brokers
     type ErrorCode =
+        /// No error--it worked!
         | NoError = 0
+        /// An unexpected server error
         | Unknown = -1
+        /// The requested offset is outside the range of offsets maintained by the server for the given topic/partition
         | OffsetOutOfRange = 1
+        /// This indicates that a message contents does not match its CRC
         | InvalidMessage = 2
+        /// This request is for a topic or partition that does not exist on this broker
         | UnknownTopicOrPartition = 3
+        /// The message has a negative size
         | InvalidMessageSize = 4
+        /// This error is thrown if we are in the middle of a leadership election and there is currently no leader for this partition and hence it is unavailable for writes
         | LeaderNotAvailable = 5
+        /// This error is thrown if the client attempts to send messages to a replica that is not the leader for some partition. It indicates that the clients metadata is out of date
         | NotLeaderForPartition = 6
+        /// This error is thrown if the request exceeds the user-specified time limit in the request
         | RequestTimedOut = 7
+        /// If replica is expected on a broker, but is not (this can be safely ignored)
         | ReplicaNotAvailable = 9
+        /// The server has a configurable maximum message size to avoid unbounded memory allocation. This error is thrown if the client attempt to produce a message larger than this maximum
         | MessageSizeTooLarge = 10
+        /// If you specify a string larger than configured maximum for offset metadata
         | OffsetMetadataTooLarge = 12
+        /// The broker returns this error code for an offset fetch request if it is still loading offsets (after a leader change for that offsets topic partition)
         | OffsetLoadInProgress = 14
+        /// The broker returns this error code for consumer metadata requests or offset commit requests if the offsets topic has not yet been created
         | ConsumerCoordinatorNotAvailable = 15
+        /// The broker returns this error code if it receives an offset fetch or commit request for a consumer group that it is not a coordinator for
         | NotCoordinatorForConsumer = 16
     /// Type for broker and partition ids
     type Id = int32
@@ -116,10 +138,15 @@ module Messages =
     [<NoEquality;NoComparison>]
     type Message =
         {
+            /// The CRC is the CRC32 of the remainder of the message bytes. This is used to check the integrity of the message on the broker and consumer
             Crc : Crc;
+            /// This is a version id used to allow backwards compatible evolution of the message binary format. The current value is 0
             MagicByte : MagicByte;
+            /// This byte holds metadata attributes about the message. The lowest 2 bits contain the compression codec used for the message. The other bits should be set to 0
             Attributes : Attributes;
+            /// The key is an optional message key that was used for partition assignment. The key can be null
             Key : byte array;
+            /// The value is the actual message contents as an opaque byte array. Kafka supports recursive messages in which case this may itself contain a message set. The message can be null
             Value : byte array;
         }
 
