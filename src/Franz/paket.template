@@ -1,0 +1,23 @@
+type project
+owners
+    Kim Christensen
+authors 
+    Kim Christensen
+projectUrl
+    http://github.com/Xharze/FSharp.Kafka
+iconUrl
+    https://raw.githubusercontent.com/Xharze/FSharp.Kafka/master/docs/files/img/logo.png
+licenseUrl
+    http://github.com/Xharze/FSharp.Kafka/blob/master/LICENSE.txt
+requireLicenseAcceptance
+    false
+copyright
+    Copyright 2015
+tags
+    kafka client f#
+summary
+    Kafka cient for .NET
+description
+    Kafka client for .NET written in F#
+
+
