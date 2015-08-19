@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>Messages - Franz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content=""/>
+    <meta name="author" content="mvno"/>
+
+    <script src="https://code.jquery.com/jquery-1.8.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.8.23/jquery-ui.js"></script>
+    <script src="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/js/bootstrap.min.js"></script>
+    <link href="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/css/bootstrap-combined.min.css" rel="stylesheet"/>
+
+    <link type="text/css" rel="stylesheet" href="/Franz/content/style.css" />
+    <script type="text/javascript" src="/Franz/content/tips.js"></script>
+    <!-- HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="https://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="container">
+      <div class="masthead">
+        <ul class="nav nav-pills pull-right">
+          <li><a href="http://fsharp.org">fsharp.org</a></li>
+          <li><a href="http://github.com/mvno/Franz">github page</a></li>
+        </ul>
+        <h3 class="muted"><a href="/Franz/index.html">Franz</a></h3>
+      </div>
+      <hr />
+      <div class="row">
+        <div class="span9" id="main">
+          
+
+
+
+<h1>Messages</h1>
+<p>
+  <span>Namespace: Franz</span><br />
+</p>
+<div class="xmldoc">
+</div>
+
+<!-- Render nested types and modules, if there are any -->
+  <h2>Nested types and modules</h2>
+  <div>
+      <table class="table table-bordered type-list">
+    <thead>
+      <tr><td>Type</td><td>Description</td></tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-apikey.html">ApiKey</a>
+          </td>
+          <td class="xmldoc"><p>Valid API keys for requests</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-apiversion.html">ApiVersion</a>
+          </td>
+          <td class="xmldoc"><p>API versions, currently valid values are 0 and 1</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-attributes.html">Attributes</a>
+          </td>
+          <td class="xmldoc"><p>This byte holds metadata attributes about the message. The lowest 2 bits contain the compression codec used for the message. The other bits should be set to 0.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-broker.html">Broker</a>
+          </td>
+          <td class="xmldoc"><p>Broker</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-clientid.html">ClientId</a>
+          </td>
+          <td class="xmldoc"><p>This is a user supplied identifier for the client application. The user can use any identifier they like and it will be used when logging errors, monitoring aggregates, etc.
+For example, one might want to monitor not just the requests per second overall, but the number coming from each client application (each of which could reside on multiple servers).
+This id acts as a logical grouping across all requests from a particular client.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-consumermetadatarequest.html">ConsumerMetadataRequest</a>
+          </td>
+          <td class="xmldoc"><p>Consumer metadata request</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-consumermetadataresponse.html">ConsumerMetadataResponse</a>
+          </td>
+          <td class="xmldoc"><p>Consumer metadata response</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-correlationid.html">CorrelationId</a>
+          </td>
+          <td class="xmldoc"><p>This is a user-supplied integer. It will be passed back in the response by the server, unmodified. It is useful for matching request and response between the client and server.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-crc.html">Crc</a>
+          </td>
+          <td class="xmldoc"><p>The CRC is the CRC32 of the remainder of the message bytes.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-errorcode.html">ErrorCode</a>
+          </td>
+          <td class="xmldoc"><p>Possible error codes from brokers</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-fetchpartitionrequest.html">FetchPartitionRequest</a>
+          </td>
+          <td class="xmldoc"><p>FetchPartitionRequest</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-fetchpartitionresponse.html">FetchPartitionResponse</a>
+          </td>
+          <td class="xmldoc"><p>FetchPartitionResponse</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-fetchrequest.html">FetchRequest</a>
+          </td>
+          <td class="xmldoc"><p>Fetch request</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-fetchresponse.html">FetchResponse</a>
+          </td>
+          <td class="xmldoc"><p>Fetch response</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-fetchtopicrequest.html">FetchTopicRequest</a>
+          </td>
+          <td class="xmldoc"><p>FetchTopicRequest</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-fetchtopicresponse.html">FetchTopicResponse</a>
+          </td>
+          <td class="xmldoc"><p>FetchTopicResponse</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-id.html">Id</a>
+          </td>
+          <td class="xmldoc"><p>Type for broker and partition ids</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-isr.html">Isr</a>
+          </td>
+          <td class="xmldoc"><p>The set subset of the replicas that are "caught up" to the leader.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-magicbyte.html">MagicByte</a>
+          </td>
+          <td class="xmldoc"><p>This is a version id used to allow backwards compatible evolution of the message binary format. The current value is 0.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-message.html">Message</a>
+          </td>
+          <td class="xmldoc"><p>Message in a messageset.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-messageset.html">MessageSet</a>
+          </td>
+          <td class="xmldoc"><p>Type for messageset.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-messagesize.html">MessageSize</a>
+          </td>
+          <td class="xmldoc"><p>Message size</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-metadatarequest.html">MetadataRequest</a>
+          </td>
+          <td class="xmldoc"><p>Metadata request</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-metadataresponse.html">MetadataResponse</a>
+          </td>
+          <td class="xmldoc"><p>Metadata response</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offset.html">Offset</a>
+          </td>
+          <td class="xmldoc"><p>This is the offset used in kafka as the log sequence number.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitrequestv0partition.html">OffsetCommitRequestV0Partition</a>
+          </td>
+          <td class="xmldoc"><p>OffsetCommitRequestV0Partition</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitrequestv0topic.html">OffsetCommitRequestV0Topic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetCommitRequestV0Topic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitrequestv1partition.html">OffsetCommitRequestV1Partition</a>
+          </td>
+          <td class="xmldoc"><p>OffsetCommitRequestV1Partition</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitrequestv1topic.html">OffsetCommitRequestV1Topic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetCommitRequestV1Topic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitresponse.html">OffsetCommitResponse</a>
+          </td>
+          <td class="xmldoc"><p>Offset commit response</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitresponsepartition.html">OffsetCommitResponsePartition</a>
+          </td>
+          <td class="xmldoc"><p>OffsetCommitResponsePartition</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitresponsetopic.html">OffsetCommitResponseTopic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetCommitResponseTopic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitv0request.html">OffsetCommitV0Request</a>
+          </td>
+          <td class="xmldoc"><p>Offset commit request version 0</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitv1request.html">OffsetCommitV1Request</a>
+          </td>
+          <td class="xmldoc"><p>Offset commit request version 1</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetfetchrequest.html">OffsetFetchRequest</a>
+          </td>
+          <td class="xmldoc"><p>Offset fetch request</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetfetchrequesttopic.html">OffsetFetchRequestTopic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetFetchRequestTopic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetfetchresponse.html">OffsetFetchResponse</a>
+          </td>
+          <td class="xmldoc"><p>Offset fetch response</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetfetchresponsepartition.html">OffsetFetchResponsePartition</a>
+          </td>
+          <td class="xmldoc"><p>OffsetFetchResponsePartition</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetfetchresponsetopic.html">OffsetFetchResponseTopic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetFetchResponseTopic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetrequest.html">OffsetRequest</a>
+          </td>
+          <td class="xmldoc"><p>Creates a offset request.
+This API describes the valid offset range available for a set of topic-partitions</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetrequestpartition.html">OffsetRequestPartition</a>
+          </td>
+          <td class="xmldoc"><p>OffsetRequestPartition</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetrequesttopic.html">OffsetRequestTopic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetRequestTopic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetresponse.html">OffsetResponse</a>
+          </td>
+          <td class="xmldoc"><p>An offset response.
+Contains the starting offset of each segment for the requested partition as well as the "log end offset" i.e. the offset of the next message that would be appended to the given partition.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetresponsetopic.html">OffsetResponseTopic</a>
+          </td>
+          <td class="xmldoc"><p>OffsetResponseTopic</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-partitionmetadata.html">PartitionMetadata</a>
+          </td>
+          <td class="xmldoc"><p>PartitionMetadata</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-partitionoffset.html">PartitionOffset</a>
+          </td>
+          <td class="xmldoc"><p>PartitionOffset</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-partitionproducerequest.html">PartitionProduceRequest</a>
+          </td>
+          <td class="xmldoc"><p>PartitionProduceRequest</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-partitionproduceresponse.html">PartitionProduceResponse</a>
+          </td>
+          <td class="xmldoc"><p>PartitionProduceResponse</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-producerequest.html">ProduceRequest</a>
+          </td>
+          <td class="xmldoc"><p>Produce request</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-produceresponse.html">ProduceResponse</a>
+          </td>
+          <td class="xmldoc"><p>Produce response</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-replicas.html">Replicas</a>
+          </td>
+          <td class="xmldoc"><p>The set of alive nodes that currently acts as slaves for the leader for this partition.</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-request-1.html">Request<'TResponse></a>
+          </td>
+          <td class="xmldoc"><p>Request base class</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-topicmetadata.html">TopicMetadata</a>
+          </td>
+          <td class="xmldoc"><p>TopicMetadata</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-topicproducerequest.html">TopicProduceRequest</a>
+          </td>
+          <td class="xmldoc"><p>TopicProduceRequest</p>
+
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-topicproduceresponse.html">TopicProduceResponse</a>
+          </td>
+          <td class="xmldoc"><p>TopicProduceResponse</p>
+
+
+</td>
+        </tr>
+    </tbody>
+  </table>
+
+  </div>
+
+
+        </div>
+        <div class="span3">
+          <img src="/Franz/img/logo.png" alt="F# Project" style="width:150px;margin:10px" />  
+          <ul class="nav nav-list" id="menu" style="margin-top: 20px;">
+            <li class="nav-header">Franz</li>
+            <li><a href="/Franz/index.html">Home page</a></li>
+            <li class="divider"></li>
+            <li><a href="http://nuget.org/packages/Franz">Get Library via NuGet</a></li>
+            <li><a href="http://github.com/mvno/Franz">Source Code on GitHub</a></li>
+            <li><a href="/Franz/license.html">License</a></li>
+            <li><a href="/Franz/release-notes.html">Release Notes</a></li>
+            
+            <li class="nav-header">Getting started</li>
+            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>
+
+            <li class="nav-header">Documentation</li>
+            <li><a href="/Franz/reference/index.html">API Reference</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <a href="http://github.com/mvno/Franz"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png" alt="Fork me on GitHub"/></a>
+  </body>
+  </html>
