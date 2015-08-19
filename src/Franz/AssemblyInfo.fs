@@ -1,12 +1,12 @@
 ﻿namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("FSharp.Kafka")>]
-[<assembly: AssemblyProductAttribute("FSharp.Kafka")>]
-[<assembly: AssemblyDescriptionAttribute("Kafka cient for .NET")>]
-[<assembly: AssemblyVersionAttribute("1.0")>]
-[<assembly: AssemblyFileVersionAttribute("1.0")>]
+[<assembly: AssemblyTitleAttribute("Franz")>]
+[<assembly: AssemblyProductAttribute("Franz")>]
+[<assembly: AssemblyDescriptionAttribute("Kafka client for .NET")>]
+[<assembly: AssemblyVersionAttribute("0.0.4")>]
+[<assembly: AssemblyFileVersionAttribute("0.0.4")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] Version = "1.0"
+    let [<Literal>] Version = "0.0.4"
