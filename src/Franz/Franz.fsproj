@@ -66,7 +66,6 @@
     <Compile Include="Messages.fs" />
     <Compile Include="Brokers.fs" />
     <Compile Include="HighLevel.fs" />
-    <None Include="Script.fsx" />
     <None Include="paket.references" />
     <None Include="paket.template" />
     <Content Include="packages.config" />
