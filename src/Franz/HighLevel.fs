@@ -53,10 +53,15 @@ type Producer(brokerSeeds) =
                 let value = Encoding.UTF8.GetBytes(message)
                 MessageSet.Create(int64 -1, int8 0, null, value)
             let partitionId =
-                let (ids, id) = topicPartitions.[topicName]
-                let nextId = if id = (ids |> Seq.max) then ids |> Seq.min else ids |> Seq.find (fun x -> x > id)
-                topicPartitions.[topicName] <- (ids, nextId)
-                id
+                let success, result = topicPartitions.TryGetValue(topicName)
+                if (not success) then
+                    lowLevelRouter.GetBroker(topicName, 0) |> ignore
+                    0
+                else
+                    let (ids, id) = result
+                    let nextId = if id = (ids |> Seq.max) then ids |> Seq.min else ids |> Seq.find (fun x -> x > id)
+                    topicPartitions.[topicName] <- (ids, nextId)
+                    id
             let partitions = { PartitionProduceRequest.Id = partitionId; MessageSet = messageSet; MessageSetSize = messageSet.MessageSetSize }
             let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
             let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])

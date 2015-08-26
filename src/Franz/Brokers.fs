@@ -140,20 +140,24 @@ type BrokerRouter() as self =
             | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
         connect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
     /// Refresh metadata for the broker cluster
-    member private __.RefreshMetadata(brokers, lastRoundRobinIndex) =
+    member private __.RefreshMetadata(brokers, lastRoundRobinIndex, ?topics) =
         dprintfn "Refreshing metadata..."
+        let topics =
+            match topics with
+            | Some x -> x
+            | None -> Array.empty<string>
         let (index, response) =
             let rec getMetadata brokers attempt =
                 let (index, broker : Broker) = brokers |> Seq.roundRobin lastRoundRobinIndex
                 try
                     try
                         if not broker.IsConnected then broker.Connect()
-                        let response = broker.Send(new MetadataRequest([||]))
+                        let response = broker.Send(new MetadataRequest(topics))
                         (index, response)
                     with
                     | _ ->
                         if not broker.IsConnected then broker.Connect()
-                        let response = broker.Send(new MetadataRequest([||]))
+                        let response = broker.Send(new MetadataRequest(topics))
                         (index, response)
                 with
                 | e ->
@@ -194,7 +198,7 @@ type BrokerRouter() as self =
             match candidateBrokers |> Seq.length with
             | 0 ->
                 dprintfn "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId
-                let (index, brokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex)
+                let (index, brokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex, [| topic |])
                 System.Threading.Thread.Sleep(500)
                 if attempt < 3 then find brokers index (attempt + 1)
                 else Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i" topic partitionId))
