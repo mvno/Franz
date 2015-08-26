@@ -21,7 +21,7 @@ type EndPoint = { Address : string; Port : int32 }
 type TopicPartitionLeader = { TopicName : string; PartitionIds : Id array }
 
 /// Broker information and actions
-type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array) =
+type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array, tcpTimeout : int) =
     let _sendLock = new Object()
     let mutable client : TcpClient = null
     /// Gets the broker TcpClient
@@ -37,6 +37,8 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Connect the broker
     member __.Connect() =
         client <- new TcpClient()
+        client.ReceiveTimeout <- tcpTimeout
+        client.SendTimeout <- tcpTimeout
         client.Connect(endPoint.Address, endPoint.Port)
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
