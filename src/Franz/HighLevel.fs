@@ -295,7 +295,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         let rec innerConsumer partitionId =
             async {
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
-                let request = new FetchRequest(-1, 1000, 1, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = 512 } |] } |])
+                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = consumerOptions.MaxBytes } |] } |])
                 let broker = lowLevelRouter.GetBroker(topicName, partitionId)
                 let rec trySend (broker : Broker) attempt =
                     try
