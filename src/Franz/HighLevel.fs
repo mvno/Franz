@@ -21,7 +21,7 @@ type IProducer =
     abstract member SendMessage : string * string * RequiredAcks * int -> unit
 
 /// High level kafka producer
-type Producer(brokerSeeds) =
+type Producer(brokerSeeds, tcpTimeout) =
     let topicPartitions = new TopicPartitions()
     let sortTopicPartitions() =
         topicPartitions |> Seq.iter (fun kvp ->
@@ -40,7 +40,7 @@ type Producer(brokerSeeds) =
                 let partitionsToAdd = partitions |> Seq.filter (fun x -> ids |> Seq.exists (fun i -> i = x) |> not)
                 ids.AddRange(partitionsToAdd))
         sortTopicPartitions()
-    let lowLevelRouter = new BrokerRouter()
+    let lowLevelRouter = new BrokerRouter(tcpTimeout)
     do
         lowLevelRouter.Error.Add(fun x -> dprintfn "%A" x)
         lowLevelRouter.Connect(brokerSeeds)
@@ -104,8 +104,8 @@ type IConsumerOffsetManager =
     abstract member Commit : string * PartitionOffset seq -> unit
 
 /// Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.
-type ConsumerOffsetManagerV0(brokerSeeds, topicName) =
-    let lowLevelRouter = new BrokerRouter()
+type ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) =
+    let lowLevelRouter = new BrokerRouter(tcpTimeout)
     let partitions = new ConcurrentDictionary<_, _>()
     let updatePartitions (brokers : Broker seq) =
         brokers
@@ -161,9 +161,9 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName) =
                     invalidOp (sprintf "Got an error while commiting offsets. Response was %A" response)
 
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
-type ConsumerOffsetManagerV1(brokerSeeds, topicName) =
+type ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) =
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
-    let lowLevelRouter = new BrokerRouter()
+    let lowLevelRouter = new BrokerRouter(tcpTimeout)
     let partitions = new ConcurrentDictionary<_, _>()
     let updatePartitions (brokers : Broker seq) =
         brokers
@@ -256,8 +256,8 @@ type IConsumer =
     abstract member OffsetManager : IConsumerOffsetManager
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, offsetManager : IConsumerOffsetManager) =
-    let lowLevelRouter = new BrokerRouter()
+type Consumer(brokerSeeds, topicName, tcpTimeout, offsetManager : IConsumerOffsetManager) =
+    let lowLevelRouter = new BrokerRouter(tcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers

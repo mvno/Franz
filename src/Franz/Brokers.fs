@@ -21,7 +21,7 @@ type EndPoint = { Address : string; Port : int32 }
 type TopicPartitionLeader = { TopicName : string; PartitionIds : Id array }
 
 /// Broker information and actions
-type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array) =
+type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array, tcpTimeout : int) =
     let _sendLock = new Object()
     let mutable client : TcpClient = null
     /// Gets the broker TcpClient
@@ -37,6 +37,8 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Connect the broker
     member __.Connect() =
         client <- new TcpClient()
+        client.ReceiveTimeout <- tcpTimeout
+        client.SendTimeout <- tcpTimeout
         client.Connect(endPoint.Address, endPoint.Port)
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
@@ -71,7 +73,7 @@ type BrokerRouterMessage =
     | GetAllBrokers of AsyncReplyChannel<Broker list>
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
-type BrokerRouter() as self =
+type BrokerRouter(tcpTimeout) as self =
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
     let router = Agent.Start(fun inbox ->
@@ -121,7 +123,7 @@ type BrokerRouter() as self =
                 response.Brokers
                     |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
                     |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
-                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId))
+                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
                     |> Seq.toList
             brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId )
             [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
@@ -130,7 +132,7 @@ type BrokerRouter() as self =
             | head :: tail ->
                 try
                     dprintfn "Connecting to %s:%i..." head.Address head.Port
-                    let broker = new Broker(-1, head, [||])
+                    let broker = new Broker(-1, head, [||], tcpTimeout)
                     broker.Connect()
                     broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers []
                 with
@@ -173,7 +175,7 @@ type BrokerRouter() as self =
             response.Brokers
             |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
             |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun b -> b.EndPoint = x) |> not)
-            |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId))
+            |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
         newBrokers
             |> Seq.iter (fun x ->
                 try
