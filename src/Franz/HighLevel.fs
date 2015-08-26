@@ -255,9 +255,24 @@ type IConsumer =
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
 
+/// Consumer options
+type ConsumerOptions() =
+    /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
+    member val TcpTimeout = 10000 with get, set
+    /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
+    member val MaxWaitTime = 5000 with get, set
+    /// This is the minimum number of bytes of messages that must be available to give a response. If the client sets this to 0 the server will always respond immediately,
+    /// however if there is no new data since their last request they will just get back empty message sets. If this is set to 1, the server will respond as soon as at least one partition has
+    // at least 1 byte of data or the specified timeout occurs. By setting higher values in combination with the timeout the consumer can tune for throughput and trade a little additional latency for
+    /// reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
+    /// Default value is 1024.
+    member val MinBytes = 1024 with get, set
+    /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
+    member val MaxBytes = 1024 * 5 with get, set
+
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, tcpTimeout, offsetManager : IConsumerOffsetManager) =
-    let lowLevelRouter = new BrokerRouter(tcpTimeout)
+type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager) =
+    let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
