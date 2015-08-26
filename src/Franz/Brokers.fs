@@ -73,7 +73,7 @@ type BrokerRouterMessage =
     | GetAllBrokers of AsyncReplyChannel<Broker list>
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
-type BrokerRouter() as self =
+type BrokerRouter(tcpTimeout) as self =
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
     let router = Agent.Start(fun inbox ->
@@ -123,7 +123,7 @@ type BrokerRouter() as self =
                 response.Brokers
                     |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
                     |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
-                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId))
+                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
                     |> Seq.toList
             brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId )
             [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
@@ -132,7 +132,7 @@ type BrokerRouter() as self =
             | head :: tail ->
                 try
                     dprintfn "Connecting to %s:%i..." head.Address head.Port
-                    let broker = new Broker(-1, head, [||])
+                    let broker = new Broker(-1, head, [||], tcpTimeout)
                     broker.Connect()
                     broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers []
                 with
@@ -175,7 +175,7 @@ type BrokerRouter() as self =
             response.Brokers
             |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
             |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun b -> b.EndPoint = x) |> not)
-            |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId))
+            |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
         newBrokers
             |> Seq.iter (fun x ->
                 try
