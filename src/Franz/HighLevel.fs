@@ -292,6 +292,21 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
     member __.Consume(cancellationToken : System.Threading.CancellationToken) =
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
+        let handleOffsetOutOfRangeError (broker : Broker) partitionId currentOffset =
+            let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
+            let response = broker.Send(request)
+            let earliestOffset = 
+                response.Topics
+                |> Seq.filter (fun x -> x.Name = topicName)
+                |> Seq.map (fun x -> x.Partitions)
+                |> Seq.concat
+                |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
+                |> Seq.map (fun x -> x.Offsets)
+                |> Seq.concat
+                |> Seq.min
+            if currentOffset < earliestOffset then partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
+            else
+                invalidOp "Could not fix offset out of range error"
         let rec innerConsumer partitionId =
             async {
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
