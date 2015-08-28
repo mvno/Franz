@@ -335,6 +335,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
                 | ErrorCode.NotLeaderForPartition ->
                     lowLevelRouter.RefreshMetadata()
                     return! innerConsumer partitionId
+                | ErrorCode.OffsetOutOfRange ->
+                    handleOffsetOutOfRangeError broker partitionId offset
                 | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                 if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId
             }
