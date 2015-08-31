@@ -66,6 +66,7 @@
   <Import Project="..\..\.paket\paket.targets" />
   <ItemGroup>
     <None Include="paket.references" />
+    <Compile Include="Crc32Test.fs" />
     <Compile Include="StreamTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
