@@ -1,4 +1,4 @@
-﻿module Crc32Test
+﻿namespace Franz.Tests
 
 open Xunit
 open Franz.Internal
