@@ -69,6 +69,7 @@
     <Compile Include="Crc32Test.fs" />
     <Compile Include="InfrastructureTest.fs" />
     <Compile Include="StreamTest.fs" />
+    <Compile Include="MessagesTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
