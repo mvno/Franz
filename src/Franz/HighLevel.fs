@@ -271,7 +271,7 @@ type ConsumerOptions() =
     member val MaxBytes = 1024 * 5 with get, set
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager) =
+type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager, partitionWhitelist : Id array) =
     let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
@@ -287,6 +287,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         lowLevelRouter.Connect(brokerSeeds)
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+    new (brokerSeeds, topicName, consumerOptions, offsetManager) = Consumer(brokerSeeds, topicName, consumerOptions, offsetManager, [||])
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
