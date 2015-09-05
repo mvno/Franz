@@ -19,6 +19,8 @@ type TopicPartitions = Dictionary<string, (PartiontionIds * NextPartitionId)>
 
 type IProducer =
     abstract member SendMessage : string * string * RequiredAcks * int * Id array -> unit
+    abstract member SendMessage : string * string * Id array -> unit
+    abstract member SendMessage : string * string -> unit
 
 /// High level kafka producer
 type Producer(brokerSeeds, tcpTimeout) =
@@ -47,7 +49,13 @@ type Producer(brokerSeeds, tcpTimeout) =
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     /// Sends a message to the specified topic
-    member __.SendMessage(topicName, message : string, [<Optional;DefaultParameterValue(RequiredAcks.LocalLog)>]requiredAcks, [<Optional;DefaultParameterValue(500)>]brokerProcessingTimeout, partitionWhiteList : Id array) =
+    member self.SendMessage(topicName, message) =
+        self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, null)
+    /// Sends a message to the specified topic
+    member self.SendMessage(topicName, message, partitionWhiteList) =
+        self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, partitionWhiteList)
+    /// Sends a message to the specified topic
+    member __.SendMessage(topicName, message : string, requiredAcks, brokerProcessingTimeout, partitionWhiteList : Id array) =
         let rec innerSend() =
             let messageSet =
                 let value = Encoding.UTF8.GetBytes(message)
@@ -96,6 +104,10 @@ type Producer(brokerSeeds, tcpTimeout) =
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList) =
             self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList)
+        member self.SendMessage(topicName, message) =
+            self.SendMessage(topicName, message)
+        member self.SendMessage(topicName, message, partitionWhiteList) =
+            self.SendMessage(topicName, message, partitionWhiteList)
 
 /// Information about offsets
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
