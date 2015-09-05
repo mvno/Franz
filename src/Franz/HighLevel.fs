@@ -48,6 +48,7 @@ type Producer(brokerSeeds, tcpTimeout) =
         lowLevelRouter.Connect(brokerSeeds)
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+    new (brokerSeeds) = Producer(brokerSeeds, 10000)
     /// Sends a message to the specified topic
     member self.SendMessage(topicName, message) =
         self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, null)
