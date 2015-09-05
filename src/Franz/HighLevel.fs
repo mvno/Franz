@@ -58,10 +58,10 @@ type Producer(brokerSeeds, tcpTimeout) =
                     lowLevelRouter.GetBroker(topicName, 0) |> ignore
                     0
                 else
-                    let (ids, id) = result
-                    let nextId = if id = (ids |> Seq.max) then ids |> Seq.min else ids |> Seq.find (fun x -> x > id)
-                    topicPartitions.[topicName] <- (ids, nextId)
-                    id
+                    let (partitionIds, nextId) = result
+                    let nextId = if nextId = (partitionIds |> Seq.max) then partitionIds |> Seq.min else partitionIds |> Seq.find (fun x -> x > nextId)
+                    topicPartitions.[topicName] <- (partitionIds, nextId)
+                    nextId
             let partitions = { PartitionProduceRequest.Id = partitionId; MessageSet = messageSet; MessageSetSize = messageSet.MessageSetSize }
             let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
             let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
