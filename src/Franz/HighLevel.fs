@@ -279,7 +279,9 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         |> Seq.map (fun x -> x.LeaderFor)
         |> Seq.concat
         |> Seq.filter (fun x -> x.TopicName = topicName)
-        |> Seq.map (fun x -> x.PartitionIds)
+        |> Seq.map (fun x ->
+            if partitionWhitelist |> Seq.isEmpty then x.PartitionIds
+            else Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
     do
