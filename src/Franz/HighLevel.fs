@@ -72,7 +72,9 @@ type Producer(brokerSeeds, tcpTimeout) =
                         match partitionWhiteList with
                         | null | [||] -> partitionIds |> Seq.toBclList
                         | _ -> Set.intersect (Set.ofArray (partitionIds.ToArray())) (Set.ofArray partitionWhiteList) |> Seq.toBclList
-                    let nextId = if nextId = (filteredPartitionIds |> Seq.max) then filteredPartitionIds |> Seq.min else filteredPartitionIds |> Seq.find (fun x -> x > nextId)
+                    let nextId =
+                        if nextId = (filteredPartitionIds |> Seq.max) then filteredPartitionIds |> Seq.min
+                        else filteredPartitionIds |> Seq.find (fun x -> x > nextId)
                     topicPartitions.[topicName] <- (filteredPartitionIds, nextId)
                     nextId
             let partitions = { PartitionProduceRequest.Id = partitionId; MessageSet = messageSet; MessageSetSize = messageSet.MessageSetSize }
