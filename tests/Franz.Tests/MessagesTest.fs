@@ -59,7 +59,7 @@ type RequestBaseTest() =
         let expectedApiKey = requestBase.ApiKey |> int |> int16
         test
             <@
-                size = 4
+                size = 0
                 && apiKey = expectedApiKey
                 && apiVersion = requestBase.ApiVersion
                 && correlationId = requestBase.CorrelationId

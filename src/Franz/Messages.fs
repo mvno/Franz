@@ -110,7 +110,7 @@ module Messages =
 
         /// Serialize the request header.
         member self.SerializeHeader (stream : Stream) =
-            stream |> BigEndianWriter.WriteInt32 4 // Allocate space for size
+            stream |> BigEndianWriter.WriteInt32 0 // Allocate space for size
             stream |> BigEndianWriter.WriteInt16 (self.ApiKey |> int |> int16)
             stream |> BigEndianWriter.WriteInt16 self.ApiVersion
             stream |> BigEndianWriter.WriteInt32 self.CorrelationId
