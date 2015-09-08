@@ -33,9 +33,9 @@ type InternalTests() =
         test <@ newPosition = 0 @>
 
     [<Fact>]
-    member __.``roundRobin returns second element when last position is 1`` () =
+    member __.``roundRobin returns second element when last position is 0`` () =
         let list = [1; 2]
-        let lastPostion = 1
+        let lastPostion = 0
         
         test
             <@
@@ -45,8 +45,8 @@ type InternalTests() =
 
     [<Fact>]
     member __.``roundRobin returns next position as last position plus one`` () =
-        let list = [1; 2]
-        let lastPostion = 2
+        let list = [1; 2; 3]
+        let lastPostion = 1
         
         test
             <@
