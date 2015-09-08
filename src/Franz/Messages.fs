@@ -221,7 +221,7 @@ module Messages =
     /// TopicMetadata
     [<NoEquality;NoComparison>] type TopicMetadata = { ErrorCode : ErrorCode; Name : string; PartitionMetadata : PartitionMetadata array; }
     /// PartitionProduceRequest
-    [<NoEquality;NoComparison>] type PartitionProduceRequest = { Id : int32; MessageSetSize : MessageSize; MessageSet : MessageSet; }
+    [<NoEquality;NoComparison>] type PartitionProduceRequest = { Id : int32; TotalMessageSetsSize : MessageSize; MessageSets : MessageSet array; }
     /// PartitionProduceResponse
     [<NoEquality;NoComparison>] type PartitionProduceResponse = { Id : int32; ErrorCode : ErrorCode; Offset : Offset }
     /// TopicProduceRequest
@@ -530,9 +530,10 @@ module Messages =
                 stream |> BigEndianWriter.WriteString topic.Name
                 stream |> BigEndianWriter.WriteInt32 topic.Partitions.Length
                 for partition in topic.Partitions do
+                    let totalMessageSetsSize = partition.MessageSets |> Seq.sumBy (fun x -> x.MessageSetSize)
                     stream |> BigEndianWriter.WriteInt32 partition.Id
-                    stream |> BigEndianWriter.WriteInt32 partition.MessageSetSize
-                    stream |> partition.MessageSet.Serialize
+                    stream |> BigEndianWriter.WriteInt32 totalMessageSetsSize
+                    partition.MessageSets |> Seq.iter (fun x -> stream |> x.Serialize)
         /// Deserialize the response
         override __.DeserializeResponse(stream) =
             ProduceResponse.Deserialize(stream)
