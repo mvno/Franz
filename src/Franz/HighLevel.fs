@@ -24,6 +24,8 @@ type IProducer =
     abstract member SendMessages : string * string array * RequiredAcks * int * Id array -> unit
     abstract member SendMessages : string * string array * Id array -> unit
     abstract member SendMessages : string * string array -> unit
+    abstract member SendMessages : string * string array * RequiredAcks * int -> unit
+    abstract member SendMessage : string * string * RequiredAcks * int -> unit
 
 /// High level kafka producer
 type Producer(brokerSeeds, tcpTimeout) =
@@ -118,6 +120,10 @@ type Producer(brokerSeeds, tcpTimeout) =
             self.SendMessages(topicName, messages, partitionWhiteList)
         member self.SendMessages(topicName, messages) = 
             self.SendMessages(topicName, messages)
+        member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout, [||])
+        member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout, [||])
 
 /// Information about offsets
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
