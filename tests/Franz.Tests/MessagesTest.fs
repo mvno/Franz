@@ -46,7 +46,9 @@ type RequestBaseTest() =
     [<Fact>]
     member __.``header is serialize correctly but without actual size`` () =
         let stream = new MemoryStream()
+        
         requestBase.SerializeHeader(stream)
+        
         stream.Position <- int64 0
         let buffer = Array.zeroCreate(stream.Length |> int)
         stream.Read(buffer, 0, stream.Length |> int) |> ignore
@@ -73,7 +75,9 @@ type RequestBaseTest() =
         let intSize = 4
         let expectedSize = streamSize - intSize
         let stream = new MemoryStream(Array.zeroCreate(streamSize))
+        
         requestBase.WriteSize(stream) |> ignore
+        
         stream.Position <- int64 0
         let buffer = Array.zeroCreate(4)
         stream.Read(buffer, 0, intSize) |> ignore
@@ -84,7 +88,9 @@ type RequestBaseTest() =
     member __.``serialize serializes the header and message correctly including the size`` () =
         let intSize = 4
         let stream = new MemoryStream()
+        
         requestBase.Serialize(stream)
+        
         stream.Position <- int64 0
         let buffer = Array.zeroCreate(stream.Length |> int)
         stream.Read(buffer, 0, stream.Length |> int) |> ignore
@@ -112,13 +118,17 @@ type MessageSetTest() =
     [<Fact>]
     member __.``creating a message set sets the offset correctly`` () =
         let offset = int64 100
+        
         let messageSet = MessageSet.Create(offset, int8 0, [||], [||])
+        
         test <@ messageSet.Offset = offset @>
 
     [<Fact>]
     member __.``creating a message set sets the size correctly`` () =
         let expectedMessageSize = 14
+
         let messageSet = MessageSet.Create(int64 0, int8 0, [||], [||])
+        
         test <@ messageSet.MessageSize = expectedMessageSize @>
 
     [<Fact>]
@@ -126,7 +136,9 @@ type MessageSetTest() =
         let attributes = int8 1
         let key = Encoding.UTF8.GetBytes("Key")
         let value = Encoding.UTF8.GetBytes("Value")
+        
         let messageSet = MessageSet.Create(int64 0, attributes, key, value)
+        
         let message = messageSet.Message
         let expectedMagicByte = int8 0
         test
@@ -148,7 +160,9 @@ type MessageSetTest() =
         let value = Encoding.UTF8.GetBytes("Value")
         let crc = 0
         let messageSet = new MessageSet(offset, messageSize, { Crc = crc; MagicByte = magicByte; Attributes = attributes; Key = key; Value = value })
+        
         messageSet.Serialize(stream)
+        
         stream.Position <- int64 0
         let buffer = Array.zeroCreate(stream.Length |> int32)
         stream.Read(buffer, 0, stream.Length |> int32) |> ignore
