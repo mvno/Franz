@@ -18,7 +18,9 @@ type NextPartitionId = Id
 type TopicPartitions = Dictionary<string, (PartiontionIds * NextPartitionId)>
 
 type IProducer =
-    abstract member SendMessage : string * string * RequiredAcks * int -> unit
+    abstract member SendMessage : string * string * RequiredAcks * int * Id array -> unit
+    abstract member SendMessage : string * string * Id array -> unit
+    abstract member SendMessage : string * string -> unit
 
 /// High level kafka producer
 type Producer(brokerSeeds, tcpTimeout) =
@@ -46,8 +48,15 @@ type Producer(brokerSeeds, tcpTimeout) =
         lowLevelRouter.Connect(brokerSeeds)
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+    new (brokerSeeds) = Producer(brokerSeeds, 10000)
     /// Sends a message to the specified topic
-    member __.SendMessage(topicName, message : string, [<Optional;DefaultParameterValue(RequiredAcks.LocalLog)>]requiredAcks, [<Optional;DefaultParameterValue(500)>]brokerProcessingTimeout) =
+    member self.SendMessage(topicName, message) =
+        self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, null)
+    /// Sends a message to the specified topic
+    member self.SendMessage(topicName, message, partitionWhiteList) =
+        self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, partitionWhiteList)
+    /// Sends a message to the specified topic
+    member __.SendMessage(topicName, message : string, requiredAcks, brokerProcessingTimeout, partitionWhiteList : Id array) =
         let rec innerSend() =
             let messageSet =
                 let value = Encoding.UTF8.GetBytes(message)
@@ -58,10 +67,16 @@ type Producer(brokerSeeds, tcpTimeout) =
                     lowLevelRouter.GetBroker(topicName, 0) |> ignore
                     0
                 else
-                    let (ids, id) = result
-                    let nextId = if id = (ids |> Seq.max) then ids |> Seq.min else ids |> Seq.find (fun x -> x > id)
-                    topicPartitions.[topicName] <- (ids, nextId)
-                    id
+                    let (partitionIds, nextId) = result
+                    let filteredPartitionIds =
+                        match partitionWhiteList with
+                        | null | [||] -> partitionIds |> Seq.toBclList
+                        | _ -> Set.intersect (Set.ofArray (partitionIds.ToArray())) (Set.ofArray partitionWhiteList) |> Seq.toBclList
+                    let nextId =
+                        if nextId = (filteredPartitionIds |> Seq.max) then filteredPartitionIds |> Seq.min
+                        else filteredPartitionIds |> Seq.find (fun x -> x > nextId)
+                    topicPartitions.[topicName] <- (filteredPartitionIds, nextId)
+                    nextId
             let partitions = { PartitionProduceRequest.Id = partitionId; MessageSet = messageSet; MessageSetSize = messageSet.MessageSetSize }
             let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
             let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
@@ -90,8 +105,12 @@ type Producer(brokerSeeds, tcpTimeout) =
     member __.GetAllBrokers() =
         lowLevelRouter.GetAllBrokers()
     interface IProducer with
-        member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
-            self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout)
+        member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList) =
+            self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList)
+        member self.SendMessage(topicName, message) =
+            self.SendMessage(topicName, message)
+        member self.SendMessage(topicName, message, partitionWhiteList) =
+            self.SendMessage(topicName, message, partitionWhiteList)
 
 /// Information about offsets
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
@@ -271,7 +290,7 @@ type ConsumerOptions() =
     member val MaxBytes = 1024 * 5 with get, set
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager) =
+type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager, partitionWhitelist : Id array) =
     let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
@@ -279,7 +298,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         |> Seq.map (fun x -> x.LeaderFor)
         |> Seq.concat
         |> Seq.filter (fun x -> x.TopicName = topicName)
-        |> Seq.map (fun x -> x.PartitionIds)
+        |> Seq.map (fun x ->
+            match partitionWhitelist with
+            | null | [||] -> x.PartitionIds
+            | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
     do
@@ -287,6 +309,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         lowLevelRouter.Connect(brokerSeeds)
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+    new (brokerSeeds, topicName, consumerOptions, offsetManager) = Consumer(brokerSeeds, topicName, consumerOptions, offsetManager, [||])
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
