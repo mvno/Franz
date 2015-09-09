@@ -66,7 +66,7 @@ type BrokerRouterMessage =
     /// Add a broker to the list of available brokers
     | AddBroker of Broker
     /// Refresh metadata
-    | RefreshMetadata of AsyncReplyChannel<unit>
+    | RefreshMetadata of AsyncReplyChannel<BrokerRouterReturnMessage<unit>>
     /// Get a broker by topic and partition id
     | GetBroker of string * Id * AsyncReplyChannel<BrokerRouterReturnMessage<Broker>>
     /// Get all available brokers
@@ -86,9 +86,14 @@ type BrokerRouter(tcpTimeout) as self =
                 let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
                 do! loop (broker :: existingBrokers) lastRoundRobinIndex
             | RefreshMetadata reply ->
-                let (index, updatedBrokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex)
-                reply.Reply()
-                do! loop updatedBrokers index
+                try
+                    let (index, updatedBrokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex)
+                    reply.Reply(Ok())
+                    do! loop updatedBrokers index
+                with
+                | e ->
+                    reply.Reply(Failure e)
+                    do! loop brokers lastRoundRobinIndex
             | GetBroker (topic, partitionId, reply) ->
                 match self.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) with
                 | Ok (broker, index) ->
@@ -213,7 +218,9 @@ type BrokerRouter(tcpTimeout) as self =
         router.Post(AddBroker(broker))
     /// Refresh cluster metadata
     member __.RefreshMetadata() =
-        router.PostAndReply(fun reply -> RefreshMetadata(reply))
+        match router.PostAndReply(fun reply -> RefreshMetadata(reply)) with
+        | Ok _ -> ()
+        | Failure e -> raise e
     /// Get all available brokers
     member __.GetAllBrokers() =
         router.PostAndReply(fun reply -> GetAllBrokers(reply))
