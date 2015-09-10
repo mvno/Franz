@@ -32,9 +32,18 @@
       <div class="row">
         <div class="span9" id="main">
           
-<h4><a name="0-0-4" class="anchor" href="#0-0-4">0.0.4</a></h4>
+<h3><a name="1-0-0" class="anchor" href="#1-0-0">1.0.0</a></h3>
 
 <ul>
+<li>Fixed bug where high level consumer did not handle OffsetOutOfRange error, causing consuming to stop</li>
+<li>Added consumer options to control consumer behaviour, like TcpTimeout, MaxBytes, MinBytes and WaitTime</li>
+<li>Fixed bug where producer wouldn't send messages to topics being autocreate on use</li>
+<li>Handle situation where all brokers are unavailable. This fix throws an exception when this happens, but performing the action again when brokers are available again will work.</li>
+<li>Add support for batching multiple messages in a single produce request</li>
+<li>Support consuming from a subset of partitions</li>
+<li>Support producing to a subset of partitions</li>
+<li>Add overloads to better make it easier to call methods and constructors with many arguments
+### 0.0.4</li>
 <li>Initial release</li>
 </ul>
 
@@ -51,8 +60,8 @@
             <li><a href="/Franz/license.html">License</a></li>
             <li><a href="/Franz/release-notes.html">Release Notes</a></li>
             
-            <li class="nav-header">Getting started</li>
-            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>
+            <!--<li class="nav-header">Getting started</li>
+            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>-->
 
             <li class="nav-header">Documentation</li>
             <li><a href="/Franz/reference/index.html">API Reference</a></li>

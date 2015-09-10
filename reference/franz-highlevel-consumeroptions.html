@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
-    <title>Request<'TResponse> - Franz</title>
+    <title>ConsumerOptions - Franz</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta name="description" content=""/>
     <meta name="author" content="mvno"/>
@@ -35,13 +35,12 @@
 
 
 
-<h1>Request<'TResponse></h1>
+<h1>ConsumerOptions</h1>
 <p>
-  <span>Namespace: Franz</span><br />
-  <span>Parent Module: <a href="franz-messages.html">Messages</a></span>
+  <span>Namespace: Franz.HighLevel</span><br />
 </p>
 <div class="xmldoc">
-<p>Request base class</p>
+<p>Consumer options</p>
 
 
 </div>
@@ -54,15 +53,15 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '159', 159)" onmouseover="showTip(event, '159', 159)">
+          <code onmouseout="hideTip(event, '213', 213)" onmouseover="showTip(event, '213', 213)">
             new()
           </code>
-          <div class="tip" id="159">
-            <strong>Signature:</strong> unit -&gt; Request&lt;&#39;TResponse&gt;<br />
+          <div class="tip" id="213">
+            <strong>Signature:</strong> unit -&gt; ConsumerOptions<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L93-93" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L291-291" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -80,20 +79,19 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '160', 160)" onmouseover="showTip(event, '160', 160)">
-            ApiKey
+          <code onmouseout="hideTip(event, '214', 214)" onmouseover="showTip(event, '214', 214)">
+            MaxBytes()
           </code>
-          <div class="tip" id="160">
-            <strong>Signature:</strong> ApiKey<br />
-              <strong>Modifiers:</strong> abstract<br />
+          <div class="tip" id="214">
+            <strong>Signature:</strong> unit -&gt; int<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L95-95" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L303-303" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>The API key.</p>
+          <p>The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.</p>
 
 
 
@@ -102,84 +100,19 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '161', 161)" onmouseover="showTip(event, '161', 161)">
-            ApiVersion
+          <code onmouseout="hideTip(event, '215', 215)" onmouseover="showTip(event, '215', 215)">
+            MaxBytes()
           </code>
-          <div class="tip" id="161">
-            <strong>Signature:</strong> ApiVersion<br />
-              <strong>Modifiers:</strong> abstract<br />
-                      </div>
-        </td>
-        <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L97-97" class="github-link">
-              <img src="../content/img/github.png" class="normal" />
-              <img src="../content/img/github-blue.png" class="hover" />
-            </a>
-          <p>The API version.</p>
-
-
-
-        </td>
-      </tr>
-      <tr>
-        <td class="member-name">
-
-          <code onmouseout="hideTip(event, '162', 162)" onmouseover="showTip(event, '162', 162)">
-            ClientId
-          </code>
-          <div class="tip" id="162">
-            <strong>Signature:</strong> ClientId<br />
-              <strong>Modifiers:</strong> abstract<br />
-                      </div>
-        </td>
-        <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L99-99" class="github-link">
-              <img src="../content/img/github.png" class="normal" />
-              <img src="../content/img/github-blue.png" class="hover" />
-            </a>
-          <p>The client id.</p>
-
-
-
-        </td>
-      </tr>
-      <tr>
-        <td class="member-name">
-
-          <code onmouseout="hideTip(event, '163', 163)" onmouseover="showTip(event, '163', 163)">
-            CorrelationId()
-          </code>
-          <div class="tip" id="163">
-            <strong>Signature:</strong> unit -&gt; CorrelationId<br />
-                      </div>
-        </td>
-        <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L109-109" class="github-link">
-              <img src="../content/img/github.png" class="normal" />
-              <img src="../content/img/github-blue.png" class="hover" />
-            </a>
-          <p>The correlation id.</p>
-
-
-
-        </td>
-      </tr>
-      <tr>
-        <td class="member-name">
-
-          <code onmouseout="hideTip(event, '164', 164)" onmouseover="showTip(event, '164', 164)">
-            CorrelationId()
-          </code>
-          <div class="tip" id="164">
+          <div class="tip" id="215">
             <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L109-109" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L303-303" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>The correlation id.</p>
+          <p>The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.</p>
 
 
 
@@ -188,20 +121,19 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '165', 165)" onmouseover="showTip(event, '165', 165)">
-            DeserializeResponse(arg1)
+          <code onmouseout="hideTip(event, '216', 216)" onmouseover="showTip(event, '216', 216)">
+            MaxWaitTime()
           </code>
-          <div class="tip" id="165">
-            <strong>Signature:</strong> Stream -&gt; &#39;TResponse<br />
-              <strong>Modifiers:</strong> abstract<br />
+          <div class="tip" id="216">
+            <strong>Signature:</strong> unit -&gt; int<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L103-103" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L295-295" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>Deserialize the response.</p>
+          <p>The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.</p>
 
 
 
@@ -210,19 +142,19 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '166', 166)" onmouseover="showTip(event, '166', 166)">
-            Serialize(stream)
+          <code onmouseout="hideTip(event, '217', 217)" onmouseover="showTip(event, '217', 217)">
+            MaxWaitTime()
           </code>
-          <div class="tip" id="166">
-            <strong>Signature:</strong> stream:Stream -&gt; unit<br />
+          <div class="tip" id="217">
+            <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L130-130" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L295-295" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>Serialize the request.</p>
+          <p>The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.</p>
 
 
 
@@ -231,19 +163,22 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '167', 167)" onmouseover="showTip(event, '167', 167)">
-            SerializeHeader(stream)
+          <code onmouseout="hideTip(event, '218', 218)" onmouseover="showTip(event, '218', 218)">
+            MinBytes()
           </code>
-          <div class="tip" id="167">
-            <strong>Signature:</strong> stream:Stream -&gt; unit<br />
+          <div class="tip" id="218">
+            <strong>Signature:</strong> unit -&gt; int<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L112-112" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L301-301" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>Serialize the request header.</p>
+          <p>This is the minimum number of bytes of messages that must be available to give a response. If the client sets this to 0 the server will always respond immediately,
+however if there is no new data since their last request they will just get back empty message sets. If this is set to 1, the server will respond as soon as at least one partition has
+reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
+Default value is 1024.</p>
 
 
 
@@ -252,20 +187,22 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '168', 168)" onmouseover="showTip(event, '168', 168)">
-            SerializeMessage(arg1)
+          <code onmouseout="hideTip(event, '219', 219)" onmouseover="showTip(event, '219', 219)">
+            MinBytes()
           </code>
-          <div class="tip" id="168">
-            <strong>Signature:</strong> Stream -&gt; unit<br />
-              <strong>Modifiers:</strong> abstract<br />
+          <div class="tip" id="219">
+            <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L101-101" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L301-301" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>Serializes the request.</p>
+          <p>This is the minimum number of bytes of messages that must be available to give a response. If the client sets this to 0 the server will always respond immediately,
+however if there is no new data since their last request they will just get back empty message sets. If this is set to 1, the server will respond as soon as at least one partition has
+reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
+Default value is 1024.</p>
 
 
 
@@ -274,19 +211,40 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '169', 169)" onmouseover="showTip(event, '169', 169)">
-            WriteSize(stream)
+          <code onmouseout="hideTip(event, '220', 220)" onmouseover="showTip(event, '220', 220)">
+            TcpTimeout()
           </code>
-          <div class="tip" id="169">
-            <strong>Signature:</strong> stream:Stream -&gt; byte []<br />
+          <div class="tip" id="220">
+            <strong>Signature:</strong> unit -&gt; int<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L120-120" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L293-293" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>Write the message size.</p>
+          <p>The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.</p>
+
+
+
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '221', 221)" onmouseover="showTip(event, '221', 221)">
+            TcpTimeout()
+          </code>
+          <div class="tip" id="221">
+            <strong>Signature:</strong> unit -&gt; unit<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L293-293" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.</p>
 
 
 

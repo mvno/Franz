@@ -53,15 +53,33 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '226', 226)" onmouseover="showTip(event, '226', 226)">
+          <code onmouseout="hideTip(event, '242', 242)" onmouseover="showTip(event, '242', 242)">
             new(brokerSeeds)
           </code>
-          <div class="tip" id="226">
+          <div class="tip" id="242">
             <strong>Signature:</strong> brokerSeeds:seq&lt;EndPoint&gt; -&gt; Producer<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L24-24" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L56-56" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '243', 243)" onmouseover="showTip(event, '243', 243)">
+            new(brokerSeeds, tcpTimeout)
+          </code>
+          <div class="tip" id="243">
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * tcpTimeout:int) -&gt; Producer<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L31-31" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -79,15 +97,15 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '227', 227)" onmouseover="showTip(event, '227', 227)">
+          <code onmouseout="hideTip(event, '244', 244)" onmouseover="showTip(event, '244', 244)">
             GetAllBrokers()
           </code>
-          <div class="tip" id="227">
+          <div class="tip" id="244">
             <strong>Signature:</strong> unit -&gt; Broker list<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L85-85" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L108-108" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -100,15 +118,57 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '228', 228)" onmouseover="showTip(event, '228', 228)">
-            SendMessage(...)
+          <code onmouseout="hideTip(event, '245', 245)" onmouseover="showTip(event, '245', 245)">
+            SendMessages(...)
           </code>
-          <div class="tip" id="228">
-            <strong>Signature:</strong> (topicName:string * message:string * requiredAcks:RequiredAcks * brokerProcessingTimeout:int32) -&gt; unit<br />
+          <div class="tip" id="245">
+            <strong>Signature:</strong> (topicName:string * messages:string array * requiredAcks:RequiredAcks * brokerProcessingTimeout:int * partitionWhiteList:Id array) -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L50-50" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L64-64" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Sends a message to the specified topic</p>
+
+
+
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '246', 246)" onmouseover="showTip(event, '246', 246)">
+            SendMessages(...)
+          </code>
+          <div class="tip" id="246">
+            <strong>Signature:</strong> (topicName:string * message:string array * partitionWhiteList:Id array) -&gt; unit<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L61-61" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Sends a message to the specified topic</p>
+
+
+
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '247', 247)" onmouseover="showTip(event, '247', 247)">
+            SendMessages(topicName, message)
+          </code>
+          <div class="tip" id="247">
+            <strong>Signature:</strong> (topicName:string * message:string array) -&gt; unit<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L58-58" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -133,8 +193,8 @@
             <li><a href="/Franz/license.html">License</a></li>
             <li><a href="/Franz/release-notes.html">Release Notes</a></li>
             
-            <li class="nav-header">Getting started</li>
-            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>
+            <!--<li class="nav-header">Getting started</li>
+            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>-->
 
             <li class="nav-header">Documentation</li>
             <li><a href="/Franz/reference/index.html">API Reference</a></li>

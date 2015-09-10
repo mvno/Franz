@@ -53,15 +53,33 @@
       <tr>
         <td class="member-name">
 
+          <code onmouseout="hideTip(event, '205', 205)" onmouseover="showTip(event, '205', 205)">
+            new(...)
+          </code>
+          <div class="tip" id="205">
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * consumerOptions:ConsumerOptions * offsetManager:IConsumerOffsetManager) -&gt; Consumer<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L325-325" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
           <code onmouseout="hideTip(event, '206', 206)" onmouseover="showTip(event, '206', 206)">
             new(...)
           </code>
           <div class="tip" id="206">
-            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * offsetManager:IConsumerOffsetManager) -&gt; Consumer<br />
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * consumerOptions:ConsumerOptions * offsetManager:IConsumerOffsetManager * partitionWhitelist:Id array) -&gt; Consumer<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L254-254" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L306-306" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -87,7 +105,7 @@
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L273-273" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L329-329" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -108,7 +126,7 @@
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L313-313" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L386-386" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -129,7 +147,7 @@
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L271-271" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L327-327" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -150,7 +168,7 @@
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L316-316" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L389-389" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -175,8 +193,8 @@
             <li><a href="/Franz/license.html">License</a></li>
             <li><a href="/Franz/release-notes.html">Release Notes</a></li>
             
-            <li class="nav-header">Getting started</li>
-            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>
+            <!--<li class="nav-header">Getting started</li>
+            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>-->
 
             <li class="nav-header">Documentation</li>
             <li><a href="/Franz/reference/index.html">API Reference</a></li>

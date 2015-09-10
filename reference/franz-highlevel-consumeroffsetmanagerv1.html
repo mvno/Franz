@@ -54,14 +54,14 @@
         <td class="member-name">
 
           <code onmouseout="hideTip(event, '212', 212)" onmouseover="showTip(event, '212', 212)">
-            new(brokerSeeds, topicName)
+            new(brokerSeeds, topicName, tcpTimeout)
           </code>
           <div class="tip" id="212">
-            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string) -&gt; ConsumerOffsetManagerV1<br />
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * tcpTimeout:int) -&gt; ConsumerOffsetManagerV1<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L159-159" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L196-196" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -83,8 +83,8 @@
             <li><a href="/Franz/license.html">License</a></li>
             <li><a href="/Franz/release-notes.html">Release Notes</a></li>
             
-            <li class="nav-header">Getting started</li>
-            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>
+            <!--<li class="nav-header">Getting started</li>
+            <li><a href="/Franz/tutorial.html">Sample tutorial</a></li>-->
 
             <li class="nav-header">Documentation</li>
             <li><a href="/Franz/reference/index.html">API Reference</a></li>
