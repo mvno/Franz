@@ -21,6 +21,11 @@ type IProducer =
     abstract member SendMessage : string * string * RequiredAcks * int * Id array -> unit
     abstract member SendMessage : string * string * Id array -> unit
     abstract member SendMessage : string * string -> unit
+    abstract member SendMessages : string * string array * RequiredAcks * int * Id array -> unit
+    abstract member SendMessages : string * string array * Id array -> unit
+    abstract member SendMessages : string * string array -> unit
+    abstract member SendMessages : string * string array * RequiredAcks * int -> unit
+    abstract member SendMessage : string * string * RequiredAcks * int -> unit
 
 /// High level kafka producer
 type Producer(brokerSeeds, tcpTimeout) =
@@ -50,17 +55,15 @@ type Producer(brokerSeeds, tcpTimeout) =
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds) = Producer(brokerSeeds, 10000)
     /// Sends a message to the specified topic
-    member self.SendMessage(topicName, message) =
-        self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, null)
+    member self.SendMessages(topicName, message) =
+        self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500, null)
     /// Sends a message to the specified topic
-    member self.SendMessage(topicName, message, partitionWhiteList) =
-        self.SendMessage(topicName, message, RequiredAcks.LocalLog, 500, partitionWhiteList)
+    member self.SendMessages(topicName, message, partitionWhiteList) =
+        self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500, partitionWhiteList)
     /// Sends a message to the specified topic
-    member __.SendMessage(topicName, message : string, requiredAcks, brokerProcessingTimeout, partitionWhiteList : Id array) =
+    member __.SendMessages(topicName, messages : string array, requiredAcks, brokerProcessingTimeout, partitionWhiteList : Id array) =
         let rec innerSend() =
-            let messageSet =
-                let value = Encoding.UTF8.GetBytes(message)
-                MessageSet.Create(int64 -1, int8 0, null, value)
+            let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
             let partitionId =
                 let success, result = topicPartitions.TryGetValue(topicName)
                 if (not success) then
@@ -77,7 +80,7 @@ type Producer(brokerSeeds, tcpTimeout) =
                         else filteredPartitionIds |> Seq.find (fun x -> x > nextId)
                     topicPartitions.[topicName] <- (filteredPartitionIds, nextId)
                     nextId
-            let partitions = { PartitionProduceRequest.Id = partitionId; MessageSet = messageSet; MessageSetSize = messageSet.MessageSetSize }
+            let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
             let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
             let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
             let broker = lowLevelRouter.GetBroker(topicName, partitionId)
@@ -106,11 +109,21 @@ type Producer(brokerSeeds, tcpTimeout) =
         lowLevelRouter.GetAllBrokers()
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList) =
-            self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList)
+            self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout, partitionWhiteList)
         member self.SendMessage(topicName, message) =
-            self.SendMessage(topicName, message)
+            self.SendMessages(topicName, [| message |])
         member self.SendMessage(topicName, message, partitionWhiteList) =
-            self.SendMessage(topicName, message, partitionWhiteList)
+            self.SendMessages(topicName, [| message |], partitionWhiteList)
+        member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout, partitionWhiteList) =
+            self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout, partitionWhiteList)
+        member self.SendMessages(topicName, messages, partitionWhiteList) = 
+            self.SendMessages(topicName, messages, partitionWhiteList)
+        member self.SendMessages(topicName, messages) = 
+            self.SendMessages(topicName, messages)
+        member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout, [||])
+        member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout, [||])
 
 /// Information about offsets
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
