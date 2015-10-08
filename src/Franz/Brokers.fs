@@ -131,7 +131,9 @@ type BrokerRouter(tcpTimeout) as self =
                     |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
                     |> Seq.toList
             brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId )
-            [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
+            if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
+                brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
+            else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
         let rec connect seeds =
             match seeds with
             | head :: tail ->

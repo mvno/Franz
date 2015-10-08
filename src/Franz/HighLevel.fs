@@ -323,6 +323,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds, topicName, consumerOptions, offsetManager) = Consumer(brokerSeeds, topicName, consumerOptions, offsetManager, [||])
+    new (brokerSeeds, topicName, offsetManager) = Consumer(brokerSeeds, topicName, new ConsumerOptions(), offsetManager, [||])
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
