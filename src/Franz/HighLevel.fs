@@ -341,9 +341,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
                 |> Seq.map (fun x -> x.Offsets)
                 |> Seq.concat
                 |> Seq.min
-            if currentOffset < earliestOffset then partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-            else
-                invalidOp "Could not fix offset out of range error"
+            partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
         let rec innerConsumer partitionId =
             async {
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
