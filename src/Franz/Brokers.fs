@@ -50,10 +50,17 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             try
                 send()
             with
-            | _ ->
-                dprintfn "Got exception while sending request... Trying again..."
+            | e ->
+                dprintfn "Got exception while sending request: %s" e.Message
+                dprintfn "Reconnecting..."
                 self.Connect()
-                send())
+                try
+                    send()
+                with
+                | _ ->
+                    client <- null
+                    reraise()
+            )
 
 /// Indicates ok or failure message
 type BrokerRouterReturnMessage<'T> =
