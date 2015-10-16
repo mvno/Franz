@@ -44,6 +44,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     member self.Send(request : Request<'TResponse>) =
         lock _sendLock (fun () -> 
             let send () =
+                if client |> isNull then self.Connect()
                 let stream = self.Client.GetStream()
                 stream |> request.Serialize
                 request.DeserializeResponse(stream)
