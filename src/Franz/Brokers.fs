@@ -3,6 +3,8 @@
 open System
 open Franz.Internal
 open System.Net.Sockets
+open System.IO
+open Franz.Stream
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
@@ -42,12 +44,15 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
         client.Connect(endPoint.Address, endPoint.Port)
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
-        lock _sendLock (fun () -> 
+        let rawResponseStream = lock _sendLock (fun () -> 
             let send () =
                 if client |> isNull then self.Connect()
                 let stream = self.Client.GetStream()
                 stream |> request.Serialize
-                request.DeserializeResponse(stream)
+                let messageSize = stream |> BigEndianReader.ReadInt32
+                dprintfn "Received message of size %i" messageSize
+                let buffer = stream |> BigEndianReader.Read messageSize
+                new MemoryStream(buffer)
             try
                 send()
             with
@@ -62,6 +67,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
                     client <- null
                     reraise()
             )
+        request.DeserializeResponse(rawResponseStream)
 
 /// Indicates ok or failure message
 type BrokerRouterReturnMessage<'T> =

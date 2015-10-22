@@ -269,47 +269,44 @@ module Messages =
         {CorrelationId : CorrelationId; Brokers : Broker array; TopicMetadata : TopicMetadata array; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let memoryStream = new MemoryStream(stream |> BigEndianReader.Read messageSize)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             let rec readBrokers list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let broker = { NodeId = memoryStream |> BigEndianReader.ReadInt32; Host = memoryStream |> BigEndianReader.ReadString; Port = memoryStream |> BigEndianReader.ReadInt32 }
+                    let broker = { NodeId = stream |> BigEndianReader.ReadInt32; Host = stream |> BigEndianReader.ReadString; Port = stream |> BigEndianReader.ReadInt32 }
                     readBrokers (broker :: list) (count - 1)
-            let numberOfBrokers = memoryStream |> BigEndianReader.ReadInt32
+            let numberOfBrokers = stream |> BigEndianReader.ReadInt32
             let brokers = readBrokers [] numberOfBrokers
             let rec readIds list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let id = memoryStream |> BigEndianReader.ReadInt32
+                    let id = stream |> BigEndianReader.ReadInt32
                     readIds (id :: list) (count - 1)
             let rec readPartitionMetadata list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let errorCode = memoryStream |> BigEndianReader.ReadInt16
-                    let partitionId = memoryStream |> BigEndianReader.ReadInt32
-                    let leader = memoryStream |> BigEndianReader.ReadInt32
-                    let replicaCount = memoryStream |> BigEndianReader.ReadInt32
+                    let errorCode = stream |> BigEndianReader.ReadInt16
+                    let partitionId = stream |> BigEndianReader.ReadInt32
+                    let leader = stream |> BigEndianReader.ReadInt32
+                    let replicaCount = stream |> BigEndianReader.ReadInt32
                     let replicas = readIds [] replicaCount
-                    let isrs = readIds [] (memoryStream |> BigEndianReader.ReadInt32)
+                    let isrs = readIds [] (stream |> BigEndianReader.ReadInt32)
                     let metadata = { ErrorCode = enum<ErrorCode>(int32 errorCode); PartitionId = partitionId; Leader = leader; Replicas = replicas |> List.toArray; Isr = isrs |> List.toArray }
                     readPartitionMetadata (metadata :: list) (count - 1)
             let rec readTopicMetadata list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let errorCode = memoryStream |> BigEndianReader.ReadInt16
-                    let topicName = memoryStream |> BigEndianReader.ReadString
-                    let numberOfPartitionMetadata = memoryStream |> BigEndianReader.ReadInt32
+                    let errorCode = stream |> BigEndianReader.ReadInt16
+                    let topicName = stream |> BigEndianReader.ReadString
+                    let numberOfPartitionMetadata = stream |> BigEndianReader.ReadInt32
                     let partitionMetadata = readPartitionMetadata [] numberOfPartitionMetadata
                     let metadata = { ErrorCode = enum<ErrorCode>(int32 errorCode); Name = topicName; PartitionMetadata = partitionMetadata |> List.toArray; }
                     readTopicMetadata (metadata :: list) (count - 1)
-            let numberOfMetadata = memoryStream |> BigEndianReader.ReadInt32
+            let numberOfMetadata = stream |> BigEndianReader.ReadInt32
             let topicMetadata = readTopicMetadata [] numberOfMetadata
             { CorrelationId = correlationId; Brokers = brokers |> List.toArray; TopicMetadata = topicMetadata |> List.toArray }
 
@@ -319,24 +316,20 @@ module Messages =
         { CorrelationId : CorrelationId; Topics : TopicProduceResponse array; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let buffer = stream |> BigEndianReader.Read messageSize
-            let memoryStream = new MemoryStream(buffer)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             let rec readPartition list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let partition = { PartitionProduceResponse.Id = memoryStream |> BigEndianReader.ReadInt32; ErrorCode = memoryStream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>; Offset = memoryStream |> BigEndianReader.ReadInt64; }
+                    let partition = { PartitionProduceResponse.Id = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>; Offset = stream |> BigEndianReader.ReadInt64; }
                     readPartition (partition :: list) (count - 1)
             let rec readTopic list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let topic = { TopicProduceResponse.Name = memoryStream |> BigEndianReader.ReadString; Partitions = readPartition [] (memoryStream |> BigEndianReader.ReadInt32) |> List.toArray; }
+                    let topic = { TopicProduceResponse.Name = stream |> BigEndianReader.ReadString; Partitions = readPartition [] (stream |> BigEndianReader.ReadInt32) |> List.toArray; }
                     readTopic (topic :: list) (count - 1)
-            let numberOfTopics = (memoryStream |> BigEndianReader.ReadInt32)
+            let numberOfTopics = (stream |> BigEndianReader.ReadInt32)
             { ProduceResponse.CorrelationId = correlationId; Topics = readTopic [] numberOfTopics |> List.toArray }
 
     /// Fetch response
@@ -345,28 +338,25 @@ module Messages =
         { CorrelationId : CorrelationId; Topics : FetchTopicResponse array; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let memoryStream = new MemoryStream(stream |> BigEndianReader.Read messageSize)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             let rec readPartition list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let id = memoryStream |> BigEndianReader.ReadInt32
-                    let errorCode = memoryStream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>
-                    let highwaterMarkOffset = memoryStream |> BigEndianReader.ReadInt64
-                    let messageSetSize = memoryStream |> BigEndianReader.ReadInt32
-                    let messageSets = memoryStream |> BigEndianReader.Read messageSetSize |> MessageSet.Deserialize |> Array.rev
+                    let id = stream |> BigEndianReader.ReadInt32
+                    let errorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>
+                    let highwaterMarkOffset = stream |> BigEndianReader.ReadInt64
+                    let messageSetSize = stream |> BigEndianReader.ReadInt32
+                    let messageSets = stream |> BigEndianReader.Read messageSetSize |> MessageSet.Deserialize |> Array.rev
                     let partition = { FetchPartitionResponse.Id = id; ErrorCode = errorCode; HighwaterMarkOffset = highwaterMarkOffset; MessageSetSize = messageSetSize; MessageSets = messageSets }
                     readPartition (partition :: list) (count - 1)
             let rec readTopic list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let topic = { FetchTopicResponse.TopicName = memoryStream |> BigEndianReader.ReadString; Partitions = readPartition [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+                    let topic = { FetchTopicResponse.TopicName = stream |> BigEndianReader.ReadString; Partitions = readPartition [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
                     readTopic (topic :: list) (count - 1)
-            { FetchResponse.CorrelationId = correlationId; Topics = readTopic [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+            { FetchResponse.CorrelationId = correlationId; Topics = readTopic [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
 
     /// An offset response.
     /// Contains the starting offset of each segment for the requested partition as well as the "log end offset" i.e. the offset of the next message that would be appended to the given partition.
@@ -375,29 +365,26 @@ module Messages =
         { CorrelationId : CorrelationId; Topics : OffsetResponseTopic array; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let memoryStream = new MemoryStream(stream |> BigEndianReader.Read messageSize)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             let rec readOffsets list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let offset = memoryStream |> BigEndianReader.ReadInt64
+                    let offset = stream |> BigEndianReader.ReadInt64
                     readOffsets (offset :: list) (count - 1)
             let rec readPartition list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let partition = { Id = memoryStream |> BigEndianReader.ReadInt32; ErrorCode = memoryStream |> BigEndianReader.ReadInt16 |> int32 |> enum<ErrorCode>; Offsets = readOffsets [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+                    let partition = { Id = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int32 |> enum<ErrorCode>; Offsets = readOffsets [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
                     readPartition (partition :: list) (count - 1)
             let rec readTopic list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let topic = { OffsetResponseTopic.Name = memoryStream |> BigEndianReader.ReadString; Partitions = readPartition [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+                    let topic = { OffsetResponseTopic.Name = stream |> BigEndianReader.ReadString; Partitions = readPartition [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
                     readTopic (topic :: list) (count - 1)
-            { CorrelationId = correlationId; OffsetResponse.Topics = readTopic [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+            { CorrelationId = correlationId; OffsetResponse.Topics = readTopic [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
 
     /// Consumer metadata response
     [<NoEquality;NoComparison>]
@@ -405,16 +392,13 @@ module Messages =
         { CorrelationId : CorrelationId; ErrorCode : ErrorCode; CoordinatorId : Id; CoordinatorHost : string; CoordinatorPort : int32; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let memoryStream = new MemoryStream(stream |> BigEndianReader.Read messageSize)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             {
                 CorrelationId = correlationId;
-                ErrorCode = memoryStream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                CoordinatorId = memoryStream |> BigEndianReader.ReadInt32;
-                CoordinatorHost = memoryStream |> BigEndianReader.ReadString;
-                CoordinatorPort = memoryStream |> BigEndianReader.ReadInt32
+                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                CoordinatorId = stream |> BigEndianReader.ReadInt32;
+                CoordinatorHost = stream |> BigEndianReader.ReadString;
+                CoordinatorPort = stream |> BigEndianReader.ReadInt32
             }
 
     /// Offset commit response
@@ -423,23 +407,20 @@ module Messages =
         { CorrelationId : CorrelationId; Topics : OffsetCommitResponseTopic array; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let memoryStream = new MemoryStream(stream |> BigEndianReader.Read messageSize)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             let rec readPartition list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let partition = { OffsetCommitResponsePartition.Id = memoryStream |> BigEndianReader.ReadInt32; ErrorCode = memoryStream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
+                    let partition = { OffsetCommitResponsePartition.Id = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
                     readPartition (partition :: list) (count - 1)
             let rec readTopic list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let topic = { OffsetCommitResponseTopic.Name = memoryStream |> BigEndianReader.ReadString; Partitions = readPartition [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+                    let topic = { OffsetCommitResponseTopic.Name = stream |> BigEndianReader.ReadString; Partitions = readPartition [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
                     readTopic (topic :: list) (count - 1)
-            { OffsetCommitResponse.CorrelationId = correlationId; Topics = readTopic [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+            { OffsetCommitResponse.CorrelationId = correlationId; Topics = readTopic [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
 
     /// Offset fetch response
     [<NoEquality;NoComparison>]
@@ -447,23 +428,20 @@ module Messages =
         { CorrelationId : CorrelationId; Topics : OffsetFetchResponseTopic array; }
         /// Deserialize response from a stream
         static member Deserialize(stream) =
-            let messageSize = stream |> BigEndianReader.ReadInt32
-            dprintfn "Received message of size %i" messageSize
-            let memoryStream = new MemoryStream(stream |> BigEndianReader.Read messageSize)
-            let correlationId = memoryStream |> BigEndianReader.ReadInt32
+            let correlationId = stream |> BigEndianReader.ReadInt32
             let rec readPartition list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let partition = { Id = memoryStream |> BigEndianReader.ReadInt32; Offset = memoryStream |> BigEndianReader.ReadInt64; Metadata = memoryStream |> BigEndianReader.ReadString; ErrorCode = memoryStream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
+                    let partition = { Id = stream |> BigEndianReader.ReadInt32; Offset = stream |> BigEndianReader.ReadInt64; Metadata = stream |> BigEndianReader.ReadString; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
                     readPartition (partition :: list) (count - 1)
             let rec readTopic list count =
                 match count with
                 | 0 -> list
                 | _ ->
-                    let topic = { OffsetFetchResponseTopic.Name = memoryStream |> BigEndianReader.ReadString; Partitions = readPartition [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+                    let topic = { OffsetFetchResponseTopic.Name = stream |> BigEndianReader.ReadString; Partitions = readPartition [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
                     readTopic (topic :: list) (count - 1)
-            { OffsetFetchResponse.CorrelationId = correlationId; Topics = readTopic [] (memoryStream |> BigEndianReader.ReadInt32) |> Seq.toArray }
+            { OffsetFetchResponse.CorrelationId = correlationId; Topics = readTopic [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray }
 
     /// Metadata request
     type MetadataRequest(topicNames) =
