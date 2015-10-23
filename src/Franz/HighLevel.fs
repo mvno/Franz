@@ -287,6 +287,17 @@ type IConsumer =
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
 
+/// Offset storage type
+type OffsetStorage =
+    /// Do not use any offset storage
+    | None = 0
+    /// Store offsets on the Zookeeper
+    | Zookeeper = 1
+    /// Store offsets on the Kafka brokers
+    | Kafka = 2
+    /// Store offsets both on the Zookeeper and Kafka brokers
+    | DualCommit = 3
+
 /// Consumer options
 type ConsumerOptions() =
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
