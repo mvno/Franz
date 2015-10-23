@@ -416,7 +416,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId
             }
         partitionOffsets.Keys
-            |> Seq.map (fun x -> innerConsumer x)
+            |> Seq.map innerConsumer
             |> Async.Parallel
             |> Async.Ignore
             |> Async.Start
