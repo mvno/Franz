@@ -312,6 +312,8 @@ type ConsumerOptions() =
     member val MinBytes = 1024 with get, set
     /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
     member val MaxBytes = 1024 * 5 with get, set
+    /// Indicates how offsets should be stored
+    member val OffsetStorage = OffsetStorage.Zookeeper
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager, partitionWhitelist : Id array) =
