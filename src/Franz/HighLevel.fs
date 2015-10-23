@@ -281,7 +281,7 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) =
                 | _ -> ()
             refreshMetadataOnException innerCommit
 
-/// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
+/// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
 type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, tcpTimeout) =
     let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
     let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
@@ -334,6 +334,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         match consumerOptions.OffsetStorage with
         | OffsetStorage.Zookeeper -> Some <| ((new ConsumerOffsetManagerV0(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
         | OffsetStorage.Kafka -> Some <| ((new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
+        | OffsetStorage.DualCommit -> Some <| ((new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
         | _ -> None
     let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
