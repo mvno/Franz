@@ -2,7 +2,6 @@
 
 open System
 open System.Collections.Generic
-open System.Runtime.InteropServices
 open System.Text
 open Franz
 open Franz.Internal
@@ -153,8 +152,8 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) =
             |> Seq.filter (fun x -> x.TopicName = topicName)
             |> Seq.map (fun x -> x.PartitionIds)
             |> Seq.concat
-            |> Seq.filter (fun x -> partitions.ContainsKey(x) |> not)
-            |> Seq.iter (fun x -> partitions.TryRemove(x) |> ignore)
+            |> Seq.filter (partitions.ContainsKey >> not)
+            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
@@ -211,8 +210,8 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) =
             |> Seq.filter (fun x -> x.TopicName = topicName)
             |> Seq.map (fun x -> x.PartitionIds)
             |> Seq.concat
-            |> Seq.filter (fun x -> partitions.ContainsKey(x) |> not)
-            |> Seq.iter (fun x -> partitions.TryRemove(x) |> ignore)
+            |> Seq.filter (partitions.ContainsKey >> not)
+            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
