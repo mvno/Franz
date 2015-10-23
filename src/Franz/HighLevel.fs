@@ -369,7 +369,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
     member __.Consume(cancellationToken : System.Threading.CancellationToken) =
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
-        let handleOffsetOutOfRangeError (broker : Broker) partitionId currentOffset =
+        let handleOffsetOutOfRangeError (broker : Broker) partitionId =
             let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
             let response = broker.Send(request)
             let earliestOffset = 
@@ -411,7 +411,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                     lowLevelRouter.RefreshMetadata()
                     return! innerConsumer partitionId
                 | ErrorCode.OffsetOutOfRange ->
-                    handleOffsetOutOfRangeError broker partitionId offset
+                    handleOffsetOutOfRangeError broker partitionId
                 | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                 if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId
             }
