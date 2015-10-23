@@ -293,6 +293,14 @@ type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, tcpTimeout) =
         member __.Commit(consumerGroup, offsets) =
             consumerOffsetManagerV0.Commit(consumerGroup, offsets)
             consumerOffsetManagerV1.Commit(consumerGroup, offsets)
+            
+/// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
+type DisabledConsumerOffsetManager(brokerSeeds, topicName, tcpTimeout) =
+    interface IConsumerOffsetManager with
+        /// Fetch offset for the specified topic and partitions
+        member __.Fetch(_) = [||]
+        /// Commit offset for the specified topic and partitions
+        member __.Commit(_, _) = ()
 
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
