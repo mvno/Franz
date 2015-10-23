@@ -36,7 +36,7 @@ type BigEndianWriter() =
 
     /// Write an string value to the stream, prefixed by a int16 specifying the lenght of the string
     static member WriteString (x : string) stream =
-        if x = null then
+        if x |> isNull then
             stream |> BigEndianWriter.WriteInt16 (Convert.ToInt16(kafkaNullSize))
         else
             stream |> BigEndianWriter.WriteInt16 (Convert.ToInt16(x.Length))
@@ -44,7 +44,7 @@ type BigEndianWriter() =
 
     /// Write a byte array to the stream, with a prefixed int32 indicating the size of the array
     static member WriteBytes (x : byte array) stream =
-        if x = null then
+        if x |> isNull then
             stream |> BigEndianWriter.WriteInt32 kafkaNullSize
         else
             stream |> BigEndianWriter.WriteInt32 x.Length

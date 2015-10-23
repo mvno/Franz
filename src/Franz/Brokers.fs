@@ -31,7 +31,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Gets the broker endpoint
     member __.EndPoint with get() = endPoint
     /// Is the TcpClient connected
-    member __.IsConnected with get() = client <> null && client.Connected
+    member __.IsConnected with get() = client |> isNull |> not && client.Connected
     /// Gets or sets which topic partitions the broker is leader for
     member val LeaderFor = leaderFor with get, set
     /// Gets the node id
@@ -131,7 +131,7 @@ type BrokerRouter(tcpTimeout) as self =
     member __.MetadataRefreshed = metadataRefreshed.Publish
     /// Connect the router to the cluster using the broker seeds.
     member self.Connect(brokerSeeds) =
-        if brokerSeeds = null then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
+        if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
         if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
         let mapMetadataResponseToBrokers brokers (response : MetadataResponse) =
             let getPartitions nodeId =
@@ -168,7 +168,7 @@ type BrokerRouter(tcpTimeout) as self =
         let topics =
             match topics with
             | Some x -> x
-            | None -> Array.empty<string>
+            | None -> [||]
         let (index, response) =
             let rec getMetadata brokers attempt =
                 let (index, broker : Broker) = brokers |> Seq.roundRobin lastRoundRobinIndex
