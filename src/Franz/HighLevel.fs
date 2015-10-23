@@ -316,7 +316,12 @@ type ConsumerOptions() =
     member val OffsetStorage = OffsetStorage.Zookeeper
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager, partitionWhitelist : Id array) =
+type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array) =
+    let offsetManager : IConsumerOffsetManager option =
+        match consumerOptions.OffsetStorage with
+        | OffsetStorage.Zookeeper -> Some <| ((new ConsumerOffsetManagerV0(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
+        | OffsetStorage.Kafka -> Some <| ((new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
+        | _ -> None
     let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
@@ -335,8 +340,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         lowLevelRouter.Connect(brokerSeeds)
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
-    new (brokerSeeds, topicName, consumerOptions, offsetManager) = Consumer(brokerSeeds, topicName, consumerOptions, offsetManager, [||])
-    new (brokerSeeds, topicName, offsetManager) = Consumer(brokerSeeds, topicName, new ConsumerOptions(), offsetManager, [||])
+    new (brokerSeeds, topicName, consumerOptions) = Consumer(brokerSeeds, topicName, consumerOptions, [||])
+    new (brokerSeeds, topicName) = Consumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
