@@ -281,6 +281,19 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) =
                 | _ -> ()
             refreshMetadataOnException innerCommit
 
+/// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
+type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, tcpTimeout) =
+    let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
+    let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
+    interface IConsumerOffsetManager with
+        /// Fetch offset for the specified topic and partitions
+        member __.Fetch(consumerGroup) =
+            consumerOffsetManagerV0.Fetch(consumerGroup)
+        /// Commit offset for the specified topic and partitions
+        member __.Commit(consumerGroup, offsets) =
+            consumerOffsetManagerV0.Commit(consumerGroup, offsets)
+            consumerOffsetManagerV1.Commit(consumerGroup, offsets)
+
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
     abstract member GetOffsets : unit -> PartitionOffset array
