@@ -295,7 +295,7 @@ type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, tcpTimeout) =
             consumerOffsetManagerV1.Commit(consumerGroup, offsets)
             
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
-type DisabledConsumerOffsetManager(brokerSeeds, topicName, tcpTimeout) =
+type DisabledConsumerOffsetManager() =
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member __.Fetch(_) = [||]
@@ -338,12 +338,12 @@ type ConsumerOptions() =
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array) =
-    let offsetManager : IConsumerOffsetManager option =
+    let offsetManager : IConsumerOffsetManager =
         match consumerOptions.OffsetStorage with
-        | OffsetStorage.Zookeeper -> Some <| ((new ConsumerOffsetManagerV0(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
-        | OffsetStorage.Kafka -> Some <| ((new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
-        | OffsetStorage.DualCommit -> Some <| ((new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager)
-        | _ -> None
+        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
