@@ -2,7 +2,6 @@
 
 open System
 open System.Collections.Generic
-open System.Runtime.InteropServices
 open System.Text
 open Franz
 open Franz.Internal
@@ -153,8 +152,8 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) =
             |> Seq.filter (fun x -> x.TopicName = topicName)
             |> Seq.map (fun x -> x.PartitionIds)
             |> Seq.concat
-            |> Seq.filter (fun x -> partitions.ContainsKey(x) |> not)
-            |> Seq.iter (fun x -> partitions.TryRemove(x) |> ignore)
+            |> Seq.filter (partitions.ContainsKey >> not)
+            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
@@ -211,8 +210,8 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) =
             |> Seq.filter (fun x -> x.TopicName = topicName)
             |> Seq.map (fun x -> x.PartitionIds)
             |> Seq.concat
-            |> Seq.filter (fun x -> partitions.ContainsKey(x) |> not)
-            |> Seq.iter (fun x -> partitions.TryRemove(x) |> ignore)
+            |> Seq.filter (partitions.ContainsKey >> not)
+            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
@@ -281,11 +280,43 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) =
                 | _ -> ()
             refreshMetadataOnException innerCommit
 
+/// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
+type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, tcpTimeout) =
+    let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
+    let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
+    interface IConsumerOffsetManager with
+        /// Fetch offset for the specified topic and partitions
+        member __.Fetch(consumerGroup) =
+            consumerOffsetManagerV0.Fetch(consumerGroup)
+        /// Commit offset for the specified topic and partitions
+        member __.Commit(consumerGroup, offsets) =
+            consumerOffsetManagerV0.Commit(consumerGroup, offsets)
+            consumerOffsetManagerV1.Commit(consumerGroup, offsets)
+            
+/// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
+type DisabledConsumerOffsetManager() =
+    interface IConsumerOffsetManager with
+        /// Fetch offset for the specified topic and partitions
+        member __.Fetch(_) = [||]
+        /// Commit offset for the specified topic and partitions
+        member __.Commit(_, _) = ()
+
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
     abstract member GetOffsets : unit -> PartitionOffset array
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
+
+/// Offset storage type
+type OffsetStorage =
+    /// Do not use any offset storage
+    | None = 0
+    /// Store offsets on the Zookeeper
+    | Zookeeper = 1
+    /// Store offsets on the Kafka brokers
+    | Kafka = 2
+    /// Store offsets both on the Zookeeper and Kafka brokers
+    | DualCommit = 3
 
 /// Consumer options
 type ConsumerOptions() =
@@ -301,9 +332,17 @@ type ConsumerOptions() =
     member val MinBytes = 1024 with get, set
     /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
     member val MaxBytes = 1024 * 5 with get, set
+    /// Indicates how offsets should be stored
+    member val OffsetStorage = OffsetStorage.Zookeeper
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetManager : IConsumerOffsetManager, partitionWhitelist : Id array) =
+type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array) =
+    let offsetManager : IConsumerOffsetManager =
+        match consumerOptions.OffsetStorage with
+        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let lowLevelRouter = new BrokerRouter(consumerOptions.TcpTimeout)
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
@@ -322,14 +361,14 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
         lowLevelRouter.Connect(brokerSeeds)
         lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
         lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
-    new (brokerSeeds, topicName, consumerOptions, offsetManager) = Consumer(brokerSeeds, topicName, consumerOptions, offsetManager, [||])
-    new (brokerSeeds, topicName, offsetManager) = Consumer(brokerSeeds, topicName, new ConsumerOptions(), offsetManager, [||])
+    new (brokerSeeds, topicName, consumerOptions) = Consumer(brokerSeeds, topicName, consumerOptions, [||])
+    new (brokerSeeds, topicName) = Consumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
     member __.Consume(cancellationToken : System.Threading.CancellationToken) =
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
-        let handleOffsetOutOfRangeError (broker : Broker) partitionId currentOffset =
+        let handleOffsetOutOfRangeError (broker : Broker) partitionId =
             let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
             let response = broker.Send(request)
             let earliestOffset = 
@@ -371,12 +410,12 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, offsetM
                     lowLevelRouter.RefreshMetadata()
                     return! innerConsumer partitionId
                 | ErrorCode.OffsetOutOfRange ->
-                    handleOffsetOutOfRangeError broker partitionId offset
+                    handleOffsetOutOfRangeError broker partitionId
                 | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                 if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId
             }
         partitionOffsets.Keys
-            |> Seq.map (fun x -> innerConsumer x)
+            |> Seq.map innerConsumer
             |> Async.Parallel
             |> Async.Ignore
             |> Async.Start
