@@ -1,3 +1,5 @@
+### 2.0.1
+* Added missing getter and setter to offset storage
 ### 2.0.0
 * Fixed bug where connecting to a new Kafka cluster without any topics would fail
 * Handle OffsetOutOfRange exception correctly
