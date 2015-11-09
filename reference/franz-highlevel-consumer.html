@@ -54,14 +54,14 @@
         <td class="member-name">
 
           <code onmouseout="hideTip(event, '205', 205)" onmouseover="showTip(event, '205', 205)">
-            new(...)
+            new(brokerSeeds, topicName)
           </code>
           <div class="tip" id="205">
-            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * consumerOptions:ConsumerOptions * offsetManager:IConsumerOffsetManager) -&gt; Consumer<br />
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string) -&gt; Consumer<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L325-325" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L365-365" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -75,11 +75,29 @@
             new(...)
           </code>
           <div class="tip" id="206">
-            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * consumerOptions:ConsumerOptions * offsetManager:IConsumerOffsetManager * partitionWhitelist:Id array) -&gt; Consumer<br />
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * consumerOptions:ConsumerOptions) -&gt; Consumer<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L306-306" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L364-364" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '207', 207)" onmouseover="showTip(event, '207', 207)">
+            new(...)
+          </code>
+          <div class="tip" id="207">
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * consumerOptions:ConsumerOptions * partitionWhitelist:Id array) -&gt; Consumer<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L339-339" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -97,15 +115,15 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '207', 207)" onmouseover="showTip(event, '207', 207)">
+          <code onmouseout="hideTip(event, '208', 208)" onmouseover="showTip(event, '208', 208)">
             Consume(cancellationToken)
           </code>
-          <div class="tip" id="207">
+          <div class="tip" id="208">
             <strong>Signature:</strong> cancellationToken:CancellationToken -&gt; IEnumerable&lt;Message&gt;<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L329-329" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L369-369" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -118,15 +136,15 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '208', 208)" onmouseover="showTip(event, '208', 208)">
+          <code onmouseout="hideTip(event, '209', 209)" onmouseover="showTip(event, '209', 209)">
             GetOffsets()
           </code>
-          <div class="tip" id="208">
+          <div class="tip" id="209">
             <strong>Signature:</strong> unit -&gt; PartitionOffset []<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L386-386" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L424-424" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -139,15 +157,15 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '209', 209)" onmouseover="showTip(event, '209', 209)">
+          <code onmouseout="hideTip(event, '210', 210)" onmouseover="showTip(event, '210', 210)">
             OffsetManager
           </code>
-          <div class="tip" id="209">
+          <div class="tip" id="210">
             <strong>Signature:</strong> IConsumerOffsetManager<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L327-327" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L367-367" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
@@ -160,15 +178,15 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '210', 210)" onmouseover="showTip(event, '210', 210)">
+          <code onmouseout="hideTip(event, '211', 211)" onmouseover="showTip(event, '211', 211)">
             SetOffsets(offsets)
           </code>
-          <div class="tip" id="210">
+          <div class="tip" id="211">
             <strong>Signature:</strong> offsets:seq&lt;PartitionOffset&gt; -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L389-389" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L427-427" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>

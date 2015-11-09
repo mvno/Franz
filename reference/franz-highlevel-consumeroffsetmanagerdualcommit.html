@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
-    <title>Agent<'T> - Franz</title>
+    <title>ConsumerOffsetManagerDualCommit - Franz</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta name="description" content=""/>
     <meta name="author" content="mvno"/>
@@ -35,60 +35,36 @@
 
 
 
-<h1>Agent<'T></h1>
+<h1>ConsumerOffsetManagerDualCommit</h1>
 <p>
-  <span>Namespace: Franz.Internal</span><br />
+  <span>Namespace: Franz.HighLevel</span><br />
 </p>
 <div class="xmldoc">
-<p>Type alias for MailBoxProcessor</p>
+<p>Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.</p>
 
 
 </div>
-  <h3>Instance members</h3>
+  <h3>Constructors</h3>
   <table class="table table-bordered member-list">
     <thead>
-      <tr><td>Instance member</td><td>Description</td></tr>
+      <tr><td>Constructor</td><td>Description</td></tr>
     </thead>
     <tbody>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '261', 261)" onmouseover="showTip(event, '261', 261)">
-            CurrentQueueLength
+          <code onmouseout="hideTip(event, '212', 212)" onmouseover="showTip(event, '212', 212)">
+            new(brokerSeeds, topicName, tcpTimeout)
           </code>
-          <div class="tip" id="261">
-            <strong>Signature:</strong> int<br />
+          <div class="tip" id="212">
+            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * tcpTimeout:int) -&gt; ConsumerOffsetManagerDualCommit<br />
                       </div>
         </td>
         <td class="xmldoc">
-          
-        </td>
-      </tr>
-      <tr>
-        <td class="member-name">
-
-          <code onmouseout="hideTip(event, '262', 262)" onmouseover="showTip(event, '262', 262)">
-            DefaultTimeout()
-          </code>
-          <div class="tip" id="262">
-            <strong>Signature:</strong> unit -&gt; unit<br />
-                      </div>
-        </td>
-        <td class="xmldoc">
-          
-        </td>
-      </tr>
-      <tr>
-        <td class="member-name">
-
-          <code onmouseout="hideTip(event, '263', 263)" onmouseover="showTip(event, '263', 263)">
-            Error
-          </code>
-          <div class="tip" id="263">
-            <strong>Signature:</strong> IEvent&lt;Exception&gt;<br />
-                      </div>
-        </td>
-        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L284-284" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
           
         </td>
       </tr>

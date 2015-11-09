@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
-    <title>Agent<'T> - Franz</title>
+    <title>OffsetStorage - Franz</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta name="description" content=""/>
     <meta name="author" content="mvno"/>
@@ -35,61 +35,107 @@
 
 
 
-<h1>Agent<'T></h1>
+<h1>OffsetStorage</h1>
 <p>
-  <span>Namespace: Franz.Internal</span><br />
+  <span>Namespace: Franz.HighLevel</span><br />
 </p>
 <div class="xmldoc">
-<p>Type alias for MailBoxProcessor</p>
+<p>Offset storage type</p>
 
 
 </div>
-  <h3>Instance members</h3>
+  <h3>Record Fields</h3>
   <table class="table table-bordered member-list">
     <thead>
-      <tr><td>Instance member</td><td>Description</td></tr>
+      <tr><td>Record Field</td><td>Description</td></tr>
     </thead>
     <tbody>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '261', 261)" onmouseover="showTip(event, '261', 261)">
-            CurrentQueueLength
+          <code onmouseout="hideTip(event, '240', 240)" onmouseover="showTip(event, '240', 240)">
+            DualCommit
           </code>
-          <div class="tip" id="261">
-            <strong>Signature:</strong> int<br />
+          <div class="tip" id="240">
+            <strong>Signature:</strong> OffsetStorage<br />
+              <strong>Modifiers:</strong> static<br />
                       </div>
         </td>
         <td class="xmldoc">
-          
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L319-319" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Store offsets both on the Zookeeper and Kafka brokers</p>
+
+
+
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '262', 262)" onmouseover="showTip(event, '262', 262)">
-            DefaultTimeout()
+          <code onmouseout="hideTip(event, '241', 241)" onmouseover="showTip(event, '241', 241)">
+            Kafka
           </code>
-          <div class="tip" id="262">
-            <strong>Signature:</strong> unit -&gt; unit<br />
+          <div class="tip" id="241">
+            <strong>Signature:</strong> OffsetStorage<br />
+              <strong>Modifiers:</strong> static<br />
                       </div>
         </td>
         <td class="xmldoc">
-          
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L317-317" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Store offsets on the Kafka brokers</p>
+
+
+
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '263', 263)" onmouseover="showTip(event, '263', 263)">
-            Error
+          <code onmouseout="hideTip(event, '242', 242)" onmouseover="showTip(event, '242', 242)">
+            None
           </code>
-          <div class="tip" id="263">
-            <strong>Signature:</strong> IEvent&lt;Exception&gt;<br />
+          <div class="tip" id="242">
+            <strong>Signature:</strong> OffsetStorage<br />
+              <strong>Modifiers:</strong> static<br />
                       </div>
         </td>
         <td class="xmldoc">
-          
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L313-313" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Do not use any offset storage</p>
+
+
+
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '243', 243)" onmouseover="showTip(event, '243', 243)">
+            Zookeeper
+          </code>
+          <div class="tip" id="243">
+            <strong>Signature:</strong> OffsetStorage<br />
+              <strong>Modifiers:</strong> static<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L315-315" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Store offsets on the Zookeeper</p>
+
+
+
         </td>
       </tr>
     </tbody>

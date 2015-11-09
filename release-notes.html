@@ -32,9 +32,14 @@
       <div class="row">
         <div class="span9" id="main">
           
-<h3><a name="1-0-0" class="anchor" href="#1-0-0">1.0.0</a></h3>
+<h3><a name="2-0-0" class="anchor" href="#2-0-0">2.0.0</a></h3>
 
 <ul>
+<li>Fixed bug where connecting to a new Kafka cluster without any topics would fail</li>
+<li>Handle OffsetOutOfRange exception correctly</li>
+<li>Try to fix race condition where TcpClient can be null and stop consuming</li>
+<li>Move ConsumerOffsetManager creation into Consumer, this is a breaking change
+### 1.0.0</li>
 <li>Fixed bug where high level consumer did not handle OffsetOutOfRange error, causing consuming to stop</li>
 <li>Added consumer options to control consumer behaviour, like TcpTimeout, MaxBytes, MinBytes and WaitTime</li>
 <li>Fixed bug where producer wouldn't send messages to topics being autocreate on use</li>
