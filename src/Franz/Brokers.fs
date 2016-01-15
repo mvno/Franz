@@ -98,27 +98,27 @@ type BrokerRouter(tcpTimeout) as self =
                 dprintfn "Adding broker with endpoint %A" broker
                 if not broker.IsConnected then broker.Connect()
                 let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
-                do! loop (broker :: existingBrokers) lastRoundRobinIndex
+                return! loop (broker :: existingBrokers) lastRoundRobinIndex
             | RefreshMetadata reply ->
                 try
                     let (index, updatedBrokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex)
                     reply.Reply(Ok())
-                    do! loop updatedBrokers index
+                    return! loop updatedBrokers index
                 with
                 | e ->
                     reply.Reply(Failure e)
-                    do! loop brokers lastRoundRobinIndex
+                    return! loop brokers lastRoundRobinIndex
             | GetBroker (topic, partitionId, reply) ->
                 match self.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) with
                 | Ok (broker, index) ->
                     reply.Reply(Ok(broker))
-                    do! loop brokers index
+                    return! loop brokers index
                 | Failure e ->
                     reply.Reply(Failure(e))
-                    do! loop brokers lastRoundRobinIndex
+                    return! loop brokers lastRoundRobinIndex
             | GetAllBrokers reply ->
                 reply.Reply(brokers)
-                do! loop brokers lastRoundRobinIndex
+                return! loop brokers lastRoundRobinIndex
         }
         loop [] -1)
     do
