@@ -1,3 +1,5 @@
+### 2.0.2
+* Fix memory leak
 ### 2.0.1
 * Added missing getter and setter to offset storage
 ### 2.0.0
