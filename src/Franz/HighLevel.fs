@@ -46,12 +46,11 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
                 let partitionsToAdd = partitions |> Seq.filter (fun x -> ids |> Seq.exists (fun i -> i = x) |> not)
                 ids.AddRange(partitionsToAdd))
         sortTopicPartitions()
-    let lowLevelRouter = brokerRouter
     do
-        lowLevelRouter.Error.Add(fun x -> dprintfn "%A" x)
-        lowLevelRouter.Connect(brokerSeeds)
-        lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
-        lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+        brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updateTopicPartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds) = Producer(brokerSeeds, 10000)
     new (brokerSeeds, tcpTimeout) = Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
     /// Sends a message to the specified topic
@@ -67,7 +66,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
             let partitionId =
                 let success, result = topicPartitions.TryGetValue(topicName)
                 if (not success) then
-                    lowLevelRouter.GetBroker(topicName, 0) |> ignore
+                    brokerRouter.GetBroker(topicName, 0) |> ignore
                     0
                 else
                     let (partitionIds, nextId) = result
@@ -83,7 +82,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
             let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
             let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
             let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
-            let broker = lowLevelRouter.GetBroker(topicName, partitionId)
+            let broker = brokerRouter.GetBroker(topicName, partitionId)
             let rec trySend (broker : Broker) attempt =
                 try
                     broker.Send(request)
@@ -92,21 +91,21 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
                     dprintfn "Got exception while sending request %s" e.Message
                     if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
                     else
-                        lowLevelRouter.RefreshMetadata()
-                        let newBroker = lowLevelRouter.GetBroker(topicName, partitionId)
+                        brokerRouter.RefreshMetadata()
+                        let newBroker = brokerRouter.GetBroker(topicName, partitionId)
                         trySend newBroker (attempt + 1)
             let response = trySend broker 0
             let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
             match partitionResponse.ErrorCode with
             | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
             | ErrorCode.NotLeaderForPartition ->
-                lowLevelRouter.RefreshMetadata()
+                brokerRouter.RefreshMetadata()
                 innerSend()
             | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
         innerSend()
     /// Get all available brokers
     member __.GetAllBrokers() =
-        lowLevelRouter.GetAllBrokers()
+        brokerRouter.GetAllBrokers()
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout, partitionWhiteList) =
             self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout, partitionWhiteList)
@@ -137,7 +136,6 @@ type IConsumerOffsetManager =
 
 /// Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.
 type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
-    let lowLevelRouter = brokerRouter
     let partitions = new ConcurrentDictionary<_, _>()
     let updatePartitions (brokers : Broker seq) =
         brokers
@@ -160,18 +158,18 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
             f()
         with
         | _ ->
-            lowLevelRouter.RefreshMetadata()
+            brokerRouter.RefreshMetadata()
             f()
     do
-        lowLevelRouter.Connect(brokerSeeds)
-        lowLevelRouter.GetAllBrokers() |> updatePartitions
-        lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updatePartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
     new (brokerSeeds, topicName, tcpTimeout) = ConsumerOffsetManagerV0(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member __.Fetch(consumerGroup) =
             let innerFetch () =
-                let broker = lowLevelRouter.GetAllBrokers() |> Seq.head
+                let broker = brokerRouter.GetAllBrokers() |> Seq.head
                 let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions.Keys |> Seq.toArray } |], int16 0)
                 let response = broker.Send(request)
                 response.Topics
@@ -185,7 +183,7 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
         /// Commit offset for the specified topic and partitions
         member __.Commit(consumerGroup, offsets) =
             let innerCommit () =
-                let broker = lowLevelRouter.GetAllBrokers() |> Seq.head
+                let broker = brokerRouter.GetAllBrokers() |> Seq.head
                 let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = x.Metadata; Offset = x.Offset }) |> Seq.toArray
                 let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
                 broker.Send(request)
@@ -196,7 +194,6 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
 type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
-    let lowLevelRouter = brokerRouter
     let partitions = new ConcurrentDictionary<_, _>()
     let updatePartitions (brokers : Broker seq) =
         brokers
@@ -219,11 +216,11 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
             f()
         with
         | _ ->
-            lowLevelRouter.RefreshMetadata()
+            brokerRouter.RefreshMetadata()
             f()
     let getOffsetCoordinator consumerGroup =
         let send () =
-            let allBrokers = lowLevelRouter.GetAllBrokers()
+            let allBrokers = brokerRouter.GetAllBrokers()
             let broker = allBrokers |> Seq.head
             let request = new ConsumerMetadataRequest(consumerGroup)
             let response = broker.Send(request)
@@ -234,9 +231,9 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
     let (|HasCommitError|) errorCode (partitions : OffsetCommitResponsePartition array) =
         partitions |> Seq.exists (fun x -> x.ErrorCode = errorCode)
     do
-        lowLevelRouter.Connect(brokerSeeds)
-        lowLevelRouter.GetAllBrokers() |> updatePartitions
-        lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updatePartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
     new (brokerSeeds, topicName, tcpTimeout) = ConsumerOffsetManagerV1(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -346,7 +343,6 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
         | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
         | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
-    let lowLevelRouter = brokerRouter
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
@@ -360,10 +356,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
     do
-        lowLevelRouter.Error.Add(fun x -> dprintfn "%A" x)
-        lowLevelRouter.Connect(brokerSeeds)
-        lowLevelRouter.GetAllBrokers() |> updateTopicPartitions
-        lowLevelRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+        brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updateTopicPartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds, topicName, consumerOptions) = Consumer(brokerSeeds, topicName, consumerOptions, [||])
     new (brokerSeeds, topicName) = Consumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = Consumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
@@ -389,7 +385,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             async {
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
                 let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = consumerOptions.MaxBytes } |] } |])
-                let broker = lowLevelRouter.GetBroker(topicName, partitionId)
+                let broker = brokerRouter.GetBroker(topicName, partitionId)
                 let rec trySend (broker : Broker) attempt =
                     try
                         broker.Send(request)
@@ -398,8 +394,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                         dprintfn "Got exception while sending request %s" e.Message
                         if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
                         else
-                            lowLevelRouter.RefreshMetadata()
-                            let newBroker = lowLevelRouter.GetBroker(topicName, partitionId)
+                            brokerRouter.RefreshMetadata()
+                            let newBroker = brokerRouter.GetBroker(topicName, partitionId)
                             trySend newBroker (attempt + 1)
                 let response = trySend broker 0
                 let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
@@ -411,7 +407,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
                         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
                 | ErrorCode.NotLeaderForPartition ->
-                    lowLevelRouter.RefreshMetadata()
+                    brokerRouter.RefreshMetadata()
                     return! innerConsumer partitionId
                 | ErrorCode.OffsetOutOfRange ->
                     handleOffsetOutOfRangeError broker partitionId
