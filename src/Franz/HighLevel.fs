@@ -108,6 +108,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
     /// Get all available brokers
     member __.GetAllBrokers() =
         brokerRouter.GetAllBrokers()
+    /// Releases all connections and disposes the producer
     member __.Dispose() =
         if not disposed then
             brokerRouter.Dispose()
