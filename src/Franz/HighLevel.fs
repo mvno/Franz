@@ -138,6 +138,7 @@ type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
 
 /// Interface for offset managers
 type IConsumerOffsetManager =
+    inherit IDisposable
     /// Fetch offset for the specified topic and partitions
     abstract member Fetch : string -> PartitionOffset array
     /// Commit offset for the specified topic and partitions
@@ -309,18 +310,27 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
 type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+    let mutable disposed = false
     let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
     let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
-    new (brokerSeeds, topicName, tcpTimeout : int) = ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member __.Fetch(consumerGroup) =
+            if disposed then invalidOp "Offset manager has been disposed"
             consumerOffsetManagerV0.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member __.Commit(consumerGroup, offsets) =
+            if disposed then invalidOp "Offset manager has been disposed"
             consumerOffsetManagerV0.Commit(consumerGroup, offsets)
             consumerOffsetManagerV1.Commit(consumerGroup, offsets)
-            
+    interface IDisposable with
+        member __.Dispose() =
+            if not disposed then
+                consumerOffsetManagerV0.Dispose()
+                consumerOffsetManagerV1.Dispose()
+                disposed <- true
+
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
 type DisabledConsumerOffsetManager() =
     interface IConsumerOffsetManager with
@@ -328,6 +338,8 @@ type DisabledConsumerOffsetManager() =
         member __.Fetch(_) = [||]
         /// Commit offset for the specified topic and partitions
         member __.Commit(_, _) = ()
+    interface IDisposable with
+        member __.Dispose() = ()
 
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
