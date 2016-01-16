@@ -25,6 +25,7 @@ type TopicPartitionLeader = { TopicName : string; PartitionIds : Id array }
 /// Broker information and actions
 type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array, tcpTimeout : int) =
     let _sendLock = new Object()
+    let mutable disposed = false
     let mutable client : TcpClient = null
     /// Gets the broker TcpClient
     member __.Client with get() = client
@@ -38,12 +39,14 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     member __.NodeId with get() = nodeId
     /// Connect the broker
     member __.Connect() =
+        if disposed then invalidOp "Broker has been disposed"
         client <- new TcpClient()
         client.ReceiveTimeout <- tcpTimeout
         client.SendTimeout <- tcpTimeout
         client.Connect(endPoint.Address, endPoint.Port)
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
+        if disposed then invalidOp "Broker has been disposed"
         let rawResponseStream = lock _sendLock (fun () -> 
             let send () =
                 if client |> isNull then self.Connect()
@@ -68,6 +71,15 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
                     reraise()
             )
         request.DeserializeResponse(rawResponseStream)
+    /// Closes the connection and disposes the broker
+    member __.Dispose() =
+        if not disposed then
+            client.Close()
+            disposed <- true
+
+    interface IDisposable with
+        /// Dispose the broker
+        member self.Dispose() = self.Dispose()
 
 /// Indicates ok or failure message
 type BrokerRouterReturnMessage<'T> =
@@ -85,12 +97,16 @@ type BrokerRouterMessage =
     | GetBroker of string * Id * AsyncReplyChannel<BrokerRouterReturnMessage<Broker>>
     /// Get all available brokers
     | GetAllBrokers of AsyncReplyChannel<Broker list>
+    /// Closes the router
+    | Close
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
 type BrokerRouter(tcpTimeout) as self =
+    let mutable disposed = false
+    let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
-    let router = Agent.Start(fun inbox ->
+    let router = Agent.Start((fun inbox ->
         let rec loop brokers lastRoundRobinIndex = async {
             let! msg = inbox.Receive()
             match msg with
@@ -119,8 +135,13 @@ type BrokerRouter(tcpTimeout) as self =
             | GetAllBrokers reply ->
                 reply.Reply(brokers)
                 return! loop brokers lastRoundRobinIndex
+            | Close ->
+                brokers |> Seq.iter (fun x -> x.Dispose())
+                cts.Cancel()
+                disposed <- true
+                return! loop brokers lastRoundRobinIndex
         }
-        loop [] -1)
+        loop [] -1), cts.Token)
     do
         router.Error.Add(fun x -> errorEvent.Trigger(x))
     /// Event used in case of unhandled exception in internal agent
@@ -131,6 +152,7 @@ type BrokerRouter(tcpTimeout) as self =
     member __.MetadataRefreshed = metadataRefreshed.Publish
     /// Connect the router to the cluster using the broker seeds.
     member self.Connect(brokerSeeds) =
+        if disposed then invalidOp "Router has been disposed"
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
         if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
         let mapMetadataResponseToBrokers brokers (response : MetadataResponse) =
@@ -231,17 +253,29 @@ type BrokerRouter(tcpTimeout) as self =
         find brokers lastRoundRobinIndex 0
     /// Add broker to the list of available brokers
     member __.AddBroker(broker : Broker) =
+        if disposed then invalidOp "Router has been disposed"
         router.Post(AddBroker(broker))
     /// Refresh cluster metadata
     member __.RefreshMetadata() =
+        if disposed then invalidOp "Router has been disposed"
         match router.PostAndReply(fun reply -> RefreshMetadata(reply)) with
         | Ok _ -> ()
         | Failure e -> raise e
     /// Get all available brokers
     member __.GetAllBrokers() =
+        if disposed then invalidOp "Router has been disposed"
         router.PostAndReply(fun reply -> GetAllBrokers(reply))
     /// Get broker by topic and partition id
     member __.GetBroker(topic, partitionId) =
+        if disposed then invalidOp "Router has been disposed"
         match router.PostAndReply(fun reply -> GetBroker(topic, partitionId, reply)) with
         | Ok x -> x
         | Failure e -> raise e
+    /// Dispose the router
+    member __.Dispose() =
+        if not disposed then
+            router.Post(Close)
+            disposed <- true
+    interface IDisposable with
+        /// Dispose the router
+        member self.Dispose() = self.Dispose()
