@@ -281,9 +281,10 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
             refreshMetadataOnException innerCommit
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
-type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, tcpTimeout : int) =
-    let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
-    let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, tcpTimeout) :> IConsumerOffsetManager
+type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+    let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
+    let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
+    new (brokerSeeds, topicName, tcpTimeout : int) = ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member __.Fetch(consumerGroup) =
@@ -339,9 +340,9 @@ type ConsumerOptions() =
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
     let offsetManager : IConsumerOffsetManager =
         match consumerOptions.OffsetStorage with
-        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
-        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
-        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, consumerOptions.TcpTimeout)) :> IConsumerOffsetManager
+        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
         | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
