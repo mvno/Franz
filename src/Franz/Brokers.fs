@@ -74,7 +74,10 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Closes the connection and disposes the broker
     member __.Dispose() =
         if not disposed then
-            client.Close()
+            try
+                client.Close()
+            with
+            | _ -> ()
             disposed <- true
 
     interface IDisposable with
