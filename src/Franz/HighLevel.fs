@@ -373,7 +373,9 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
-    member self.Consume(cancellationToken : System.Threading.CancellationToken) = self.ConsumeWithMetadata(cancellationToken)
+    member self.Consume(cancellationToken : System.Threading.CancellationToken) =
+        self.ConsumeWithMetadata(cancellationToken)
+        |> Seq.map (fun x -> x.Message)
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member __.ConsumeWithMetadata(cancellationToken : System.Threading.CancellationToken) =
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
