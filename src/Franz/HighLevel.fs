@@ -335,6 +335,13 @@ type ConsumerOptions() =
     /// Indicates how offsets should be stored
     member val OffsetStorage = OffsetStorage.Zookeeper with get, set
 
+[<NoEquality;NoComparison>]
+type MessageWithOffset =
+    {
+        Offset : Offset;
+        Message : Message;
+    }
+
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array) =
     let offsetManager : IConsumerOffsetManager =
@@ -366,7 +373,11 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
-    member __.Consume(cancellationToken : System.Threading.CancellationToken) =
+    member self.Consume(cancellationToken : System.Threading.CancellationToken) =
+        self.ConsumeWithMetadata(cancellationToken)
+        |> Seq.map (fun x -> x.Message)
+    /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
+    member __.ConsumeWithMetadata(cancellationToken : System.Threading.CancellationToken) =
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let handleOffsetOutOfRangeError (broker : Broker) partitionId =
             let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
@@ -402,7 +413,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     partitionResponse.MessageSets
-                        |> Seq.iter (fun x -> blockingCollection.Add(x.Message))
+                        |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset }))
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
                         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
