@@ -420,6 +420,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         |> Seq.map (fun x -> x.Message)
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member __.ConsumeWithMetadata(cancellationToken : System.Threading.CancellationToken) =
+        if disposed then invalidOp "Consumer has been disposed"
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let handleOffsetOutOfRangeError (broker : Broker) partitionId =
             let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
