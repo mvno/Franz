@@ -109,6 +109,39 @@ type BrokerRouter(tcpTimeout) as self =
     let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
+    let connect brokerSeeds =
+        if disposed then invalidOp "Router has been disposed"
+        if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
+        if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
+        let mapMetadataResponseToBrokers brokers (response : MetadataResponse) =
+            let getPartitions nodeId =
+                response.TopicMetadata
+                |> Seq.map (fun t -> { TopicName = t.Name; PartitionIds = t.PartitionMetadata |> Seq.filter (fun p -> p.ErrorCode.IsSuccess() && p.Leader = nodeId) |> Seq.map (fun p -> p.PartitionId) |> Seq.toArray })
+                |> Seq.toArray
+            let newBrokers =
+                response.Brokers
+                    |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
+                    |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
+                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
+                    |> Seq.toList
+            brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId )
+            if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
+                brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
+            else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
+        let rec innerConnect seeds =
+            match seeds with
+            | head :: tail ->
+                try
+                    dprintfn "Connecting to %s:%i..." head.Address head.Port
+                    let broker = new Broker(-1, head, [||], tcpTimeout)
+                    broker.Connect()
+                    broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers []
+                with
+                | e ->
+                    dprintfn "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message
+                    innerConnect tail
+            | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
+        innerConnect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
     let router = Agent.Start((fun inbox ->
         let rec loop brokers lastRoundRobinIndex = async {
             let! msg = inbox.Receive()
@@ -155,38 +188,7 @@ type BrokerRouter(tcpTimeout) as self =
     member __.MetadataRefreshed = metadataRefreshed.Publish
     /// Connect the router to the cluster using the broker seeds.
     member self.Connect(brokerSeeds) =
-        if disposed then invalidOp "Router has been disposed"
-        if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
-        if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
-        let mapMetadataResponseToBrokers brokers (response : MetadataResponse) =
-            let getPartitions nodeId =
-                response.TopicMetadata
-                |> Seq.map (fun t -> { TopicName = t.Name; PartitionIds = t.PartitionMetadata |> Seq.filter (fun p -> p.ErrorCode.IsSuccess() && p.Leader = nodeId) |> Seq.map (fun p -> p.PartitionId) |> Seq.toArray })
-                |> Seq.toArray
-            let newBrokers =
-                response.Brokers
-                    |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
-                    |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
-                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
-                    |> Seq.toList
-            brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId )
-            if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
-                brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
-            else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
-        let rec connect seeds =
-            match seeds with
-            | head :: tail ->
-                try
-                    dprintfn "Connecting to %s:%i..." head.Address head.Port
-                    let broker = new Broker(-1, head, [||], tcpTimeout)
-                    broker.Connect()
-                    broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers []
-                with
-                | e ->
-                    dprintfn "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message
-                    connect tail
-            | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
-        connect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
+        connect brokerSeeds
     /// Refresh metadata for the broker cluster
     member private __.RefreshMetadata(brokers, lastRoundRobinIndex, ?topics) =
         dprintfn "Refreshing metadata..."
