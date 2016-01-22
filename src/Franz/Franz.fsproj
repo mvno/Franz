@@ -177,6 +177,7 @@
     <Compile Include="Infrastructure.fs" />
     <Compile Include="Stream.fs" />
     <Compile Include="Messages.fs" />
+    <Compile Include="Compression.fs" />
     <Compile Include="Brokers.fs" />
     <Compile Include="HighLevel.fs" />
     <None Include="paket.references" />
