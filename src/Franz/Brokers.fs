@@ -102,6 +102,8 @@ type BrokerRouterMessage =
     | GetAllBrokers of AsyncReplyChannel<Broker list>
     /// Closes the router
     | Close
+    /// Connect to the cluster
+    | Connect of EndPoint seq * AsyncReplyChannel<unit>
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
 type BrokerRouter(tcpTimeout) as self =
@@ -109,52 +111,7 @@ type BrokerRouter(tcpTimeout) as self =
     let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
-    let router = Agent.Start((fun inbox ->
-        let rec loop brokers lastRoundRobinIndex = async {
-            let! msg = inbox.Receive()
-            match msg with
-            | AddBroker broker ->
-                dprintfn "Adding broker with endpoint %A" broker
-                if not broker.IsConnected then broker.Connect()
-                let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
-                return! loop (broker :: existingBrokers) lastRoundRobinIndex
-            | RefreshMetadata reply ->
-                try
-                    let (index, updatedBrokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex)
-                    reply.Reply(Ok())
-                    return! loop updatedBrokers index
-                with
-                | e ->
-                    reply.Reply(Failure e)
-                    return! loop brokers lastRoundRobinIndex
-            | GetBroker (topic, partitionId, reply) ->
-                match self.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) with
-                | Ok (broker, index) ->
-                    reply.Reply(Ok(broker))
-                    return! loop brokers index
-                | Failure e ->
-                    reply.Reply(Failure(e))
-                    return! loop brokers lastRoundRobinIndex
-            | GetAllBrokers reply ->
-                reply.Reply(brokers)
-                return! loop brokers lastRoundRobinIndex
-            | Close ->
-                brokers |> Seq.iter (fun x -> x.Dispose())
-                cts.Cancel()
-                disposed <- true
-                return! loop brokers lastRoundRobinIndex
-        }
-        loop [] -1), cts.Token)
-    do
-        router.Error.Add(fun x -> errorEvent.Trigger(x))
-    /// Event used in case of unhandled exception in internal agent
-    [<CLIEvent>]
-    member __.Error = errorEvent.Publish
-    /// Event triggered when metadata is refreshed
-    [<CLIEvent>]
-    member __.MetadataRefreshed = metadataRefreshed.Publish
-    /// Connect the router to the cluster using the broker seeds.
-    member self.Connect(brokerSeeds) =
+    let connect brokerSeeds =
         if disposed then invalidOp "Router has been disposed"
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
         if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
@@ -173,7 +130,7 @@ type BrokerRouter(tcpTimeout) as self =
             if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
                 brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
             else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
-        let rec connect seeds =
+        let rec innerConnect seeds =
             match seeds with
             | head :: tail ->
                 try
@@ -184,9 +141,59 @@ type BrokerRouter(tcpTimeout) as self =
                 with
                 | e ->
                     dprintfn "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message
-                    connect tail
+                    innerConnect tail
             | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
-        connect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
+        innerConnect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
+    let router = Agent.Start((fun inbox ->
+        let rec loop brokers lastRoundRobinIndex connected = async {
+            let! msg = inbox.Receive()
+            match msg with
+            | AddBroker broker ->
+                dprintfn "Adding broker with endpoint %A" broker
+                if not broker.IsConnected then broker.Connect()
+                let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
+                return! loop (broker :: existingBrokers) lastRoundRobinIndex connected
+            | RefreshMetadata reply ->
+                try
+                    let (index, updatedBrokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex)
+                    reply.Reply(Ok())
+                    return! loop updatedBrokers index connected
+                with
+                | e ->
+                    reply.Reply(Failure e)
+                    return! loop brokers lastRoundRobinIndex connected
+            | GetBroker (topic, partitionId, reply) ->
+                match self.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) with
+                | Ok (broker, index) ->
+                    reply.Reply(Ok(broker))
+                    return! loop brokers index connected
+                | Failure e ->
+                    reply.Reply(Failure(e))
+                    return! loop brokers lastRoundRobinIndex connected
+            | GetAllBrokers reply ->
+                reply.Reply(brokers)
+                return! loop brokers lastRoundRobinIndex connected
+            | Close ->
+                brokers |> Seq.iter (fun x -> x.Dispose())
+                cts.Cancel()
+                disposed <- true
+                return! loop brokers lastRoundRobinIndex connected
+            | Connect (brokerSeeds, reply) ->
+                if not connected then connect brokerSeeds
+                reply.Reply()
+                return! loop brokers lastRoundRobinIndex true
+        }
+        loop [] -1 false), cts.Token)
+    do
+        router.Error.Add(fun x -> errorEvent.Trigger(x))
+    /// Event used in case of unhandled exception in internal agent
+    [<CLIEvent>]
+    member __.Error = errorEvent.Publish
+    /// Event triggered when metadata is refreshed
+    [<CLIEvent>]
+    member __.MetadataRefreshed = metadataRefreshed.Publish
+    /// Connect the router to the cluster using the broker seeds.
+    member __.Connect(brokerSeeds) = router.PostAndReply(fun reply -> Connect(brokerSeeds, reply))
     /// Refresh metadata for the broker cluster
     member private __.RefreshMetadata(brokers, lastRoundRobinIndex, ?topics) =
         dprintfn "Refreshing metadata..."
