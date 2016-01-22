@@ -6,6 +6,7 @@ open System.Text
 open Franz
 open Franz.Internal
 open System.Collections.Concurrent
+open Franz.Compression
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -435,6 +436,15 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 |> Seq.concat
                 |> Seq.min
             partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
+        let decompressMessageSets (messageSets : MessageSet array) =
+            let innerDecompress (messageSet : MessageSet) =
+                match messageSet.Message.CompressionCodec with
+                | Gzip -> invalidOp "GZip compression not supported yet"
+                | Snappy -> SnappyCompression.Decode(messageSet)
+                | None -> [| messageSet |]
+            messageSets
+            |> Seq.map innerDecompress
+            |> Seq.concat
         let rec innerConsumer partitionId =
             async {
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
@@ -456,6 +466,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     partitionResponse.MessageSets
+                        |> decompressMessageSets
                         |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset }))
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
