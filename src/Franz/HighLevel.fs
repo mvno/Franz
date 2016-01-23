@@ -69,7 +69,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
             let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
             match compressionCodec with
             | NoCompression -> messageSets
-            | Gzip -> invalidOp "GZip compression not yet supported"
+            | Gzip -> GzipCompression.Encode(messageSets)
             | Snappy -> SnappyCompression.Encode(messageSets)
                 
         let rec innerSend() =
@@ -447,7 +447,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         let decompressMessageSets (messageSets : MessageSet array) =
             let innerDecompress (messageSet : MessageSet) =
                 match messageSet.Message.CompressionCodec with
-                | Gzip -> invalidOp "GZip compression not supported yet"
+                | Gzip -> GzipCompression.Decode(messageSet)
                 | Snappy -> SnappyCompression.Decode(messageSet)
                 | NoCompression -> [| messageSet |]
             messageSets

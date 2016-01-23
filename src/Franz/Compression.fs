@@ -3,6 +3,7 @@
 open Franz
 open Franz.Stream
 open Snappy
+open System.IO.Compression
 open System.IO
 
 /// Handles Snappy compression and decompression
@@ -44,3 +45,28 @@ type SnappyCompression private () =
         let buffer = Array.zeroCreate(int dest.Length)
         dest.Read(buffer, 0, int dest.Length) |> ignore
         buffer |> MessageSet.Deserialize
+
+[<AbstractClass; Sealed>]
+/// Handles GZip compression and decompression
+type GzipCompression private() =
+    static let gzipCompressionFlag = 1y
+    /// Decode a message set
+    static member Decode(messageSet : MessageSet) =
+        let message = messageSet.Message
+        if message.CompressionCodec <> Gzip then invalidOp "This message is not compressed using GZip"
+        use source = new MemoryStream(message.Value)
+        use destination = new MemoryStream()
+        use gzipStream = new GZipStream(source, CompressionMode.Decompress, false)
+        gzipStream.CopyTo(destination)
+        gzipStream.Flush()
+        gzipStream.Close()
+        destination.ToArray() |> MessageSet.Deserialize
+    /// Encode message sets
+    static member Encode(messageSets : MessageSet seq) =
+        use stream = new MemoryStream()
+        use gzipStream = new GZipStream(stream, CompressionLevel.Fastest, false)
+        messageSets |> Seq.iter (fun x -> x.Serialize(gzipStream))
+        gzipStream.Flush()
+        gzipStream.Close()
+        let buffer = stream.ToArray()
+        [| MessageSet.Create(-1L, gzipCompressionFlag, null, buffer) |]
