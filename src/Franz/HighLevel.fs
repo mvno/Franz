@@ -28,7 +28,7 @@ type IProducer =
     abstract member SendMessage : string * string * RequiredAcks * int -> unit
 
 /// High level kafka producer
-type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
+type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec) =
     let mutable disposed = false
     let topicPartitions = new TopicPartitions()
     let sortTopicPartitions() =
@@ -54,7 +54,8 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds) = new Producer(brokerSeeds, 10000)
-    new (brokerSeeds, tcpTimeout) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, tcpTimeout : int) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, brokerRouter : BrokerRouter) = new Producer(brokerSeeds, brokerRouter, NoCompression)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, message) =
         self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500, null)
@@ -64,8 +65,15 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, messages : string array, requiredAcks, brokerProcessingTimeout, partitionWhiteList : Id array) =
         if disposed then invalidOp "Producer has been disposed"
-        let rec innerSend() =
+        let compressMessages (messages : string array) =
             let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
+            match compressionCodec with
+            | NoCompression -> messageSets
+            | Gzip -> invalidOp "GZip compression not yet supported"
+            | Snappy -> SnappyCompression.Encode(messageSets)
+                
+        let rec innerSend() =
+            let messageSets = messages |> compressMessages
             let partitionId =
                 let success, result = topicPartitions.TryGetValue(topicName)
                 if (not success) then
@@ -441,7 +449,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 match messageSet.Message.CompressionCodec with
                 | Gzip -> invalidOp "GZip compression not supported yet"
                 | Snappy -> SnappyCompression.Decode(messageSet)
-                | None -> [| messageSet |]
+                | NoCompression -> [| messageSet |]
             messageSets
             |> Seq.map innerDecompress
             |> Seq.concat

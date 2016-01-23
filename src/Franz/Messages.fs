@@ -135,7 +135,7 @@ module Messages =
             buffer |> BigEndianWriter.Write stream
 
     type CompressionCodec =
-    | None
+    | NoCompression
     | Gzip
     | Snappy
 
@@ -159,7 +159,7 @@ module Messages =
             match codec with
             | 1y -> Gzip
             | 2y -> Snappy
-            | _ -> None
+            | _ -> NoCompression
 
     /// Type for messageset.
     type MessageSet(offset : Offset, size : MessageSize, message : Message) =
