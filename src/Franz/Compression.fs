@@ -21,7 +21,7 @@ type SnappyCompression private () =
     /// Decode a message set
     static member Decode(messageSet : MessageSet) =
         let message = messageSet.Message
-        if message.CompressionCodec <> Snappy then invalidOp "This message is not compressed using Snappy"
+        if message.CompressionCodec <> CompressionCodec.Snappy then invalidOp "This message is not compressed using Snappy"
         use stream = new MemoryStream(message.Value)
         use dest = new MemoryStream()
 
@@ -53,7 +53,7 @@ type GzipCompression private() =
     /// Decode a message set
     static member Decode(messageSet : MessageSet) =
         let message = messageSet.Message
-        if message.CompressionCodec <> Gzip then invalidOp "This message is not compressed using GZip"
+        if message.CompressionCodec <> CompressionCodec.Gzip then invalidOp "This message is not compressed using GZip"
         use source = new MemoryStream(message.Value)
         use destination = new MemoryStream()
         use gzipStream = new GZipStream(source, CompressionMode.Decompress, false)

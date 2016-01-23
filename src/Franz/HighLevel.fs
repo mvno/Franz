@@ -56,7 +56,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
     new (brokerSeeds) = new Producer(brokerSeeds, 10000)
     new (brokerSeeds, tcpTimeout : int) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
     new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec)
-    new (brokerSeeds, brokerRouter : BrokerRouter) = new Producer(brokerSeeds, brokerRouter, NoCompression)
+    new (brokerSeeds, brokerRouter : BrokerRouter) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, message) =
         self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500, null)
@@ -69,9 +69,10 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         let compressMessages (messages : string array) =
             let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
             match compressionCodec with
-            | NoCompression -> messageSets
-            | Gzip -> GzipCompression.Encode(messageSets)
-            | Snappy -> SnappyCompression.Encode(messageSets)
+            | CompressionCodec.None -> messageSets
+            | CompressionCodec.Gzip -> GzipCompression.Encode(messageSets)
+            | CompressionCodec.Snappy -> SnappyCompression.Encode(messageSets)
+            | _ -> failwith "Unsupported compression codec"
                 
         let rec innerSend() =
             let messageSets = messages |> compressMessages
@@ -448,9 +449,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         let decompressMessageSets (messageSets : MessageSet array) =
             let innerDecompress (messageSet : MessageSet) =
                 match messageSet.Message.CompressionCodec with
-                | Gzip -> GzipCompression.Decode(messageSet)
-                | Snappy -> SnappyCompression.Decode(messageSet)
-                | NoCompression -> [| messageSet |]
+                | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
+                | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
+                | CompressionCodec.None -> [| messageSet |]
+                | _ -> failwith "Unknown compression codec"
             messageSets
             |> Seq.map innerDecompress
             |> Seq.concat

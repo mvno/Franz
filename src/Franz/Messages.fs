@@ -135,9 +135,9 @@ module Messages =
             buffer |> BigEndianWriter.Write stream
 
     type CompressionCodec =
-    | NoCompression
-    | Gzip
-    | Snappy
+    | None = 0
+    | Gzip = 1
+    | Snappy = 2
 
     /// Message in a messageset.
     [<NoEquality;NoComparison>]
@@ -157,9 +157,10 @@ module Messages =
         member self.CompressionCodec =
             let codec = self.Attributes &&& (int8 0x03)
             match codec with
-            | 1y -> Gzip
-            | 2y -> Snappy
-            | _ -> NoCompression
+            | 0y -> CompressionCodec.None
+            | 1y -> CompressionCodec.Gzip
+            | 2y -> CompressionCodec.Snappy
+            | _ -> failwith "Unsupported compression format"
 
     /// Type for messageset.
     type MessageSet(offset : Offset, size : MessageSize, message : Message) =
