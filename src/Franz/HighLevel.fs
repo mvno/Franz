@@ -55,6 +55,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds) = new Producer(brokerSeeds, 10000)
     new (brokerSeeds, tcpTimeout : int) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec)
     new (brokerSeeds, brokerRouter : BrokerRouter) = new Producer(brokerSeeds, brokerRouter, NoCompression)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, message) =
