@@ -70,6 +70,7 @@
     <Compile Include="InfrastructureTest.fs" />
     <Compile Include="StreamTest.fs" />
     <Compile Include="MessagesTest.fs" />
+    <Compile Include="CompressionTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
