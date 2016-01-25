@@ -72,7 +72,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
             | CompressionCodec.None -> messageSets
             | CompressionCodec.Gzip -> GzipCompression.Encode(messageSets)
             | CompressionCodec.Snappy -> SnappyCompression.Encode(messageSets)
-            | _ -> failwith "Unsupported compression codec"
+            | x -> failwithf "Unsupported compression codec %A" x
                 
         let rec innerSend() =
             let messageSets = messages |> compressMessages
@@ -452,7 +452,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
                 | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
                 | CompressionCodec.None -> [| messageSet |]
-                | _ -> failwith "Unknown compression codec"
+                | x -> failwithf "Unknown compression codec %A" x
             messageSets
             |> Seq.map innerDecompress
             |> Seq.concat
