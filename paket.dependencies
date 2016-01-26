@@ -4,6 +4,7 @@ nuget FSharp.Core 4.0.0.1 framework: >= net45
 nuget FSharp.Formatting
 nuget FAKE
 nuget FsCheck
+nuget Snappy.NET
 nuget SourceLink.Fake
 nuget Unquote
 nuget xUnit

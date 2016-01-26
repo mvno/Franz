@@ -1,7 +1,8 @@
-### 2.0.2
+### 2.1.0
 * Fix memory leak
 * Allow reusing BrokerRouter to minimize number of TCP connections to the cluster
 * Implement IDisposable on consumer, producer, offsetmanagers and brokerrouter to allow closing TCP connections
+* Add support for Snappy and GZip compression
 ### 2.0.1
 * Added missing getter and setter to offset storage
 ### 2.0.0

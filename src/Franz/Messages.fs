@@ -134,6 +134,11 @@ module Messages =
             let buffer = self.WriteSize(memoryStream)
             buffer |> BigEndianWriter.Write stream
 
+    type CompressionCodec =
+    | None = 0
+    | Gzip = 1
+    | Snappy = 2
+
     /// Message in a messageset.
     [<NoEquality;NoComparison>]
     type Message =
@@ -149,6 +154,13 @@ module Messages =
             /// The value is the actual message contents as an opaque byte array. Kafka supports recursive messages in which case this may itself contain a message set. The message can be null
             Value : byte array;
         }
+        member self.CompressionCodec =
+            let codec = self.Attributes &&& (int8 0x03)
+            match codec with
+            | 0y -> CompressionCodec.None
+            | 1y -> CompressionCodec.Gzip
+            | 2y -> CompressionCodec.Snappy
+            | _ -> failwith "Unsupported compression format"
 
     /// Type for messageset.
     type MessageSet(offset : Offset, size : MessageSize, message : Message) =

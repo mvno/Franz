@@ -6,6 +6,7 @@ open System.Text
 open Franz
 open Franz.Internal
 open System.Collections.Concurrent
+open Franz.Compression
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -27,7 +28,7 @@ type IProducer =
     abstract member SendMessage : string * string * RequiredAcks * int -> unit
 
 /// High level kafka producer
-type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
+type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec) =
     let mutable disposed = false
     let topicPartitions = new TopicPartitions()
     let sortTopicPartitions() =
@@ -53,7 +54,9 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds) = new Producer(brokerSeeds, 10000)
-    new (brokerSeeds, tcpTimeout) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, tcpTimeout : int) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec)
+    new (brokerSeeds, brokerRouter : BrokerRouter) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, message) =
         self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500, null)
@@ -63,8 +66,16 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter) =
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, messages : string array, requiredAcks, brokerProcessingTimeout, partitionWhiteList : Id array) =
         if disposed then invalidOp "Producer has been disposed"
-        let rec innerSend() =
+        let compressMessages (messages : string array) =
             let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
+            match compressionCodec with
+            | CompressionCodec.None -> messageSets
+            | CompressionCodec.Gzip -> GzipCompression.Encode(messageSets)
+            | CompressionCodec.Snappy -> SnappyCompression.Encode(messageSets)
+            | x -> failwithf "Unsupported compression codec %A" x
+                
+        let rec innerSend() =
+            let messageSets = messages |> compressMessages
             let partitionId =
                 let success, result = topicPartitions.TryGetValue(topicName)
                 if (not success) then
@@ -435,6 +446,16 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 |> Seq.concat
                 |> Seq.min
             partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
+        let decompressMessageSets (messageSets : MessageSet array) =
+            let innerDecompress (messageSet : MessageSet) =
+                match messageSet.Message.CompressionCodec with
+                | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
+                | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
+                | CompressionCodec.None -> [| messageSet |]
+                | x -> failwithf "Unknown compression codec %A" x
+            messageSets
+            |> Seq.map innerDecompress
+            |> Seq.concat
         let rec innerConsumer partitionId =
             async {
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
@@ -456,6 +477,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     partitionResponse.MessageSets
+                        |> decompressMessageSets
                         |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset }))
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
