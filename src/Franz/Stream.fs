@@ -56,6 +56,11 @@ type BigEndianReader() =
     /// The size unused to indicate NULL in the protocol
     static let kafkaNullSize = -1
 
+    static let rec readLoop offset bytesLeft (stream : Stream) buffer =
+        let bytesRead = stream.Read(buffer, offset, bytesLeft)
+        if bytesRead <> bytesLeft then
+            readLoop (offset + bytesRead) (bytesLeft - bytesRead) stream buffer
+
     /// Convert an array to big endian if needed
     static member ReadEndianAware isLittleEndian bytes =
         if isLittleEndian then bytes |> Array.rev
@@ -64,11 +69,7 @@ type BigEndianReader() =
     /// Read a number of bytes from the stream
     static member Read size (stream : Stream) =
         let buffer = Array.zeroCreate(size)
-        let rec innerRead offset bytesLeft =
-            let bytesRead = stream.Read(buffer, offset, bytesLeft)
-            if bytesRead <> bytesLeft then
-                innerRead (offset + bytesRead) (bytesLeft - bytesRead)
-        innerRead 0 size
+        readLoop 0 size stream buffer
         buffer
 
     /// Read an int8 from the stream
