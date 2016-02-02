@@ -27,6 +27,14 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     let _sendLock = new Object()
     let mutable disposed = false
     let mutable client : TcpClient = null
+    let send (self : Broker) (request : Request<'TResponse>) =
+        if client |> isNull then self.Connect()
+        let stream = client.GetStream()
+        stream |> request.Serialize
+        let messageSize = stream |> BigEndianReader.ReadInt32
+        dprintfn "Received message of size %i" messageSize
+        let buffer = stream |> BigEndianReader.Read messageSize
+        new MemoryStream(buffer)
     /// Gets the broker TcpClient
     member __.Client with get() = client
     /// Gets the broker endpoint
@@ -48,23 +56,15 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     member self.Send(request : Request<'TResponse>) =
         if disposed then invalidOp "Broker has been disposed"
         let rawResponseStream = lock _sendLock (fun () -> 
-            let send () =
-                if client |> isNull then self.Connect()
-                let stream = self.Client.GetStream()
-                stream |> request.Serialize
-                let messageSize = stream |> BigEndianReader.ReadInt32
-                dprintfn "Received message of size %i" messageSize
-                let buffer = stream |> BigEndianReader.Read messageSize
-                new MemoryStream(buffer)
             try
-                send()
+                send self request
             with
             | e ->
                 dprintfn "Got exception while sending request: %s" e.Message
                 dprintfn "Reconnecting..."
                 self.Connect()
                 try
-                    send()
+                    send self request
                 with
                 | _ ->
                     client <- null
@@ -111,38 +111,38 @@ type BrokerRouter(tcpTimeout) as self =
     let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
+    let getPartitions nodeId response =
+        response.TopicMetadata
+        |> Seq.map (fun t -> { TopicName = t.Name; PartitionIds = t.PartitionMetadata |> Seq.filter (fun p -> p.ErrorCode.IsSuccess() && p.Leader = nodeId) |> Seq.map (fun p -> p.PartitionId) |> Seq.toArray })
+        |> Seq.toArray
+    let mapMetadataResponseToBrokers brokers brokerSeeds (response : MetadataResponse) =
+        let newBrokers =
+            response.Brokers
+                |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
+                |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
+                |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId response, tcpTimeout))
+                |> Seq.toList
+        brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId response)
+        if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
+            brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
+        else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
+    let rec innerConnect seeds =
+        match seeds with
+        | head :: tail ->
+            try
+                dprintfn "Connecting to %s:%i..." head.Address head.Port
+                let broker = new Broker(-1, head, [||], tcpTimeout)
+                broker.Connect()
+                broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers [] seeds
+            with
+            | e ->
+                dprintfn "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message
+                innerConnect tail
+        | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
     let connect brokerSeeds =
         if disposed then invalidOp "Router has been disposed"
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
         if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
-        let mapMetadataResponseToBrokers brokers (response : MetadataResponse) =
-            let getPartitions nodeId =
-                response.TopicMetadata
-                |> Seq.map (fun t -> { TopicName = t.Name; PartitionIds = t.PartitionMetadata |> Seq.filter (fun p -> p.ErrorCode.IsSuccess() && p.Leader = nodeId) |> Seq.map (fun p -> p.PartitionId) |> Seq.toArray })
-                |> Seq.toArray
-            let newBrokers =
-                response.Brokers
-                    |> Seq.map (fun x -> ({ Address = x.Host; Port = x.Port }, x.NodeId))
-                    |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
-                    |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId, tcpTimeout))
-                    |> Seq.toList
-            brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId )
-            if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
-                brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
-            else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
-        let rec innerConnect seeds =
-            match seeds with
-            | head :: tail ->
-                try
-                    dprintfn "Connecting to %s:%i..." head.Address head.Port
-                    let broker = new Broker(-1, head, [||], tcpTimeout)
-                    broker.Connect()
-                    broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers []
-                with
-                | e ->
-                    dprintfn "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message
-                    innerConnect tail
-            | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
         innerConnect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
     let router = Agent.Start((fun inbox ->
         let rec loop brokers lastRoundRobinIndex connected = async {
@@ -184,6 +184,38 @@ type BrokerRouter(tcpTimeout) as self =
                 return! loop brokers lastRoundRobinIndex true
         }
         loop [] -1 false), cts.Token)
+
+    let rec getMetadata brokers attempt lastRoundRobinIndex topics =
+        let (index, broker : Broker) = brokers |> Seq.roundRobin lastRoundRobinIndex
+        try
+            try
+                if not broker.IsConnected then broker.Connect()
+                let response = broker.Send(new MetadataRequest(topics))
+                (index, response)
+            with
+            | _ ->
+                if not broker.IsConnected then broker.Connect()
+                let response = broker.Send(new MetadataRequest(topics))
+                (index, response)
+        with
+        | e ->
+            dprintfn "Got exception while getting metadata: %s" e.Message
+            if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
+            else invalidOp "Could not get metadata as none of the brokers are available"
+
+    let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId =
+        let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
+        match candidateBrokers |> Seq.length with
+        | 0 ->
+            dprintfn "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId
+            let (index, brokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex, [| topic |])
+            System.Threading.Thread.Sleep(500)
+            if attempt < 3 then findBroker brokers index (attempt + 1) topic partitionId
+            else Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i" topic partitionId))
+        | _ ->
+            let broker = candidateBrokers |> Seq.head
+            Ok(broker, lastRoundRobinIndex)
+
     do
         router.Error.Add(fun x -> errorEvent.Trigger(x))
     /// Event used in case of unhandled exception in internal agent
@@ -201,25 +233,7 @@ type BrokerRouter(tcpTimeout) as self =
             match topics with
             | Some x -> x
             | None -> [||]
-        let (index, response) =
-            let rec getMetadata brokers attempt =
-                let (index, broker : Broker) = brokers |> Seq.roundRobin lastRoundRobinIndex
-                try
-                    try
-                        if not broker.IsConnected then broker.Connect()
-                        let response = broker.Send(new MetadataRequest(topics))
-                        (index, response)
-                    with
-                    | _ ->
-                        if not broker.IsConnected then broker.Connect()
-                        let response = broker.Send(new MetadataRequest(topics))
-                        (index, response)
-                with
-                | e ->
-                    dprintfn "Got exception while getting metadata: %s" e.Message
-                    if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1)
-                    else invalidOp "Could not get metadata as none of the brokers are available"
-            getMetadata brokers 0
+        let (index, response) = getMetadata brokers 0 lastRoundRobinIndex topics
         let getPartitions nodeId =
             response.TopicMetadata
             |> Seq.map (fun t -> { TopicName = t.Name; PartitionIds = t.PartitionMetadata |> Seq.filter (fun p -> p.ErrorCode.IsSuccess() && p.Leader = nodeId) |> Seq.map (fun p -> p.PartitionId) |> Seq.toArray })
@@ -248,19 +262,7 @@ type BrokerRouter(tcpTimeout) as self =
         (index, updatedBrokers)
     /// Get broker by topic and partition id
     member private self.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) =
-        let rec find brokers lastRoundRobinIndex attempt =
-            let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
-            match candidateBrokers |> Seq.length with
-            | 0 ->
-                dprintfn "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId
-                let (index, brokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex, [| topic |])
-                System.Threading.Thread.Sleep(500)
-                if attempt < 3 then find brokers index (attempt + 1)
-                else Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i" topic partitionId))
-            | _ ->
-                let broker = candidateBrokers |> Seq.head
-                Ok(broker, lastRoundRobinIndex)
-        find brokers lastRoundRobinIndex 0
+        findBroker brokers lastRoundRobinIndex 0 topic partitionId
     /// Add broker to the list of available brokers
     member __.AddBroker(broker : Broker) =
         if disposed then invalidOp "Router has been disposed"
