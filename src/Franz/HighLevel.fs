@@ -513,7 +513,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let asyncs =
             partitionOffsets.Keys
-            |> Seq.map (fun x -> innerConsumer x blockingCollection cancellationToken)
+            |> Seq.map (fun x -> innerConsumer x blockingCollection cancellationToken None)
             |> Async.Parallel
             |> Async.Ignore
         Async.Start(asyncs, cancellationToken)
