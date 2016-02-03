@@ -57,6 +57,18 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         | CompressionCodec.Snappy -> SnappyCompression.Encode(messageSets)
         | x -> failwithf "Unsupported compression codec %A" x
 
+    let rec trySend (broker : Broker) attempt request topicName partitionId =
+        try
+            broker.Send(request)
+        with
+        | e ->
+            dprintfn "Got exception while sending request %s" e.Message
+            if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
+            else
+                brokerRouter.RefreshMetadata()
+                let newBroker = brokerRouter.GetBroker(topicName, partitionId)
+                trySend newBroker (attempt + 1) request topicName partitionId
+
     let rec innerSend messages topicName partitionWhiteList requiredAcks brokerProcessingTimeout =
         let messageSets = messages |> compressMessages
         let partitionId =
@@ -79,18 +91,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
         let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
         let broker = brokerRouter.GetBroker(topicName, partitionId)
-        let rec trySend (broker : Broker) attempt =
-            try
-                broker.Send(request)
-            with
-            | e ->
-                dprintfn "Got exception while sending request %s" e.Message
-                if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
-                else
-                    brokerRouter.RefreshMetadata()
-                    let newBroker = brokerRouter.GetBroker(topicName, partitionId)
-                    trySend newBroker (attempt + 1)
-        let response = trySend broker 0
+        let response = trySend broker 0 request topicName partitionId
         let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
         match partitionResponse.ErrorCode with
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
