@@ -162,9 +162,11 @@ module Messages =
             | 2y -> CompressionCodec.Snappy
             | _ -> failwith "Unsupported compression format"
 
+    exception BufferOverflowException of string
+
     /// Type for messageset.
     type MessageSet(offset : Offset, size : MessageSize, message : Message) =
-        static let rec decodeMessageSet (list : MessageSet list) (stream : Stream) (buffer : byte array) =
+        static let rec decodeMessageSet (list : MessageSet list) (stream : Stream) (buffer : byte array) receviedPartialMessage =
             let bytesAvailable = buffer.Length - int stream.Position
             if bytesAvailable > MessageSet.messageSetHeaderSize then
                 let offset = stream |> BigEndianReader.ReadInt64
@@ -179,13 +181,15 @@ module Messages =
                             Value = stream |> BigEndianReader.ReadBytes
                         }
                     let messageSet = new MessageSet(offset, messageSize, message)
-                    decodeMessageSet (messageSet :: list) stream buffer
+                    decodeMessageSet (messageSet :: list) stream buffer receviedPartialMessage
                 else
-                    dprintfn "Received partial message, skipping..."
                     stream |> BigEndianReader.Read (bytesAvailable - 12) |> ignore
-                    decodeMessageSet list stream buffer
+                    decodeMessageSet list stream buffer true
             else
-                list
+                if list |> Seq.length = 0 && receviedPartialMessage then
+                    raise (BufferOverflowException "Only received partial message")
+                else
+                    list
         
         /// Messageset header size
         static member private messageSetHeaderSize = 4 + 8
@@ -225,7 +229,7 @@ module Messages =
         /// Deserialize the messageset.
         static member Deserialize (buffer : byte array) =
             let stream = new MemoryStream(buffer)
-            decodeMessageSet [] stream buffer
+            decodeMessageSet [] stream buffer false
 
     /// Broker
     [<NoEquality;NoComparison>] type Broker = { NodeId : int32; Host : string; Port : int32; }
