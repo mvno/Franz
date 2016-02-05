@@ -1,4 +1,5 @@
 ### 2.1.0
+* Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
 * Allow reusing BrokerRouter to minimize number of TCP connections to the cluster
 * Implement IDisposable on consumer, producer, offsetmanagers and brokerrouter to allow closing TCP connections
