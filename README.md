@@ -18,7 +18,7 @@ Franz
 Documentation
 -------------
 
-Franz is a .NET client for Kafka implemented in F#. It supports Kafka version 0.8.2.1 and below. At the moment the client is synchronous, as this makes it easier to debug and determine if problems are related to network of client issues.
+Franz is a .NET client for Kafka implemented in F#. At the moment the client is synchronous, as this makes it easier to debug and determine if problems are related to network of client issues.
 In the future it may support asynchronous sending and receiving, but in the uses cases we need at the moment, it doesn't affect performance that much.
 
 Example
@@ -30,8 +30,7 @@ Producer:
 using Franz.Highlevel
 
 var producer = new Producer(new[] { new EndPoint("localhost", 9092), new EndPoint("localhost", 9093) });
-var brokerProcessingTimeout = 500;
-producer.SendMessage("testTopic", "Test message", RequiredAcks.LocalLog, brokerProcessingTimeout);
+producer.SendMessage("testTopic", "Test message");
 ```
 
 Consumer:
@@ -40,7 +39,7 @@ Consumer:
 using Franz.Highlevel
 
 var endPoints = new[] { new EndPoint("localhost", 9092), new EndPoint("localhost", 9093) };
-var consumer = new Consumer(endPoints, "testTopic", new ConsumerOffsetManagerV0(endPoints, "testTopic"))
+var consumer = new Consumer(endPoints, "testTopic")
 foreach (var message = consumer.Consume())
 {
 	/// Process message
@@ -52,7 +51,7 @@ Samples & documentation
 
 The library comes with comprehensible documentation. 
 
- * [API Reference](reference/index.html) contains automatically generated documentation for all types, modules
+ * [API Reference](http://mvno.github.io/Franz/reference/index.html) contains automatically generated documentation for all types, modules
    and functions in the library.
  
 Contributing and copyright
