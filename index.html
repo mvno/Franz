@@ -59,13 +59,11 @@ In the future it may support asynchronous sending and receiving, but in the uses
 <span class="l">2: </span>
 <span class="l">3: </span>
 <span class="l">4: </span>
-<span class="l">5: </span>
 </pre></td>
 <td class="snippet"><pre class="fssnip highlighted"><code lang="csharp"><span class="k">using</span> Franz.Highlevel
 
 <span class="k">var</span> producer <span class="o">=</span> <span class="k">new</span> Producer(<span class="k">new</span>[] { <span class="k">new</span> EndPoint(<span class="s">"localhost"</span>, 9092), <span class="k">new</span> EndPoint(<span class="s">"localhost"</span>, 9093) });
-<span class="k">var</span> brokerProcessingTimeout <span class="o">=</span> 500;
-producer.SendMessage(<span class="s">"testTopic"</span>, <span class="s">"Test message"</span>, RequiredAcks.LocalLog, brokerProcessingTimeout);
+producer.SendMessage(<span class="s">"testTopic"</span>, <span class="s">"Test message"</span>);
 </code></pre></td></tr></table>
 
 <p>Consumer:</p>
@@ -82,7 +80,7 @@ producer.SendMessage(<span class="s">"testTopic"</span>, <span class="s">"Test m
 <td class="snippet"><pre class="fssnip highlighted"><code lang="csharp"><span class="k">using</span> Franz.Highlevel
 
 <span class="k">var</span> endPoints <span class="o">=</span> <span class="k">new</span>[] { <span class="k">new</span> EndPoint(<span class="s">"localhost"</span>, 9092), <span class="k">new</span> EndPoint(<span class="s">"localhost"</span>, 9093) };
-<span class="k">var</span> consumer <span class="o">=</span> <span class="k">new</span> Consumer(endPoints, <span class="s">"testTopic"</span>, <span class="k">new</span> ConsumerOffsetManagerV0(endPoints, <span class="s">"testTopic"</span>))
+<span class="k">var</span> consumer <span class="o">=</span> <span class="k">new</span> Consumer(endPoints, <span class="s">"testTopic"</span>)
 <span class="k">foreach</span> (<span class="k">var</span> message <span class="o">=</span> consumer.Consume())
 {
     <span class="c">/// Process message</span>
