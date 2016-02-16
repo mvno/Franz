@@ -27,8 +27,7 @@ Producer:
     using Franz.Highlevel
 	
     var producer = new Producer(new[] { new EndPoint("localhost", 9092), new EndPoint("localhost", 9093) });
-    var brokerProcessingTimeout = 500;
-    producer.SendMessage("testTopic", "Test message", RequiredAcks.LocalLog, brokerProcessingTimeout);
+    producer.SendMessage("testTopic", "Test message");
 
 Consumer:
 
@@ -36,7 +35,7 @@ Consumer:
     using Franz.Highlevel
 	
 	var endPoints = new[] { new EndPoint("localhost", 9092), new EndPoint("localhost", 9093) };
-    var consumer = new Consumer(endPoints, "testTopic", new ConsumerOffsetManagerV0(endPoints, "testTopic"))
+    var consumer = new Consumer(endPoints, "testTopic")
     foreach (var message = consumer.Consume())
     {
     	/// Process message
