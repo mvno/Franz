@@ -32,9 +32,15 @@
       <div class="row">
         <div class="span9" id="main">
           
-<h3><a name="2-0-1" class="anchor" href="#2-0-1">2.0.1</a></h3>
+<h3><a name="2-1-0" class="anchor" href="#2-1-0">2.1.0</a></h3>
 
 <ul>
+<li>Handle situtation where fetching big messagesets could result in a infinite loop</li>
+<li>Fix memory leak</li>
+<li>Allow reusing BrokerRouter to minimize number of TCP connections to the cluster</li>
+<li>Implement IDisposable on consumer, producer, offsetmanagers and brokerrouter to allow closing TCP connections</li>
+<li>Add support for Snappy and GZip compression
+### 2.0.1</li>
 <li>Added missing getter and setter to offset storage
 ### 2.0.0</li>
 <li>Fixed bug where connecting to a new Kafka cluster without any topics would fail</li>
