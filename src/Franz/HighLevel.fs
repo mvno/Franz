@@ -361,8 +361,16 @@ type DisabledConsumerOffsetManager() =
     interface IDisposable with
         member __.Dispose() = ()
 
+[<NoEquality;NoComparison>]
+type MessageWithOffset =
+    {
+        Offset : Offset;
+        Message : Message;
+    }
+
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
+    abstract member ConsumeWithMetadata : System.Threading.CancellationToken -> IEnumerable<MessageWithOffset>
     abstract member GetOffsets : unit -> PartitionOffset array
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
@@ -394,13 +402,6 @@ type ConsumerOptions() =
     member val MaxBytes = 1024 * 5 with get, set
     /// Indicates how offsets should be stored
     member val OffsetStorage = OffsetStorage.Zookeeper with get, set
-
-[<NoEquality;NoComparison>]
-type MessageWithOffset =
-    {
-        Offset : Offset;
-        Message : Message;
-    }
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
@@ -539,5 +540,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         member self.SetOffsets(offsets) =
             self.SetOffsets(offsets)
         member self.OffsetManager = self.OffsetManager
+        member self.ConsumeWithMetadata(cancellationToken) =
+            self.ConsumeWithMetadata(cancellationToken)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
