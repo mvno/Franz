@@ -491,6 +491,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 dprintfn "%s. Temporarily increasing fetch size" e.Message
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
                 return! innerConsumer partitionId blockingCollection cancellationToken (Some increasedFetchSize)
+            | e ->
+                dprintfn "Got exception %s. Retrying in 5 seconds." e.Message
+                do! Async.Sleep(5000)
+                return! innerConsumer partitionId blockingCollection cancellationToken None
         }
 
     do
