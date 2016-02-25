@@ -1,3 +1,5 @@
+### 2.1.1
+* Fix bug which would throw exception when consumer got exceptions while communicating with broker
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
