@@ -1,5 +1,6 @@
-### 2.1.1
+### 3.0.0
 * Fix bug which would throw exception when consumer got exceptions while communicating with broker
+* Allow selection specific partition when producing messages
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
