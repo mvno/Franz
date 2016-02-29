@@ -22,9 +22,13 @@ type IProducer =
     abstract member SendMessage : string * string -> unit
     abstract member SendMessages : string * string array -> unit
     abstract member SendMessages : string * string array * RequiredAcks * int -> unit
+    abstract member SendMessage : string * string * string * RequiredAcks * int -> unit
+    abstract member SendMessage : string * string * string -> unit
+    abstract member SendMessages : string * string * string array -> unit
+    abstract member SendMessages : string * string * string array * RequiredAcks * int -> unit
 
 /// High level kafka producer
-type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, Id>) =
+type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
 
     let compressMessages (messages : string array) =
@@ -47,10 +51,9 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
                 let newBroker = brokerRouter.GetBroker(topicName, partitionId)
                 trySend newBroker (attempt + 1) request topicName partitionId
 
-    let rec innerSend messages topicName requiredAcks brokerProcessingTimeout =
+    let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout =
         let messageSets = messages |> compressMessages
-        let partitionId = partitionSelector.Invoke(topicName)
-        printfn "Partition id: %i" partitionId
+        let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
         let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
         let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
@@ -61,23 +64,23 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
-            innerSend messages topicName requiredAcks brokerProcessingTimeout
+            innerSend key messages topicName requiredAcks brokerProcessingTimeout
         | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
         brokerRouter.Connect(brokerSeeds)
-    new (brokerSeeds, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
-    new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), partitionSelector)
-    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionSelector)
-    new (brokerSeeds, brokerRouter : BrokerRouter, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None, partitionSelector)
+    new (brokerSeeds, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
+    new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), partitionSelector)
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionSelector)
+    new (brokerSeeds, brokerRouter : BrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None, partitionSelector)
     /// Sends a message to the specified topic
-    member self.SendMessages(topicName, message) =
-        self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500)
+    member self.SendMessages(topicName, key, message) =
+        self.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
     /// Sends a message to the specified topic
-    member __.SendMessages(topicName, messages : string array, requiredAcks, brokerProcessingTimeout) =
+    member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
         if disposed then invalidOp "Producer has been disposed"
-        innerSend messages topicName requiredAcks brokerProcessingTimeout
+        innerSend key messages topicName requiredAcks brokerProcessingTimeout
     /// Get all available brokers
     member __.GetAllBrokers() =
         brokerRouter.GetAllBrokers()
@@ -88,13 +91,21 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
             disposed <- true
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
-            self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout)
+            self.SendMessages(topicName, null, [| message |], requiredAcks, brokerProcessingTimeout)
         member self.SendMessage(topicName, message) =
-            self.SendMessages(topicName, [| message |])
+            self.SendMessages(topicName, null, [| message |])
         member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout) =
-            self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
+            self.SendMessages(topicName, null, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, messages) = 
-            self.SendMessages(topicName, messages)
+            self.SendMessages(topicName, null, messages)
+        member self.SendMessage(topicName, key, message, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, key, [| message |], requiredAcks, brokerProcessingTimeout)
+        member self.SendMessage(topicName, key, message) =
+            self.SendMessages(topicName, key, [| message |])
+        member self.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout)
+        member self.SendMessages(topicName, key, messages) = 
+            self.SendMessages(topicName, key, messages)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
@@ -120,7 +131,7 @@ type RoundRobinProducer(brokerSeeds, brokerRouter : BrokerRouter, compressionCod
                 ids.AddRange(partitionsToAdd))
         sortTopicPartitions()
 
-    let getNextPartitionId topicName =
+    let getNextPartitionId topicName _ =
         let success, result = topicPartitions.TryGetValue(topicName)
         if (not success) then
             brokerRouter.GetBroker(topicName, 0) |> ignore
@@ -141,7 +152,7 @@ type RoundRobinProducer(brokerSeeds, brokerRouter : BrokerRouter, compressionCod
         brokerRouter.Connect(brokerSeeds)
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
-        producer <- Some <| new Producer(brokerSeeds, brokerRouter, compressionCodec, new Func<string, Id>(getNextPartitionId))
+        producer <- Some <| new Producer(brokerSeeds, brokerRouter, compressionCodec, new Func<string, string, Id>(getNextPartitionId))
 
     new (brokerSeeds) = new RoundRobinProducer(brokerSeeds, 10000)
     new (brokerSeeds, tcpTimeout : int) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout))
@@ -154,21 +165,29 @@ type RoundRobinProducer(brokerSeeds, brokerRouter : BrokerRouter, compressionCod
         producer.Value.Dispose()
 
     /// Sends a message to the specified topic
-    member __.SendMessages(topicName, message) =
-        producer.Value.SendMessages(topicName, message, RequiredAcks.LocalLog, 500)
+    member __.SendMessages(topicName, key, message) =
+        producer.Value.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
     /// Sends a message to the specified topic
-    member __.SendMessages(topicName, messages : string array, requiredAcks, brokerProcessingTimeout) =
-        producer.Value.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
+    member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
+        producer.Value.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout)
 
     interface IProducer with
+        member self.SendMessage(topicName, key, message, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, key, [| message |], requiredAcks, brokerProcessingTimeout)
+        member self.SendMessage(topicName, key, message) =
+            self.SendMessages(topicName, key, [| message |])
+        member self.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout)
+        member self.SendMessages(topicName, key, messages) =
+            self.SendMessages(topicName, key, messages)
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
-            self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout)
+            self.SendMessages(topicName, null, [| message |], requiredAcks, brokerProcessingTimeout)
         member self.SendMessage(topicName, message) =
-            self.SendMessages(topicName, [| message |])
+            self.SendMessages(topicName, null, [| message |])
         member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout) =
-            self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
+            self.SendMessages(topicName, null, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, messages) =
-            self.SendMessages(topicName, messages)
+            self.SendMessages(topicName, null, messages)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
