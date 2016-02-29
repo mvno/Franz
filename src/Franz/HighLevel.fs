@@ -24,26 +24,8 @@ type IProducer =
     abstract member SendMessages : string * string array * RequiredAcks * int -> unit
 
 /// High level kafka producer
-type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
+type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, Id>) =
     let mutable disposed = false
-    let topicPartitions = new TopicPartitions()
-    let sortTopicPartitions() =
-        topicPartitions |> Seq.iter (fun kvp ->
-            let (ids, _) = kvp.Value
-            ids.Sort())
-    let updateTopicPartitions (brokers : Broker seq) =
-        brokers
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
-        |> Seq.map (fun x -> (x.TopicName, x.PartitionIds))
-        |> Seq.iter (fun (topic, partitions) ->
-            if not <| topicPartitions.ContainsKey(topic) then
-                topicPartitions.Add(topic, (partitions |> Seq.toBclList, 0))
-            else
-                let (ids, _) = topicPartitions.[topic]
-                let partitionsToAdd = partitions |> Seq.filter (fun x -> ids |> Seq.exists (fun i -> i = x) |> not)
-                ids.AddRange(partitionsToAdd))
-        sortTopicPartitions()
 
     let compressMessages (messages : string array) =
         let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
@@ -67,22 +49,8 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
 
     let rec innerSend messages topicName requiredAcks brokerProcessingTimeout =
         let messageSets = messages |> compressMessages
-        let partitionId =
-            let success, result = topicPartitions.TryGetValue(topicName)
-            if (not success) then
-                brokerRouter.GetBroker(topicName, 0) |> ignore
-                0
-            else
-                let (partitionIds, nextId) = result
-                let filteredPartitionIds =
-                    match partitionWhiteList with
-                    | null | [||] -> partitionIds |> Seq.toBclList
-                    | _ -> Set.intersect (Set.ofArray (partitionIds.ToArray())) (Set.ofArray partitionWhiteList) |> Seq.toBclList
-                let nextId =
-                    if nextId = (filteredPartitionIds |> Seq.max) then filteredPartitionIds |> Seq.min
-                    else filteredPartitionIds |> Seq.find (fun x -> x > nextId)
-                topicPartitions.[topicName] <- (filteredPartitionIds, nextId)
-                nextId
+        let partitionId = partitionSelector.Invoke(topicName)
+        printfn "Partition id: %i" partitionId
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
         let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
         let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
@@ -99,13 +67,10 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
     do
         brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
         brokerRouter.Connect(brokerSeeds)
-        brokerRouter.GetAllBrokers() |> updateTopicPartitions
-        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
-    new (brokerSeeds) = new Producer(brokerSeeds, 10000)
-    new (brokerSeeds, tcpTimeout : int) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout))
-    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, null)
-    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionWhiteList : Id array) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionWhiteList)
-    new (brokerSeeds, brokerRouter : BrokerRouter) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None, null)
+    new (brokerSeeds, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
+    new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), partitionSelector)
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionSelector)
+    new (brokerSeeds, brokerRouter : BrokerRouter, partitionSelector : Func<string, Id>) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None, partitionSelector)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, message) =
         self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500)
@@ -129,6 +94,80 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout) =
             self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, messages) = 
+            self.SendMessages(topicName, messages)
+    interface IDisposable with
+        member self.Dispose() = self.Dispose()
+
+type RoundRobinProducer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
+    let mutable producer = None
+    let topicPartitions = new TopicPartitions()
+    let sortTopicPartitions() =
+        topicPartitions |> Seq.iter (fun kvp ->
+            let (ids, _) = kvp.Value
+            ids.Sort())
+
+    let updateTopicPartitions (brokers : Broker seq) =
+        brokers
+        |> Seq.map (fun x -> x.LeaderFor)
+        |> Seq.concat
+        |> Seq.map (fun x -> (x.TopicName, x.PartitionIds))
+        |> Seq.iter (fun (topic, partitions) ->
+            if not <| topicPartitions.ContainsKey(topic) then
+                topicPartitions.Add(topic, (partitions |> Seq.toBclList, 0))
+            else
+                let (ids, _) = topicPartitions.[topic]
+                let partitionsToAdd = partitions |> Seq.filter (fun x -> ids |> Seq.exists (fun i -> i = x) |> not)
+                ids.AddRange(partitionsToAdd))
+        sortTopicPartitions()
+
+    let getNextPartitionId topicName =
+        let success, result = topicPartitions.TryGetValue(topicName)
+        if (not success) then
+            brokerRouter.GetBroker(topicName, 0) |> ignore
+            0
+        else
+            let (partitionIds, nextId) = result
+            let filteredPartitionIds =
+                match partitionWhiteList with
+                | null | [||] -> partitionIds |> Seq.toBclList
+                | _ -> Set.intersect (Set.ofArray (partitionIds.ToArray())) (Set.ofArray partitionWhiteList) |> Seq.toBclList
+            let nextId =
+                if nextId = (filteredPartitionIds |> Seq.max) then filteredPartitionIds |> Seq.min
+                else filteredPartitionIds |> Seq.find (fun x -> x > nextId)
+            topicPartitions.[topicName] <- (filteredPartitionIds, nextId)
+            nextId
+
+    do
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updateTopicPartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+        producer <- Some <| new Producer(brokerSeeds, brokerRouter, compressionCodec, new Func<string, Id>(getNextPartitionId))
+
+    new (brokerSeeds) = new RoundRobinProducer(brokerSeeds, 10000)
+    new (brokerSeeds, tcpTimeout : int) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout))
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, null)
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionWhiteList : Id array) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionWhiteList)
+    new (brokerSeeds, brokerRouter : BrokerRouter) = new RoundRobinProducer(brokerSeeds, brokerRouter, CompressionCodec.None, null)
+
+    /// Releases all connections and disposes the producer
+    member __.Dispose() =
+        producer.Value.Dispose()
+
+    /// Sends a message to the specified topic
+    member __.SendMessages(topicName, message) =
+        producer.Value.SendMessages(topicName, message, RequiredAcks.LocalLog, 500)
+    /// Sends a message to the specified topic
+    member __.SendMessages(topicName, messages : string array, requiredAcks, brokerProcessingTimeout) =
+        producer.Value.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
+
+    interface IProducer with
+        member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout)
+        member self.SendMessage(topicName, message) =
+            self.SendMessages(topicName, [| message |])
+        member self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout) =
+            self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
+        member self.SendMessages(topicName, messages) =
             self.SendMessages(topicName, messages)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
