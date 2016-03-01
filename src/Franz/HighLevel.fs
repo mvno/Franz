@@ -349,7 +349,11 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
         | HasCommitError ErrorCode.NotCoordinatorForConsumer true ->
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerCommit consumerGroup offsets
-        | _ -> ()
+        | _ ->
+            let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
+            match errorCode with
+            | Some x -> dprintfn "Got error '%A' while commiting offset" x.ErrorCode
+            | None -> ()
 
     do
         brokerRouter.Connect(brokerSeeds)
@@ -450,7 +454,11 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
         | HasCommitError ErrorCode.NotCoordinatorForConsumer true ->
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerCommit consumerGroup offsets
-        | _ -> ()
+        | _ ->
+            let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
+            match errorCode with
+            | Some x -> dprintfn "Got error '%A' while commiting offset" x.ErrorCode
+            | None -> ()
 
     do
         brokerRouter.Connect(brokerSeeds)
