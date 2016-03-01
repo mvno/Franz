@@ -323,7 +323,7 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
             |> Seq.concat
             |> Seq.toArray
         match partitions with
-        | HasError ErrorCode.ConsumerCoordinatorNotAvailable true | HasError ErrorCode.OffsetLoadInProgress true -> innerFetch consumerGroup
+        | HasError ErrorCode.ConsumerCoordinatorNotAvailable true | HasError ErrorCode.GroupLoadInProgressCode true -> innerFetch consumerGroup
         | HasError ErrorCode.NotCoordinatorForConsumer true ->
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerFetch consumerGroup
@@ -345,7 +345,7 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
             |> Seq.concat
             |> Seq.toArray
         match partitions with
-        | HasCommitError ErrorCode.ConsumerCoordinatorNotAvailable true | HasCommitError ErrorCode.OffsetLoadInProgress true -> innerCommit consumerGroup offsets
+        | HasCommitError ErrorCode.ConsumerCoordinatorNotAvailable true | HasCommitError ErrorCode.GroupLoadInProgressCode true -> innerCommit consumerGroup offsets
         | HasCommitError ErrorCode.NotCoordinatorForConsumer true ->
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerCommit consumerGroup offsets
@@ -428,7 +428,7 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
             |> Seq.concat
             |> Seq.toArray
         match partitions with
-        | HasError ErrorCode.ConsumerCoordinatorNotAvailable true | HasError ErrorCode.OffsetLoadInProgress true -> innerFetch consumerGroup
+        | HasError ErrorCode.ConsumerCoordinatorNotAvailable true | HasError ErrorCode.GroupLoadInProgressCode true -> innerFetch consumerGroup
         | HasError ErrorCode.NotCoordinatorForConsumer true ->
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerFetch consumerGroup
@@ -450,7 +450,7 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
             |> Seq.concat
             |> Seq.toArray
         match partitions with
-        | HasCommitError ErrorCode.ConsumerCoordinatorNotAvailable true | HasCommitError ErrorCode.OffsetLoadInProgress true -> innerCommit consumerGroup offsets
+        | HasCommitError ErrorCode.ConsumerCoordinatorNotAvailable true | HasCommitError ErrorCode.GroupLoadInProgressCode true -> innerCommit consumerGroup offsets
         | HasCommitError ErrorCode.NotCoordinatorForConsumer true ->
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerCommit consumerGroup offsets
