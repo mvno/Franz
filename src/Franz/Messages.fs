@@ -270,6 +270,8 @@ module Messages =
     let DefaultTimestamp = -1L
     [<Literal>]
     let DefaultRetentionTime = -1L
+    [<Literal>]
+    let DefaultGenerationId = -1
 
     /// Broker
     [<NoEquality;NoComparison>] type Broker = { NodeId : int32; Host : string; Port : int32; }
