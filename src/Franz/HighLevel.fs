@@ -335,7 +335,7 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     let rec innerCommit consumerGroup offsets =
         let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
-        let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV1Partition.Id = x.PartitionId; Metadata = ""; Offset = x.Offset; TimeStamp = int64 0 }) |> Seq.toArray
+        let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV1Partition.Id = x.PartitionId; Metadata = ""; Offset = x.Offset; TimeStamp = DefaultTimestamp }) |> Seq.toArray
         let request = new OffsetCommitV1Request(consumerGroup, -1, "", [| { OffsetCommitRequestV1Topic.Name = topicName; Partitions = partitions } |])
         let response = coordinator.Send(request)
         let partitions =

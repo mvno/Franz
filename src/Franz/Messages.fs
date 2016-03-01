@@ -266,6 +266,9 @@ module Messages =
             let stream = new MemoryStream(buffer)
             decodeMessageSet [] stream buffer false
 
+    [<Literal>]
+    let DefaultTimestamp = -1L
+
     /// Broker
     [<NoEquality;NoComparison>] type Broker = { NodeId : int32; Host : string; Port : int32; }
     /// PartitionMetadata
