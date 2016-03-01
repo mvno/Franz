@@ -243,10 +243,10 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
             |> Seq.toArray
 
     let innerCommit offsets consumerGroup =
-            let broker = brokerRouter.GetAllBrokers() |> Seq.head
-            let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = x.Metadata; Offset = x.Offset }) |> Seq.toArray
-            let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
-            broker.Send(request)
+        let broker = brokerRouter.GetAllBrokers() |> Seq.head
+        let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = x.Metadata; Offset = x.Offset }) |> Seq.toArray
+        let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
+        broker.Send(request)
 
     do
         brokerRouter.Connect(brokerSeeds)
