@@ -643,6 +643,42 @@ module Messages =
         override __.DeserializeResponse(stream) =
             OffsetCommitResponse.Deserialize(stream)
 
+    /// Offset commit request version 2
+    type OffsetCommitV2Request(consumerGroupId : string, consumerGroupGenerationId : Id, consumerId : string, retentionTime : int64, topics : OffsetCommitRequestV0Topic array) =
+        inherit Request<OffsetCommitResponse>()
+        /// Gets the consumer group
+        member val ConsumerGroupId = consumerGroupId with get
+        /// Gets the consumer group generation
+        member val ConsumerGroupGenerationId = consumerGroupGenerationId with get
+        /// Gets the consumer id
+        member val ConsumerId = consumerId with get
+        /// The retention time. The time the offset will be retained on the broker.
+        /// If -1 is specified the broker offset retention time will be used.
+        member val RetentionTime = retentionTime with get
+        /// Gets the topics
+        member val Topics = topics with get
+        /// The API key
+        override __.ApiKey = ApiKey.OffsetCommitRequest
+        /// The API version
+        override __.ApiVersion = 2s
+        /// Serialize the message
+        override self.SerializeMessage(stream) =
+            stream |> BigEndianWriter.WriteString self.ConsumerGroupId
+            stream |> BigEndianWriter.WriteInt32 self.ConsumerGroupGenerationId
+            stream |> BigEndianWriter.WriteString self.ConsumerId
+            stream |> BigEndianWriter.WriteInt64 self.RetentionTime
+            stream |> BigEndianWriter.WriteInt32 self.Topics.Length
+            for topic in self.Topics do
+                stream |> BigEndianWriter.WriteString topic.Name
+                stream |> BigEndianWriter.WriteInt32 topic.Partitions.Length
+                for partition in topic.Partitions do
+                    stream |> BigEndianWriter.WriteInt32 partition.Id
+                    stream |> BigEndianWriter.WriteInt64 partition.Offset
+                    stream |> BigEndianWriter.WriteString partition.Metadata
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            OffsetCommitResponse.Deserialize(stream)
+
     /// Consumer metadata request
     type ConsumerMetadataRequest(consumerGroup : string) =
         inherit Request<ConsumerMetadataResponse>()
