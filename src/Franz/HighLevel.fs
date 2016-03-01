@@ -535,16 +535,19 @@ type OffsetStorage =
     | None = 0
     /// Store offsets on the Zookeeper
     | Zookeeper = 1
-    /// Store offsets on the Kafka brokers
+    /// Store offsets on the Kafka brokers, using version 1
     | Kafka = 2
     /// Store offsets both on the Zookeeper and Kafka brokers
     | DualCommit = 3
+    /// Store offsets on the Kafka brokers, using version 2
+    | KafkaV2 = 4
 
 module private OffsetHandling =
     let createOffsetManager (brokerSeeds : EndPoint seq) (topicName : string) (brokerRouter : BrokerRouter) offsetStorage =
         match offsetStorage with
             | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
             | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
             | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
             | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
 
