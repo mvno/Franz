@@ -372,6 +372,107 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
+/// Offset manager for version 2. This commits and fetches offset to/from Kafka broker.
+type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+    let mutable disposed = false
+    let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
+    let partitions = new ConcurrentDictionary<_, _>()
+    let updatePartitions (brokers : Broker seq) =
+        brokers
+            |> Seq.map (fun x -> x.LeaderFor)
+            |> Seq.concat
+            |> Seq.filter (fun x -> x.TopicName = topicName)
+            |> Seq.map (fun x -> x.PartitionIds)
+            |> Seq.concat
+            |> Seq.iter (fun x -> if partitions.ContainsKey(x) then () else partitions.TryAdd(x, null) |> ignore)
+        brokers
+            |> Seq.map (fun x -> x.LeaderFor)
+            |> Seq.concat
+            |> Seq.filter (fun x -> x.TopicName = topicName)
+            |> Seq.map (fun x -> x.PartitionIds)
+            |> Seq.concat
+            |> Seq.filter (partitions.ContainsKey >> not)
+            |> Seq.iter (partitions.TryRemove >> ignore)
+    let refreshMetadataOnException f =
+        try
+            f()
+        with
+        | _ ->
+            brokerRouter.RefreshMetadata()
+            f()
+    let send consumerGroup =
+        let allBrokers = brokerRouter.GetAllBrokers()
+        let broker = allBrokers |> Seq.head
+        let request = new ConsumerMetadataRequest(consumerGroup)
+        let response = broker.Send(request)
+        allBrokers |> Seq.filter (fun x -> x.NodeId = response.CoordinatorId) |> Seq.exactlyOne
+    let getOffsetCoordinator consumerGroup =
+        refreshMetadataOnException (fun () -> send consumerGroup)
+    let (|HasError|) errorCode (partitions : OffsetFetchResponsePartition array) =
+        partitions |> Seq.exists (fun x -> x.ErrorCode = errorCode)
+    let (|HasCommitError|) errorCode (partitions : OffsetCommitResponsePartition array) =
+        partitions |> Seq.exists (fun x -> x.ErrorCode = errorCode)
+
+    let rec innerFetch consumerGroup =
+        let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
+        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions.Keys |> Seq.toArray } |], int16 1)
+        let response = coordinator.Send(request)
+        let partitions =
+            response.Topics
+            |> Seq.filter (fun x -> x.Name = topicName)
+            |> Seq.map (fun x -> x.Partitions)
+            |> Seq.concat
+            |> Seq.toArray
+        match partitions with
+        | HasError ErrorCode.ConsumerCoordinatorNotAvailable true | HasError ErrorCode.OffsetLoadInProgress true -> innerFetch consumerGroup
+        | HasError ErrorCode.NotCoordinatorForConsumer true ->
+            coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
+            innerFetch consumerGroup
+        | _ ->
+            partitions
+            |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
+            |> Seq.map (fun x -> { PartitionId = x.Id; Metadata = ""; Offset = x.Offset })
+            |> Seq.toArray
+
+    let rec innerCommit consumerGroup offsets =
+        let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
+        let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = ""; Offset = x.Offset }) |> Seq.toArray
+        let request = new OffsetCommitV2Request(consumerGroup, -1, "", -1L, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
+        let response = coordinator.Send(request)
+        let partitions =
+            response.Topics
+            |> Seq.filter (fun x -> x.Name = topicName)
+            |> Seq.map (fun x -> x.Partitions)
+            |> Seq.concat
+            |> Seq.toArray
+        match partitions with
+        | HasCommitError ErrorCode.ConsumerCoordinatorNotAvailable true | HasCommitError ErrorCode.OffsetLoadInProgress true -> innerCommit consumerGroup offsets
+        | HasCommitError ErrorCode.NotCoordinatorForConsumer true ->
+            coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
+            innerCommit consumerGroup offsets
+        | _ -> ()
+
+    do
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updatePartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
+    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV2(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+    member __.Dispose() =
+        if not disposed then
+            brokerRouter.Dispose()
+            disposed <- true
+    interface IConsumerOffsetManager with
+        /// Fetch offset for the specified topic and partitions
+        member __.Fetch(consumerGroup) =
+            if disposed then invalidOp "Offset manager has been disposed"
+            refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+        /// Commit offset for the specified topic and partitions
+        member __.Commit(consumerGroup, offsets) =
+            if disposed then invalidOp "Offset manager has been disposed"
+            refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
+    interface IDisposable with
+        member self.Dispose() = self.Dispose()
+
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
 type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
