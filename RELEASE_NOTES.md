@@ -1,9 +1,11 @@
 ### 3.0.0
 * Fix bug which would throw exception when consumer got exceptions while communicating with broker
-* Allow selection specific partition when producing messages
+* Allow selecting specific partitions when producing messages, using a specified key
 * Consuming messages with metadata no also includes the partition for which the message is consumed
 * Do not allow setting offset not in partition whitelist
 * New consumer, ChunkedConsumer, which consume messages in chunks, and won't use as much memory
+* Support for version 2 of the OffsetCommit protocol
+* Fixed bug where OffsetManager for version 1 of the OffsetCommit protocol did not use the default timestamp value. This resulted in not using the expected offset retention time
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
