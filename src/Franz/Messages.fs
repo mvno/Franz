@@ -33,6 +33,18 @@ module Messages =
         | OffsetFetchRequest = 9
         /// Indicates a consumer metadata request
         | ConsumerMetadataRequest = 10
+        /// Indicates a join group request
+        | JoinGroupRequest = 11
+        /// Indicates a heartbeat group request
+        | HeartbeatGroupRequest = 12
+        /// Indicates a leave group request
+        | LeaveGroupRequest = 13
+        /// Indicates a sync group request
+        | SyncGroupRequest = 14
+        /// Indicates a describe group request
+        | DescribeGroupRequest = 15
+        /// Indicates a list groups request
+        | ListGroupsRequest = 16
     /// API versions, currently valid values are 0 and 1
     type ApiVersion = int16
     /// This is a user-supplied integer. It will be passed back in the response by the server, unmodified. It is useful for matching request and response between the client and server.
