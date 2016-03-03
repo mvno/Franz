@@ -1,6 +1,7 @@
 ### 3.0.0
 * Fix bug which would throw exception when consumer got exceptions while communicating with broker
 * Allow selection specific partition when producing messages
+* Consuming messages with metadata no also includes the partition for which the message is consumed
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
