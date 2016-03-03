@@ -746,3 +746,243 @@ module Messages =
         /// Deserialize the response
         override __.DeserializeResponse(stream) =
             ConsumerMetadataResponse.Deserialize(stream)
+
+    [<NoEquality;NoComparison>] type GroupMember = { MemberId : string; MemberMetadata : byte array }
+    [<NoEquality;NoComparison>]
+    type JoinGroupResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; GenerationId : Id; GroupProtocol : string; LeaderId : string; MemberId : string; Members : GroupMember array }
+        static member private readMembers list count stream =
+            match count with
+            | 0 -> list
+            | _ ->
+                let groupMember = { MemberId = stream |> BigEndianReader.ReadString; MemberMetadata = stream |> BigEndianReader.ReadBytes }
+                JoinGroupResponse.readMembers (groupMember :: list) (count - 1) stream
+        static member Deserialize(stream) =
+            {
+                CorrelationId = stream |> BigEndianReader.ReadInt32;
+                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                GenerationId = stream |> BigEndianReader.ReadInt32;
+                GroupProtocol = stream |> BigEndianReader.ReadString;
+                LeaderId = stream |> BigEndianReader.ReadString;
+                MemberId = stream |> BigEndianReader.ReadString;
+                Members = JoinGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray;
+            }
+
+    [<NoEquality;NoComparison>] type GroupProtocol = { Name : string; Metadata : byte array }
+    type JoinGroupRequest(groupId, sessionTimeout, memberId, protocolType, groupProtocols) =
+        inherit Request<JoinGroupResponse>()
+        /// The api key
+        override __.ApiKey = ApiKey.JoinGroupRequest
+        /// The group id
+        member val GroupId = groupId with get
+        /// The session timeout
+        member val SessionTimeout = sessionTimeout with get
+        /// The member id
+        member val MemberId = memberId with get
+        /// The protocol type
+        member val ProtocolType = protocolType with get
+        /// Sequence of group protocols
+        member val GroupProtocols = groupProtocols with get
+        /// Serialize the message
+        override self.SerializeMessage(stream) =
+            stream |> BigEndianWriter.WriteString groupId
+            stream |> BigEndianWriter.WriteInt32 sessionTimeout
+            stream |> BigEndianWriter.WriteString memberId
+            stream |> BigEndianWriter.WriteString protocolType
+            stream |> BigEndianWriter.WriteInt32 (groupProtocols |> Seq.length)
+            for groupProtocol in groupProtocols do
+                stream |> BigEndianWriter.WriteString groupProtocol.Name
+                stream |> BigEndianWriter.WriteBytes groupProtocol.Metadata
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            JoinGroupResponse.Deserialize(stream)
+
+    [<NoEquality;NoComparison>]
+    type SyncGroupResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; MemberAssignment : byte array }
+        static member Deserialize(stream) =
+            {
+                CorrelationId = stream |> BigEndianReader.ReadInt32;
+                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                MemberAssignment = stream |> BigEndianReader.ReadBytes;
+            }
+    [<NoEquality;NoComparison>] type PartitionAssignment = { Topic : string; Partitions : int array }
+    [<NoEquality;NoComparison>]
+    type MemberAssignment =
+        { Version : int16; PartitionAssignment : PartitionAssignment array; UserData : byte array }
+        member self.Serialize(stream) =
+            let ms = new MemoryStream()
+            ms |> BigEndianWriter.WriteInt16 self.Version
+            ms |> BigEndianWriter.WriteInt32 (self.PartitionAssignment |> Seq.length)
+            for assignment in self.PartitionAssignment do
+                ms |> BigEndianWriter.WriteString assignment.Topic
+                ms |> BigEndianWriter.WriteInt32 assignment.Partitions.Length
+                assignment.Partitions |> Seq.iter (fun x -> ms |> BigEndianWriter.WriteInt32 x)
+            ms |> BigEndianWriter.WriteBytes self.UserData
+            let size = int ms.Length
+            ms.Seek(0L, SeekOrigin.Begin) |> ignore
+            let buffer = Array.zeroCreate(size)
+            ms.Read(buffer, 0, size) |> ignore
+            stream |> BigEndianWriter.WriteBytes buffer
+        static member readPartitions list count stream =
+            match count with
+            | 0 -> list
+            | _ ->
+                let partitionId = stream |> BigEndianReader.ReadInt32
+                MemberAssignment.readPartitions (partitionId :: list) (count - 1) stream
+        static member readAssignments list count stream =
+            match count with
+            | 0 -> list
+            | _ ->
+                let assignment =
+                    {
+                        Topic = stream |> BigEndianReader.ReadString;
+                        Partitions = MemberAssignment.readPartitions [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray
+                    }
+                MemberAssignment.readAssignments (assignment :: list) (count - 1) stream
+        static member Deserialize(stream) =
+            {
+                Version = stream |> BigEndianReader.ReadInt16;
+                PartitionAssignment = stream |> MemberAssignment.readAssignments [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
+                UserData = stream |> BigEndianReader.ReadBytes
+            }
+    [<NoEquality;NoComparison>] type GroupAssignment = { MemberId : string; MemberAssignment : MemberAssignment }
+    type SyncGroupRequest(groupId, generationId, memberId, groupAssignments) =
+        inherit Request<SyncGroupResponse>()
+        /// The api key
+        override __.ApiKey = ApiKey.SyncGroupRequest
+        /// The group id
+        member val GroupId = groupId with get
+        /// The generation id
+        member val GenerationId = generationId with get
+        /// The member id
+        member val MemberId = memberId with get
+        /// The group assignment
+        member val GroupAssignments = groupAssignments with get
+        /// Serialize the message
+        override __.SerializeMessage(stream) =
+            stream |> BigEndianWriter.WriteString groupId
+            stream |> BigEndianWriter.WriteInt32 generationId
+            stream |> BigEndianWriter.WriteString memberId
+            stream |> BigEndianWriter.WriteInt32 (groupAssignments |> Seq.length)
+            for assignment in groupAssignments do
+                stream |> BigEndianWriter.WriteString assignment.MemberId
+                stream |> assignment.MemberAssignment.Serialize
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            SyncGroupResponse.Deserialize(stream)
+
+    [<NoEquality;NoComparison>]
+    type HeartbeatResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode }
+        static member Deserialize(stream) =
+            { CorrelationId = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
+    type HeartbeatRequest(groupId, generationId, memberId) =
+        inherit Request<HeartbeatResponse>()
+        /// The api key
+        override __.ApiKey = ApiKey.HeartbeatGroupRequest
+        /// The group id
+        member val GroupId = groupId with get
+        /// The generation id
+        member val GenerationId = generationId with get
+        /// The member id
+        member val MemberId = memberId with get
+        /// Serialize the message
+        override __.SerializeMessage(stream) =
+            stream |> BigEndianWriter.WriteString groupId
+            stream |> BigEndianWriter.WriteInt32 generationId
+            stream |> BigEndianWriter.WriteString memberId
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            HeartbeatResponse.Deserialize(stream)
+
+    [<NoEquality;NoComparison>]
+    type LeaveGroupResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode }
+        static member Deserialize(stream) =
+            { CorrelationId = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
+    type LeaveGroupRequest(groupId, memberId) =
+        inherit Request<LeaveGroupResponse>()
+        /// The api key
+        override __.ApiKey = ApiKey.LeaveGroupRequest
+        /// The group id
+        member val GroupId = groupId with get
+        /// The member id
+        member val MemberId = memberId with get
+        /// Serialize the message
+        override __.SerializeMessage(stream) =
+            stream |> BigEndianWriter.WriteString groupId
+            stream |> BigEndianWriter.WriteString memberId
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            LeaveGroupResponse.Deserialize(stream)
+
+    [<NoEquality;NoComparison>] type GroupInformation = { GroupId : string; ProtocolType : string }
+    [<NoEquality;NoComparison>]
+    type ListGroupsResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; Groups : GroupInformation array }
+        static member private readGroups list count stream =
+            match count with
+            | 0 -> list
+            | _ ->
+                let groupInfo = { GroupId = stream |> BigEndianReader.ReadString; ProtocolType = stream |> BigEndianReader.ReadString }
+                ListGroupsResponse.readGroups (groupInfo :: list) (count - 1) stream
+        /// Deserialize the response
+        static member Deserialize(stream) =
+            {
+                CorrelationId = stream |> BigEndianReader.ReadInt32;
+                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                Groups = ListGroupsResponse.readGroups [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray
+            }
+    type ListGroupsRequest() =
+        inherit Request<ListGroupsResponse>()
+        /// The api key
+        override __.ApiKey = ApiKey.ListGroupsRequest
+        /// Serialize the message
+        override __.SerializeMessage(_) = ()
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            ListGroupsResponse.Deserialize(stream)
+
+    [<NoEquality;NoComparison>]
+    type DescribeGroupMember = { MemberId : string; ClientId : string; ClientHost : string; MemberMetadata : byte array; MemberAssignment : MemberAssignment }
+    [<NoEquality;NoComparison>]
+    type DescribeGroupResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; GroupId : string; State : string; ProtocolType : string; Protocol : string; Members : DescribeGroupMember array }
+        static member private readMembers list count stream =
+            match count with
+            | 0 -> list
+            | _ ->
+                let m =
+                    {
+                        MemberId = stream |> BigEndianReader.ReadString;
+                        ClientId = stream |> BigEndianReader.ReadString;
+                        ClientHost = stream |> BigEndianReader.ReadString;
+                        MemberMetadata = stream |> BigEndianReader.ReadBytes;
+                        MemberAssignment = stream |> MemberAssignment.Deserialize;
+                    }
+                DescribeGroupResponse.readMembers (m :: list) (count - 1) stream
+        /// Deserialize the response
+        static member Deserialize(stream) =
+            {
+                CorrelationId = stream |> BigEndianReader.ReadInt32;
+                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                GroupId = stream |> BigEndianReader.ReadString;
+                State = stream |> BigEndianReader.ReadString;
+                ProtocolType = stream |> BigEndianReader.ReadString;
+                Protocol = stream |> BigEndianReader.ReadString;
+                Members = stream |> DescribeGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray
+            }
+    type DescribeGroupRequest(groupIds) =
+        inherit Request<DescribeGroupResponse>()
+        /// The group ids
+        member val GroupIds = groupIds with get
+        /// The api key
+        override __.ApiKey = ApiKey.DescribeGroupRequest
+        /// Serialize the message
+        override __.SerializeMessage(stream) =
+            stream |> BigEndianWriter.WriteInt32 (groupIds |> Seq.length)
+            groupIds |> Seq.iter (fun x -> stream |> BigEndianWriter.WriteString x)
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) =
+            DescribeGroupResponse.Deserialize(stream)
