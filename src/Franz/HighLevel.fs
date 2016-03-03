@@ -406,15 +406,16 @@ type DisabledConsumerOffsetManager() =
         member __.Dispose() = ()
 
 [<NoEquality;NoComparison>]
-type MessageWithOffset =
+type MessageWithMetadata =
     {
         Offset : Offset;
         Message : Message;
+        PartitionId : Id;
     }
 
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
-    abstract member ConsumeWithMetadata : System.Threading.CancellationToken -> IEnumerable<MessageWithOffset>
+    abstract member ConsumeWithMetadata : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
     abstract member GetOffsets : unit -> PartitionOffset array
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
@@ -519,7 +520,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     partitionResponse.MessageSets
                         |> decompressMessageSets
-                        |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset }))
+                        |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset; PartitionId = partitionId }))
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
                         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
@@ -572,7 +573,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         if disposed then invalidOp "Consumer has been disposed"
         partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
     /// Sets the current consumer offsets
-    member __.SetOffsets(offsets) =
+    member __.SetOffsets(offsets : PartitionOffset seq) =
         if disposed then invalidOp "Consumer has been disposed"
         offsets |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     /// Releases all connections and disposes the consumer
