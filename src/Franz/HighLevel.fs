@@ -406,7 +406,7 @@ type DisabledConsumerOffsetManager() =
         member __.Dispose() = ()
 
 [<NoEquality;NoComparison>]
-type MessageWithOffset =
+type MessageWithMetadata =
     {
         Offset : Offset;
         Message : Message;
@@ -414,7 +414,7 @@ type MessageWithOffset =
 
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
-    abstract member ConsumeWithMetadata : System.Threading.CancellationToken -> IEnumerable<MessageWithOffset>
+    abstract member ConsumeWithMetadata : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
     abstract member GetOffsets : unit -> PartitionOffset array
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
