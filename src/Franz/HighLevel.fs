@@ -567,6 +567,8 @@ type ConsumerOptions() =
     member val MaxBytes = 1024 * 5 with get, set
     /// Indicates how offsets should be stored
     member val OffsetStorage = OffsetStorage.Zookeeper with get, set
+    /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
+    member val ConnectionRetryInterval = 5000 with get, set
 
 module private ConsumerHandling =
     let decompressMessageSet (messageSet : MessageSet) =

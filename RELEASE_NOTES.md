@@ -1,5 +1,5 @@
 ### 3.0.0
-* Fix bug which would throw exception when consumer got exceptions while communicating with broker
+* Fix bug which would throw exception when consumer got exceptions while communicating with broker. This is done by trying to reconnect when consuming fails. The retry interval is defined using the ConnectionRetryInterval property in the consumer options.
 * Allow selecting specific partitions when producing messages, using a specified key
 * Consuming messages with metadata no also includes the partition for which the message is consumed
 * Do not allow setting offset not in partition whitelist
