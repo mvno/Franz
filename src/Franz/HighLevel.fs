@@ -257,17 +257,21 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
         if not disposed then
             brokerRouter.Dispose()
             disposed <- true
+    /// Fetch offset for the specified topic and partitions
+    member __.Fetch(consumerGroup) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+    /// Commit offset for the specified topic and partitions
+    member __.Commit(consumerGroup, offsets) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        let response = refreshMetadataOnException (fun () -> innerCommit offsets consumerGroup)
+        if response.Topics |> Seq.exists (fun t -> t.Partitions |> Seq.exists (fun p -> p.ErrorCode.IsError())) then
+                invalidOp (sprintf "Got an error while commiting offsets. Response was %A" response)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
-        member __.Fetch(consumerGroup) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+        member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
-        member __.Commit(consumerGroup, offsets) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            let response = refreshMetadataOnException (fun () -> innerCommit offsets consumerGroup)
-            if response.Topics |> Seq.exists (fun t -> t.Partitions |> Seq.exists (fun p -> p.ErrorCode.IsError())) then
-                    invalidOp (sprintf "Got an error while commiting offsets. Response was %A" response)
+        member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
@@ -364,15 +368,19 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
         if not disposed then
             brokerRouter.Dispose()
             disposed <- true
+    /// Fetch offset for the specified topic and partitions
+    member __.Fetch(consumerGroup) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+    /// Commit offset for the specified topic and partitions
+    member __.Commit(consumerGroup, offsets) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
-        member __.Fetch(consumerGroup) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+        member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
-        member __.Commit(consumerGroup, offsets) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
+        member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
@@ -469,15 +477,19 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
         if not disposed then
             brokerRouter.Dispose()
             disposed <- true
+    /// Fetch offset for the specified topic and partitions
+    member __.Fetch(consumerGroup) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+    /// Commit offset for the specified topic and partitions
+    member __.Commit(consumerGroup, offsets) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
-        member __.Fetch(consumerGroup) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            refreshMetadataOnException (fun () -> innerFetch consumerGroup)
+        member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
-        member __.Commit(consumerGroup, offsets) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
+        member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
@@ -487,22 +499,27 @@ type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter : Brok
     let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
     let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
     new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+    /// Fetch offset for the specified topic and partitions
+    member __.Fetch(consumerGroup) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        consumerOffsetManagerV0.Fetch(consumerGroup)
+    /// Commit offset for the specified topic and partitions
+    member __.Commit(consumerGroup, offsets) =
+        if disposed then invalidOp "Offset manager has been disposed"
+        consumerOffsetManagerV0.Commit(consumerGroup, offsets)
+        consumerOffsetManagerV1.Commit(consumerGroup, offsets)
+    member __.Dispose() =
+        if not disposed then
+            consumerOffsetManagerV0.Dispose()
+            consumerOffsetManagerV1.Dispose()
+            disposed <- true
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
-        member __.Fetch(consumerGroup) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            consumerOffsetManagerV0.Fetch(consumerGroup)
+        member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
-        member __.Commit(consumerGroup, offsets) =
-            if disposed then invalidOp "Offset manager has been disposed"
-            consumerOffsetManagerV0.Commit(consumerGroup, offsets)
-            consumerOffsetManagerV1.Commit(consumerGroup, offsets)
+        member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
     interface IDisposable with
-        member __.Dispose() =
-            if not disposed then
-                consumerOffsetManagerV0.Dispose()
-                consumerOffsetManagerV1.Dispose()
-                disposed <- true
+        member self.Dispose() = self.Dispose()
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
 type DisabledConsumerOffsetManager() =
