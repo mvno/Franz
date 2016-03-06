@@ -138,6 +138,7 @@ module Messages =
     /// Request base class
     [<AbstractClass>]
     type Request<'TResponse>() =
+        static let correlationId = ref 0
         /// The API key.
         abstract member ApiKey : ApiKey with get
         /// The API version.
@@ -153,7 +154,9 @@ module Messages =
         default __.ClientId = "Franz"
         
         /// The correlation id.
-        member val CorrelationId : CorrelationId = 0 with get, set
+        member __.CorrelationId
+            with get() : CorrelationId =
+                System.Threading.Interlocked.Increment(correlationId)
 
         /// Serialize the request header.
         member self.SerializeHeader (stream : Stream) =

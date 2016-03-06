@@ -6,6 +6,7 @@
 * New consumer, ChunkedConsumer, which consume messages in chunks, and won't use as much memory
 * Support for version 2 of the OffsetCommit protocol
 * Fixed bug where OffsetManager for version 1 of the OffsetCommit protocol did not use the default timestamp value. This resulted in not using the expected offset retention time
+* Increment correlation id on each request
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak

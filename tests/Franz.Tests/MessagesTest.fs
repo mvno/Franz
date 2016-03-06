@@ -64,7 +64,7 @@ type RequestBaseTest() =
                 size = 0
                 && apiKey = expectedApiKey
                 && apiVersion = requestBase.ApiVersion
-                && correlationId = requestBase.CorrelationId
+                && correlationId = requestBase.CorrelationId - 1 // Subtract one as this value is incremented on each call
                 && clientIdLength = (int16 5)
                 && clientIdValue = "Franz"
             @>
@@ -108,7 +108,7 @@ type RequestBaseTest() =
                 size = expectedSize
                 && apiKey = expectedApiKey
                 && apiVersion = requestBase.ApiVersion
-                && correlationId = requestBase.CorrelationId
+                && correlationId = requestBase.CorrelationId - 1 // Subtract one as this value is incremented on each call
                 && clientIdLength = (int16 5)
                 && clientIdValue = "Franz"
                 && content = requestBase.Content
