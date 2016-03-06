@@ -521,7 +521,7 @@ type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter : Brok
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
-/// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
+/// Noop offsetmanager, used when no offset should be commit
 type DisabledConsumerOffsetManager() =
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
