@@ -431,6 +431,14 @@ type OffsetStorage =
     /// Store offsets both on the Zookeeper and Kafka brokers
     | DualCommit = 3
 
+module private OffsetHandling =
+    let createOffsetManager (brokerSeeds : EndPoint seq) (topicName : string) (brokerRouter : BrokerRouter) offsetStorage =
+        match offsetStorage with
+            | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
+
 /// Consumer options
 type ConsumerOptions() =
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
@@ -451,12 +459,7 @@ type ConsumerOptions() =
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
     let mutable disposed = false
-    let offsetManager : IConsumerOffsetManager =
-        match consumerOptions.OffsetStorage with
-        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
+    let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
@@ -600,12 +603,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
 /// High level kafka consumer.
 type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
     let mutable disposed = false
-    let offsetManager : IConsumerOffsetManager =
-        match consumerOptions.OffsetStorage with
-        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
+    let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
