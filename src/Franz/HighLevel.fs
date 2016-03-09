@@ -439,6 +439,14 @@ module private OffsetHandling =
             | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
             | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
 
+module private ConsumerHandling =
+    let decompressMessageSet (messageSet : MessageSet) =
+        match messageSet.Message.CompressionCodec with
+        | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
+        | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
+        | CompressionCodec.None -> [ messageSet ]
+        | x -> failwithf "Unknown compression codec %A" x
+
 /// Consumer options
 type ConsumerOptions() =
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
@@ -487,16 +495,9 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             |> Seq.min
         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
 
-    let innerDecompress (messageSet : MessageSet) =
-        match messageSet.Message.CompressionCodec with
-        | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
-        | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
-        | CompressionCodec.None -> [ messageSet ]
-        | x -> failwithf "Unknown compression codec %A" x
-
     let decompressMessageSets (messageSets : MessageSet array) =
         messageSets
-        |> Seq.map innerDecompress
+        |> Seq.map ConsumerHandling.decompressMessageSet
         |> Seq.concat
 
     let rec trySend (broker : Broker) attempt request partitionId =
@@ -631,16 +632,9 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
             |> Seq.min
         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
 
-    let innerDecompress (messageSet : MessageSet) =
-        match messageSet.Message.CompressionCodec with
-        | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
-        | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
-        | CompressionCodec.None -> [ messageSet ]
-        | x -> failwithf "Unknown compression codec %A" x
-
     let decompressMessageSets (messageSets : MessageSet array) =
         messageSets
-        |> Seq.map innerDecompress
+        |> Seq.map ConsumerHandling.decompressMessageSet
         |> Seq.concat
 
     let rec trySend (broker : Broker) attempt request partitionId =
