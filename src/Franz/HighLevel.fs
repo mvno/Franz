@@ -575,9 +575,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
     /// Sets the current consumer offsets
     member __.SetOffsets(offsets : PartitionOffset seq) =
         if disposed then invalidOp "Consumer has been disposed"
-        offsets
-        |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
-        |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
+        if partitionWhitelist <> null then
+            offsets
+            |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
+            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
         if not disposed then
