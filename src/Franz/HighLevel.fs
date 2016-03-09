@@ -452,6 +452,18 @@ module private ConsumerHandling =
         |> Seq.map decompressMessageSet
         |> Seq.concat
 
+    let handleOffsetOutOfRangeError (broker : Broker) (partitionId : Id) (topicName : string) =
+        let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
+        let response = broker.Send(request)
+        response.Topics
+        |> Seq.filter (fun x -> x.Name = topicName)
+        |> Seq.map (fun x -> x.Partitions)
+        |> Seq.concat
+        |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
+        |> Seq.map (fun x -> x.Offsets)
+        |> Seq.concat
+        |> Seq.min
+
 /// Consumer options
 type ConsumerOptions() =
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
@@ -486,20 +498,6 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
-    let handleOffsetOutOfRangeError (broker : Broker) partitionId =
-        let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
-        let response = broker.Send(request)
-        let earliestOffset = 
-            response.Topics
-            |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
-            |> Seq.map (fun x -> x.Offsets)
-            |> Seq.concat
-            |> Seq.min
-        partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-
     let rec trySend (broker : Broker) attempt request partitionId =
         try
             broker.Send(request)
@@ -532,7 +530,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                     brokerRouter.RefreshMetadata()
                     return! innerConsumer partitionId blockingCollection cancellationToken maxBytes
                 | ErrorCode.OffsetOutOfRange ->
-                    handleOffsetOutOfRangeError broker partitionId
+                    let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
+                    partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                 | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                 if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId blockingCollection cancellationToken None
             with
@@ -618,20 +617,6 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
-    let handleOffsetOutOfRangeError (broker : Broker) partitionId =
-        let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
-        let response = broker.Send(request)
-        let earliestOffset = 
-            response.Topics
-            |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
-            |> Seq.map (fun x -> x.Offsets)
-            |> Seq.concat
-            |> Seq.min
-        partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-
     let rec trySend (broker : Broker) attempt request partitionId =
         try
             broker.Send(request)
@@ -664,7 +649,8 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
                     brokerRouter.RefreshMetadata()
                     return! innerConsumer partitionId blockingCollection cancellationToken maxBytes
                 | ErrorCode.OffsetOutOfRange ->
-                    handleOffsetOutOfRangeError broker partitionId
+                    let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
+                    partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                 | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                 if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId blockingCollection cancellationToken None
             with
