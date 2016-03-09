@@ -447,6 +447,11 @@ module private ConsumerHandling =
         | CompressionCodec.None -> [ messageSet ]
         | x -> failwithf "Unknown compression codec %A" x
 
+    let decompressMessageSets (messageSets : MessageSet seq) =
+        messageSets
+        |> Seq.map decompressMessageSet
+        |> Seq.concat
+
 /// Consumer options
 type ConsumerOptions() =
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
@@ -495,11 +500,6 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             |> Seq.min
         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
 
-    let decompressMessageSets (messageSets : MessageSet array) =
-        messageSets
-        |> Seq.map ConsumerHandling.decompressMessageSet
-        |> Seq.concat
-
     let rec trySend (broker : Broker) attempt request partitionId =
         try
             broker.Send(request)
@@ -523,7 +523,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     partitionResponse.MessageSets
-                        |> decompressMessageSets
+                        |> ConsumerHandling.decompressMessageSets
                         |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset; PartitionId = partitionId }))
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
@@ -632,11 +632,6 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
             |> Seq.min
         partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
 
-    let decompressMessageSets (messageSets : MessageSet array) =
-        messageSets
-        |> Seq.map ConsumerHandling.decompressMessageSet
-        |> Seq.concat
-
     let rec trySend (broker : Broker) attempt request partitionId =
         try
             broker.Send(request)
@@ -660,7 +655,7 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     partitionResponse.MessageSets
-                        |> decompressMessageSets
+                        |> ConsumerHandling.decompressMessageSets
                         |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset; PartitionId = partitionId }))
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
