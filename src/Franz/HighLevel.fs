@@ -493,6 +493,45 @@ module private ConsumerHandling =
                 brokerRouter.GetBroker(topicName, partitionId)
                 |> trySendToBroker topicName (attempt + 1) request partitionId brokerRouter
 
+    let rec consumeInChunks partitionId (maxBytes : int option) (partitionOffsets : ConcurrentDictionary<_, _>) (consumerOptions : ConsumerOptions) topicName (brokerRouter : BrokerRouter) =
+        async {
+            try
+                let (_, offset) = partitionOffsets.TryGetValue(partitionId)
+                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
+                let broker = brokerRouter.GetBroker(topicName, partitionId)
+                let response = broker |> trySendToBroker topicName 0 request partitionId brokerRouter
+                let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
+                match partitionResponse.ErrorCode with
+                | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
+                    let messages =
+                        partitionResponse.MessageSets
+                        |> decompressMessageSets
+                        |> Seq.map (fun x -> { Message = x.Message; Offset = x.Offset; PartitionId = partitionId })
+                    if partitionResponse.MessageSets |> Seq.isEmpty |> not then
+                        let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
+                        partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
+                    return messages
+                | ErrorCode.NotLeaderForPartition ->
+                    brokerRouter.RefreshMetadata()
+                    return! consumeInChunks partitionId maxBytes partitionOffsets consumerOptions topicName brokerRouter
+                | ErrorCode.OffsetOutOfRange ->
+                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId topicName
+                    partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
+                    return! consumeInChunks partitionId maxBytes partitionOffsets consumerOptions topicName brokerRouter
+                | _ ->
+                    invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+                    return Seq.empty<_>
+            with
+            | :? BufferOverflowException as e ->
+                dprintfn "%s. Temporarily increasing fetch size" e.Message
+                let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
+                return! consumeInChunks partitionId (Some increasedFetchSize) partitionOffsets consumerOptions topicName brokerRouter
+            | e ->
+                dprintfn "Got exception %s. Retrying in 5 seconds." e.Message
+                do! Async.Sleep 5000
+                return Seq.empty<_>
+        }
+
     let rec consumeAsync partitionId (blockingCollection : System.Collections.Concurrent.BlockingCollection<_>) (cancellationToken : System.Threading.CancellationToken) (maxBytes : int option) (partitionOffsets : ConcurrentDictionary<_, _>) (consumerOptions : ConsumerOptions) topicName (brokerRouter : BrokerRouter) =
         async {
             try
