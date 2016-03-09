@@ -439,6 +439,23 @@ module private OffsetHandling =
             | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
             | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
 
+/// Consumer options
+type ConsumerOptions() =
+    /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
+    member val TcpTimeout = 10000 with get, set
+    /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
+    member val MaxWaitTime = 5000 with get, set
+    /// This is the minimum number of bytes of messages that must be available to give a response. If the client sets this to 0 the server will always respond immediately,
+    /// however if there is no new data since their last request they will just get back empty message sets. If this is set to 1, the server will respond as soon as at least one partition has
+    // at least 1 byte of data or the specified timeout occurs. By setting higher values in combination with the timeout the consumer can tune for throughput and trade a little additional latency for
+    /// reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
+    /// Default value is 1024.
+    member val MinBytes = 1024 with get, set
+    /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
+    member val MaxBytes = 1024 * 5 with get, set
+    /// Indicates how offsets should be stored
+    member val OffsetStorage = OffsetStorage.Zookeeper with get, set
+
 module private ConsumerHandling =
     let decompressMessageSet (messageSet : MessageSet) =
         match messageSet.Message.CompressionCodec with
@@ -464,22 +481,52 @@ module private ConsumerHandling =
         |> Seq.concat
         |> Seq.min
 
-/// Consumer options
-type ConsumerOptions() =
-    /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
-    member val TcpTimeout = 10000 with get, set
-    /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
-    member val MaxWaitTime = 5000 with get, set
-    /// This is the minimum number of bytes of messages that must be available to give a response. If the client sets this to 0 the server will always respond immediately,
-    /// however if there is no new data since their last request they will just get back empty message sets. If this is set to 1, the server will respond as soon as at least one partition has
-    // at least 1 byte of data or the specified timeout occurs. By setting higher values in combination with the timeout the consumer can tune for throughput and trade a little additional latency for
-    /// reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
-    /// Default value is 1024.
-    member val MinBytes = 1024 with get, set
-    /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
-    member val MaxBytes = 1024 * 5 with get, set
-    /// Indicates how offsets should be stored
-    member val OffsetStorage = OffsetStorage.Zookeeper with get, set
+    let rec trySendToBroker topicName attempt request partitionId (brokerRouter : BrokerRouter) (broker : Broker) =
+        try
+            broker.Send(request)
+        with
+        | e ->
+            dprintfn "Got exception while sending request %s" e.Message
+            if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
+            else
+                brokerRouter.RefreshMetadata()
+                brokerRouter.GetBroker(topicName, partitionId)
+                |> trySendToBroker topicName (attempt + 1) request partitionId brokerRouter
+
+    let rec consumeAsync partitionId (blockingCollection : System.Collections.Concurrent.BlockingCollection<_>) (cancellationToken : System.Threading.CancellationToken) (maxBytes : int option) (partitionOffsets : ConcurrentDictionary<_, _>) (consumerOptions : ConsumerOptions) topicName (brokerRouter : BrokerRouter) =
+        async {
+            try
+                let (_, offset) = partitionOffsets.TryGetValue(partitionId)
+                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
+                let broker = brokerRouter.GetBroker(topicName, partitionId)
+                let response = broker |> trySendToBroker topicName 0 request partitionId brokerRouter
+                let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
+                match partitionResponse.ErrorCode with
+                | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
+                    partitionResponse.MessageSets
+                        |> decompressMessageSets
+                        |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset; PartitionId = partitionId }))
+                    if partitionResponse.MessageSets |> Seq.isEmpty |> not then
+                        let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
+                        partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
+                | ErrorCode.NotLeaderForPartition ->
+                    brokerRouter.RefreshMetadata()
+                    return! consumeAsync partitionId blockingCollection cancellationToken maxBytes partitionOffsets consumerOptions topicName brokerRouter
+                | ErrorCode.OffsetOutOfRange ->
+                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId topicName
+                    partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
+                | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+                if cancellationToken.IsCancellationRequested then () else return! consumeAsync partitionId blockingCollection cancellationToken None partitionOffsets consumerOptions topicName brokerRouter
+            with
+            | :? BufferOverflowException as e ->
+                dprintfn "%s. Temporarily increasing fetch size" e.Message
+                let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
+                return! consumeAsync partitionId blockingCollection cancellationToken (Some increasedFetchSize) partitionOffsets consumerOptions topicName brokerRouter
+            | e ->
+                dprintfn "Got exception %s. Retrying in 5 seconds." e.Message
+                do! Async.Sleep(5000)
+                return! consumeAsync partitionId blockingCollection cancellationToken None partitionOffsets consumerOptions topicName brokerRouter
+        }
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
@@ -497,53 +544,6 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
-
-    let rec trySend (broker : Broker) attempt request partitionId =
-        try
-            broker.Send(request)
-        with
-        | e ->
-            dprintfn "Got exception while sending request %s" e.Message
-            if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
-            else
-                brokerRouter.RefreshMetadata()
-                let newBroker = brokerRouter.GetBroker(topicName, partitionId)
-                trySend newBroker (attempt + 1) request partitionId
-
-    let rec innerConsumer partitionId (blockingCollection : System.Collections.Concurrent.BlockingCollection<_>) (cancellationToken : System.Threading.CancellationToken) (maxBytes : int option) =
-        async {
-            try
-                let (_, offset) = partitionOffsets.TryGetValue(partitionId)
-                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
-                let broker = brokerRouter.GetBroker(topicName, partitionId)
-                let response = trySend broker 0 request partitionId
-                let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
-                match partitionResponse.ErrorCode with
-                | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
-                    partitionResponse.MessageSets
-                        |> ConsumerHandling.decompressMessageSets
-                        |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset; PartitionId = partitionId }))
-                    if partitionResponse.MessageSets |> Seq.isEmpty |> not then
-                        let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
-                        partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
-                | ErrorCode.NotLeaderForPartition ->
-                    brokerRouter.RefreshMetadata()
-                    return! innerConsumer partitionId blockingCollection cancellationToken maxBytes
-                | ErrorCode.OffsetOutOfRange ->
-                    let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
-                    partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-                | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
-                if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId blockingCollection cancellationToken None
-            with
-            | :? BufferOverflowException as e ->
-                dprintfn "%s. Temporarily increasing fetch size" e.Message
-                let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
-                return! innerConsumer partitionId blockingCollection cancellationToken (Some increasedFetchSize)
-            | e ->
-                dprintfn "Got exception %s. Retrying in 5 seconds." e.Message
-                do! Async.Sleep(5000)
-                return! innerConsumer partitionId blockingCollection cancellationToken None
-        }
 
     do
         brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
@@ -566,7 +566,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let asyncs =
             partitionOffsets.Keys
-            |> Seq.map (fun x -> innerConsumer x blockingCollection cancellationToken None)
+            |> Seq.map (fun x -> ConsumerHandling.consumeAsync x blockingCollection cancellationToken None partitionOffsets consumerOptions topicName brokerRouter)
             |> Async.Parallel
             |> Async.Ignore
         Async.Start(asyncs, cancellationToken)
@@ -617,53 +617,6 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
-    let rec trySend (broker : Broker) attempt request partitionId =
-        try
-            broker.Send(request)
-        with
-        | e ->
-            dprintfn "Got exception while sending request %s" e.Message
-            if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
-            else
-                brokerRouter.RefreshMetadata()
-                let newBroker = brokerRouter.GetBroker(topicName, partitionId)
-                trySend newBroker (attempt + 1) request partitionId
-
-    let rec innerConsumer partitionId (blockingCollection : System.Collections.Concurrent.BlockingCollection<_>) (cancellationToken : System.Threading.CancellationToken) (maxBytes : int option) =
-        async {
-            try
-                let (_, offset) = partitionOffsets.TryGetValue(partitionId)
-                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
-                let broker = brokerRouter.GetBroker(topicName, partitionId)
-                let response = trySend broker 0 request partitionId
-                let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
-                match partitionResponse.ErrorCode with
-                | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
-                    partitionResponse.MessageSets
-                        |> ConsumerHandling.decompressMessageSets
-                        |> Seq.iter (fun x -> blockingCollection.Add({ Message = x.Message; Offset = x.Offset; PartitionId = partitionId }))
-                    if partitionResponse.MessageSets |> Seq.isEmpty |> not then
-                        let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
-                        partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
-                | ErrorCode.NotLeaderForPartition ->
-                    brokerRouter.RefreshMetadata()
-                    return! innerConsumer partitionId blockingCollection cancellationToken maxBytes
-                | ErrorCode.OffsetOutOfRange ->
-                    let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
-                    partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-                | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
-                if cancellationToken.IsCancellationRequested then () else return! innerConsumer partitionId blockingCollection cancellationToken None
-            with
-            | :? BufferOverflowException as e ->
-                dprintfn "%s. Temporarily increasing fetch size" e.Message
-                let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
-                return! innerConsumer partitionId blockingCollection cancellationToken (Some increasedFetchSize)
-            | e ->
-                dprintfn "Got exception %s. Retrying in 5 seconds." e.Message
-                do! Async.Sleep(5000)
-                return! innerConsumer partitionId blockingCollection cancellationToken None
-        }
-
     do
         brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
         brokerRouter.Connect(brokerSeeds)
@@ -685,7 +638,7 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let asyncs =
             partitionOffsets.Keys
-            |> Seq.map (fun x -> innerConsumer x blockingCollection cancellationToken None)
+            |> Seq.map (fun x -> ConsumerHandling.consumeAsync x blockingCollection cancellationToken None partitionOffsets consumerOptions topicName brokerRouter)
             |> Async.Parallel
             |> Async.Ignore
         Async.Start(asyncs, cancellationToken)
