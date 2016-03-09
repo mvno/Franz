@@ -3,6 +3,7 @@
 * Allow selection specific partition when producing messages
 * Consuming messages with metadata no also includes the partition for which the message is consumed
 * Do not allow setting offset not in partition whitelist
+* New consumer, ChunkedConsumer, which consume messages in chunks, and won't use as much memory
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
