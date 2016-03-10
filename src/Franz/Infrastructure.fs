@@ -20,3 +20,12 @@ module Seq =
             (pos, list |> Seq.nth pos)
         else
             (0, list |> Seq.head)
+
+module Retry =
+    let retryOnException (state : 'a) (onException : exn -> 'a) (f : 'a -> 'b) : 'b =
+        try
+            state |> f
+        with
+        | e ->
+            let newState = onException(e)
+            f(newState)
