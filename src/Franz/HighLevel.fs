@@ -612,17 +612,13 @@ module private ConsumerHandling =
         |> Seq.concat
         |> Seq.min
 
-    let rec trySendToBroker topicName attempt request partitionId (brokerRouter : BrokerRouter) (broker : Broker) =
-        try
-            broker.Send(request)
-        with
-        | e ->
-            dprintfn "Got exception while sending request %s" e.Message
-            if attempt > 0 then raise (InvalidOperationException("Got exception while sending request", e))
-            else
-                brokerRouter.RefreshMetadata()
-                brokerRouter.GetBroker(topicName, partitionId)
-                |> trySendToBroker topicName (attempt + 1) request partitionId brokerRouter
+    let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
+        dprintfn "Got exception while sending request %s" e.Message
+        brokerRouter.RefreshMetadata()
+        brokerRouter.GetBroker(topicName, partitionId)
+
+    let rec trySendToBroker topicName request partitionId (brokerRouter : BrokerRouter) (broker : Broker) =
+        Retry.retryOnException broker (refreshMetadataOnException brokerRouter topicName partitionId) (fun x -> x.Send(request))
 
     let rec consumeInChunks partitionId (maxBytes : int option) (partitionOffsets : ConcurrentDictionary<_, _>) (consumerOptions : ConsumerOptions) topicName (brokerRouter : BrokerRouter) =
         async {
@@ -630,7 +626,7 @@ module private ConsumerHandling =
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
                 let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
                 let broker = brokerRouter.GetBroker(topicName, partitionId)
-                let response = broker |> trySendToBroker topicName 0 request partitionId brokerRouter
+                let response = broker |> trySendToBroker topicName request partitionId brokerRouter
                 let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
