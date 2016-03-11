@@ -216,6 +216,11 @@ type BrokerRouter(tcpTimeout) as self =
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
 
+    let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
+        dprintfn "Got exception while sending request %s" e.Message
+        brokerRouter.RefreshMetadata()
+        brokerRouter.GetBroker(topicName, partitionId)
+
     do
         router.Error.Add(fun x -> errorEvent.Trigger(x))
     /// Event used in case of unhandled exception in internal agent
@@ -283,6 +288,12 @@ type BrokerRouter(tcpTimeout) as self =
         match router.PostAndReply(fun reply -> GetBroker(topic, partitionId, reply)) with
         | Ok x -> x
         | Failure e -> raise e
+    /// Try to send a request to broker handling the specified topic and partition.
+    /// If an exception occurs while sending the request, the metadata is refreshed and the request is send again.
+    /// If this also fails the exception is thrown and should be handled by the caller.
+    member self.TrySendToBroker(topicName, partitionId, request) =
+        let broker = self.GetBroker(topicName, partitionId)
+        Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
     /// Dispose the router
     member __.Dispose() =
         if not disposed then
