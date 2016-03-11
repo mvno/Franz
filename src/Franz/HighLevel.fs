@@ -518,8 +518,7 @@ type MessageWithMetadata =
     }
 
 type IConsumer =
-    abstract member Consume : System.Threading.CancellationToken -> IEnumerable<Message>
-    abstract member ConsumeWithMetadata : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
+    abstract member Consume : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
     abstract member GetOffsets : unit -> PartitionOffset array
     abstract member SetOffsets : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
@@ -644,13 +643,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new Consumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
-    /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
-    member self.Consume(cancellationToken : System.Threading.CancellationToken) =
-        if disposed then invalidOp "Consumer has been disposed"
-        self.ConsumeWithMetadata(cancellationToken)
-        |> Seq.map (fun x -> x.Message)
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
-    member __.ConsumeWithMetadata(cancellationToken : System.Threading.CancellationToken) =
+    member __.Consume(cancellationToken : System.Threading.CancellationToken) =
         if disposed then invalidOp "Consumer has been disposed"
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let rec consume() =
@@ -686,15 +680,13 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             brokerRouter.Dispose()
             disposed <- true
     interface IConsumer with
-        member self.Consume(cancellationToken) =
-            self.Consume(cancellationToken)
         member self.GetOffsets() =
             self.GetOffsets()
         member self.SetOffsets(offsets) =
             self.SetOffsets(offsets)
         member self.OffsetManager = self.OffsetManager
-        member self.ConsumeWithMetadata(cancellationToken) =
-            self.ConsumeWithMetadata(cancellationToken)
+        member self.Consume(cancellationToken) =
+            self.Consume(cancellationToken)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
@@ -726,13 +718,8 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
-    /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable.
-    member self.Consume(cancellationToken : System.Threading.CancellationToken) =
-        if disposed then invalidOp "Consumer has been disposed"
-        self.ConsumeWithMetadata(cancellationToken)
-        |> Seq.map (fun x -> x.Message)
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
-    member __.ConsumeWithMetadata(_) =
+    member __.Consume(_) =
         if disposed then invalidOp "Consumer has been disposed"
         partitionOffsets.Keys
         |> Seq.map (fun x -> async { return! ConsumerHandling.consumeInChunks x None partitionOffsets consumerOptions topicName brokerRouter })
@@ -759,14 +746,12 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
             brokerRouter.Dispose()
             disposed <- true
     interface IConsumer with
-        member self.Consume(cancellationToken) =
-            self.Consume(cancellationToken)
         member self.GetOffsets() =
             self.GetOffsets()
         member self.SetOffsets(offsets) =
             self.SetOffsets(offsets)
         member self.OffsetManager = self.OffsetManager
-        member self.ConsumeWithMetadata(cancellationToken) =
-            self.ConsumeWithMetadata(cancellationToken)
+        member self.Consume(cancellationToken) =
+            self.Consume(cancellationToken)
     interface IDisposable with
         member self.Dispose() = self.Dispose()
