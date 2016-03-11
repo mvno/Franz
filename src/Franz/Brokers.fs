@@ -32,7 +32,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
         let stream = client.GetStream()
         stream |> request.Serialize
         let messageSize = stream |> BigEndianReader.ReadInt32
-        dprintfn "Received message of size %i" messageSize
+        LogConfiguration.Logger.Trace.Invoke(sprintf "Received message of size %i" messageSize)
         let buffer = stream |> BigEndianReader.Read messageSize
         new MemoryStream(buffer)
     /// Gets the broker TcpClient
@@ -60,8 +60,8 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
                 send self request
             with
             | e ->
-                dprintfn "Got exception while sending request: %s" e.Message
-                dprintfn "Reconnecting..."
+                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while sending request", e)
+                LogConfiguration.Logger.Trace.Invoke("Reconnecting...")
                 self.Connect()
                 try
                     send self request
@@ -130,15 +130,15 @@ type BrokerRouter(tcpTimeout) as self =
         match seeds with
         | head :: tail ->
             try
-                dprintfn "Connecting to %s:%i..." head.Address head.Port
+                LogConfiguration.Logger.Trace.Invoke(sprintf "Connecting to %s:%i..." head.Address head.Port)
                 let broker = new Broker(-1, head, [||], tcpTimeout)
                 broker.Connect()
                 broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers [] seeds
             with
             | e ->
-                dprintfn "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message
+                LogConfiguration.Logger.Error.Invoke(sprintf "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message, e)
                 innerConnect tail
-        | [] -> raise (InvalidOperationException("Could not connect to any of the broker seeds"))
+        | [] -> invalidOp "Could not connect to any of the broker seeds"
     let connect brokerSeeds =
         if disposed then invalidOp "Router has been disposed"
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
@@ -149,7 +149,7 @@ type BrokerRouter(tcpTimeout) as self =
             let! msg = inbox.Receive()
             match msg with
             | AddBroker broker ->
-                dprintfn "Adding broker with endpoint %A" broker
+                LogConfiguration.Logger.Trace.Invoke(sprintf "Adding broker with endpoint %A" broker.EndPoint)
                 if not broker.IsConnected then broker.Connect()
                 let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
                 return! loop (broker :: existingBrokers) lastRoundRobinIndex connected
@@ -199,25 +199,29 @@ type BrokerRouter(tcpTimeout) as self =
                 (index, response)
         with
         | e ->
-            dprintfn "Got exception while getting metadata: %s" e.Message
+            LogConfiguration.Logger.Error.Invoke("Got exception while getting metadata", e)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
-            else invalidOp "Could not get metadata as none of the brokers are available"
+            else
+                LogConfiguration.Logger.Error.Invoke("Could not get metadata as none of the brokers are available", new Exception())
+                invalidOp "Could not get metadata as none of the brokers are available"
 
     let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId =
         let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
         match candidateBrokers |> Seq.length with
         | 0 ->
-            dprintfn "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId
+            LogConfiguration.Logger.Trace.Invoke(sprintf "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId)
             let (index, brokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex, [| topic |])
             System.Threading.Thread.Sleep(500)
             if attempt < 3 then findBroker brokers index (attempt + 1) topic partitionId
-            else Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i" topic partitionId))
+            else
+                LogConfiguration.Logger.Trace.Invoke(sprintf "Could not find broker for topic %s partition %i" topic partitionId)
+                Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i" topic partitionId))
         | _ ->
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
 
     let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
-        dprintfn "Got exception while sending request %s" e.Message
+        LogConfiguration.Logger.Error.Invoke("Got exception while sending request", e)
         brokerRouter.RefreshMetadata()
         brokerRouter.GetBroker(topicName, partitionId)
 
@@ -233,7 +237,7 @@ type BrokerRouter(tcpTimeout) as self =
     member __.Connect(brokerSeeds) = router.PostAndReply(fun reply -> Connect(brokerSeeds, reply))
     /// Refresh metadata for the broker cluster
     member private __.RefreshMetadata(brokers, lastRoundRobinIndex, ?topics) =
-        dprintfn "Refreshing metadata..."
+        LogConfiguration.Logger.Trace.Invoke("Refreshing metadata...")
         let topics =
             match topics with
             | Some x -> x
@@ -254,7 +258,7 @@ type BrokerRouter(tcpTimeout) as self =
                     x.Connect()
                 with
                 | e ->
-                    dprintfn "Could not connect to broker %s:%i, exception %s" x.EndPoint.Address x.EndPoint.Port e.Message)
+                    LogConfiguration.Logger.Error.Invoke(sprintf "Could not connect to broker %A" x, e))
         let nonExistingBrokers =
             newBrokers
             |> Seq.filter (fun x -> x.IsConnected)

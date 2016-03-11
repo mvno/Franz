@@ -46,7 +46,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
         | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
 
     do
-        brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
+        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
         brokerRouter.Connect(brokerSeeds)
     new (brokerSeeds, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
     new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), partitionSelector)
@@ -334,7 +334,7 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
         | _ ->
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
-            | Some x -> dprintfn "Got error '%A' while commiting offset" x.ErrorCode
+            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
             | None -> ()
 
     do
@@ -443,7 +443,7 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
         | _ ->
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
-            | Some x -> dprintfn "Got error '%A' while commiting offset" x.ErrorCode
+            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
             | None -> ()
 
     do
@@ -607,12 +607,12 @@ module private ConsumerHandling =
                     return Seq.empty<_>
             with
             | :? BufferOverflowException as e ->
-                dprintfn "%s. Temporarily increasing fetch size" e.Message
+                LogConfiguration.Logger.Info.Invoke(sprintf "%s. Temporarily increasing fetch size" e.Message)
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
                 return! consumeInChunks partitionId (Some increasedFetchSize) partitionOffsets consumerOptions topicName brokerRouter
             | e ->
-                dprintfn "Got exception %s. Retrying in 5 seconds." e.Message
-                do! Async.Sleep 5000
+                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming. Retrying in %i milliseconds" consumerOptions.ConnectionRetryInterval, e)
+                do! Async.Sleep consumerOptions.ConnectionRetryInterval
                 return Seq.empty<_>
         }
 
@@ -634,7 +634,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
     do
-        brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
+        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
         brokerRouter.Connect(brokerSeeds)
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
@@ -709,7 +709,7 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
     do
-        brokerRouter.Error.Add(fun x -> dprintfn "%A" x)
+        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
         brokerRouter.Connect(brokerSeeds)
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)

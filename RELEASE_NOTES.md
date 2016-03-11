@@ -9,6 +9,7 @@
 * Increment correlation id on each request
 * Replace Consumer.Consume method with Consumer.ConsumeWithMetdata
 * Rename Set/GetOffsets methods on the consumer to Set/GetPosition, to clearly indicate these methods has nothing with the offsets handled by the OffsetManager
+* Support user-defined logging by implementing the ILogger interface and set the logger through LogConfiguration
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
