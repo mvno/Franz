@@ -519,8 +519,8 @@ type MessageWithMetadata =
 
 type IConsumer =
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
-    abstract member GetOffsets : unit -> PartitionOffset array
-    abstract member SetOffsets : PartitionOffset array -> unit
+    abstract member GetPosition : unit -> PartitionOffset array
+    abstract member SetPosition : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
 
 /// Offset storage type
@@ -661,11 +661,11 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         Async.Start(consume(), cancellationToken)
         blockingCollection.GetConsumingEnumerable(cancellationToken)
     /// Get the current consumer offsets
-    member __.GetOffsets() =
+    member __.GetPosition() =
         if disposed then invalidOp "Consumer has been disposed"
         partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
     /// Sets the current consumer offsets
-    member __.SetOffsets(offsets : PartitionOffset seq) =
+    member __.SetPosition(offsets : PartitionOffset seq) =
         if disposed then invalidOp "Consumer has been disposed"
         if partitionWhitelist <> null then
             offsets
@@ -680,10 +680,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             brokerRouter.Dispose()
             disposed <- true
     interface IConsumer with
-        member self.GetOffsets() =
-            self.GetOffsets()
-        member self.SetOffsets(offsets) =
-            self.SetOffsets(offsets)
+        member self.GetPosition() =
+            self.GetPosition()
+        member self.SetPosition(offsets) =
+            self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
             self.Consume(cancellationToken)
@@ -727,11 +727,11 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         |> Async.RunSynchronously
         |> Seq.concat
     /// Get the current consumer offsets
-    member __.GetOffsets() =
+    member __.GetPosition() =
         if disposed then invalidOp "Consumer has been disposed"
         partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
     /// Sets the current consumer offsets
-    member __.SetOffsets(offsets : PartitionOffset seq) =
+    member __.SetPosition(offsets : PartitionOffset seq) =
         if disposed then invalidOp "Consumer has been disposed"
         if partitionWhitelist <> null then
             offsets
@@ -746,10 +746,10 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
             brokerRouter.Dispose()
             disposed <- true
     interface IConsumer with
-        member self.GetOffsets() =
-            self.GetOffsets()
-        member self.SetOffsets(offsets) =
-            self.SetOffsets(offsets)
+        member self.GetPosition() =
+            self.GetPosition()
+        member self.SetPosition(offsets) =
+            self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
             self.Consume(cancellationToken)
