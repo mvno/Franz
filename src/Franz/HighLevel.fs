@@ -2,7 +2,6 @@
 
 open System
 open System.Collections.Generic
-open System.Text
 open Franz
 open Franz.Internal
 open System.Collections.Concurrent
@@ -31,16 +30,8 @@ type IProducer =
 type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
 
-    let compressMessages (messages : string array) =
-        let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, Encoding.UTF8.GetBytes(x)))
-        match compressionCodec with
-        | CompressionCodec.None -> messageSets
-        | CompressionCodec.Gzip -> GzipCompression.Encode(messageSets)
-        | CompressionCodec.Snappy -> SnappyCompression.Encode(messageSets)
-        | x -> failwithf "Unsupported compression codec %A" x
-
     let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout =
-        let messageSets = messages |> compressMessages
+        let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
         let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
@@ -575,18 +566,6 @@ type ConsumerOptions() =
     member val ConnectionRetryInterval = 5000 with get, set
 
 module private ConsumerHandling =
-    let decompressMessageSet (messageSet : MessageSet) =
-        match messageSet.Message.CompressionCodec with
-        | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
-        | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
-        | CompressionCodec.None -> [ messageSet ]
-        | x -> failwithf "Unknown compression codec %A" x
-
-    let decompressMessageSets (messageSets : MessageSet seq) =
-        messageSets
-        |> Seq.map decompressMessageSet
-        |> Seq.concat
-
     let handleOffsetOutOfRangeError (broker : Broker) (partitionId : Id) (topicName : string) =
         let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
         let response = broker.Send(request)
@@ -610,7 +589,7 @@ module private ConsumerHandling =
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
                     let messages =
                         partitionResponse.MessageSets
-                        |> decompressMessageSets
+                        |> Compression.DecompressMessageSets
                         |> Seq.map (fun x -> { Message = x.Message; Offset = x.Offset; PartitionId = partitionId })
                     if partitionResponse.MessageSets |> Seq.isEmpty |> not then
                         let nextOffset = (partitionResponse.MessageSets |> Seq.map (fun x -> x.Offset) |> Seq.max) + int64 1
