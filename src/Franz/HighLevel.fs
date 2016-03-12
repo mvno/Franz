@@ -3,7 +3,6 @@
 open System
 open System.Collections.Generic
 open Franz
-open Franz.Internal
 open System.Collections.Concurrent
 open Franz.Compression
 
