@@ -714,7 +714,8 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
-    /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
+    /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
+    /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(_) =
         if disposed then invalidOp "Consumer has been disposed"
         self.PartitionOffsets.Keys
