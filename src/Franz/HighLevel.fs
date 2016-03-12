@@ -577,7 +577,11 @@ module private ConsumerHandling =
         |> Seq.concat
         |> Seq.min
 
-    let rec consumeInChunks partitionId (maxBytes : int option) (partitionOffsets : ConcurrentDictionary<_, _>) (consumerOptions : ConsumerOptions) topicName (brokerRouter : BrokerRouter) =
+[<AbstractClass>]
+type BaseConsumer() =
+    abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string * BrokerRouter -> Async<seq<MessageWithMetadata>>
+    
+    default self.ConsumeInChunks(partitionId, maxBytes : int option, partitionOffsets : ConcurrentDictionary<Id, Offset>, consumerOptions : ConsumerOptions, topicName, brokerRouter : BrokerRouter) =
         async {
             try
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
@@ -596,12 +600,12 @@ module private ConsumerHandling =
                     return messages
                 | ErrorCode.NotLeaderForPartition ->
                     brokerRouter.RefreshMetadata()
-                    return! consumeInChunks partitionId maxBytes partitionOffsets consumerOptions topicName brokerRouter
+                    return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName, brokerRouter)
                 | ErrorCode.OffsetOutOfRange ->
                     let broker = brokerRouter.GetBroker(topicName, partitionId)
-                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId topicName
+                    let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-                    return! consumeInChunks partitionId maxBytes partitionOffsets consumerOptions topicName brokerRouter
+                    return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName, brokerRouter)
                 | _ ->
                     invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                     return Seq.empty<_>
@@ -609,7 +613,7 @@ module private ConsumerHandling =
             | :? BufferOverflowException as e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "%s. Temporarily increasing fetch size" e.Message)
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
-                return! consumeInChunks partitionId (Some increasedFetchSize) partitionOffsets consumerOptions topicName brokerRouter
+                return! self.ConsumeInChunks(partitionId, Some increasedFetchSize, partitionOffsets, consumerOptions, topicName, brokerRouter)
             | e ->
                 LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming. Retrying in %i milliseconds" consumerOptions.ConnectionRetryInterval, e)
                 do! Async.Sleep consumerOptions.ConnectionRetryInterval
@@ -618,6 +622,8 @@ module private ConsumerHandling =
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
+    inherit BaseConsumer()
+
     let mutable disposed = false
     let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
@@ -644,14 +650,14 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
-    member __.Consume(cancellationToken : System.Threading.CancellationToken) =
+    member self.Consume(cancellationToken : System.Threading.CancellationToken) =
         if disposed then invalidOp "Consumer has been disposed"
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let rec consume() =
             async {
                 let! messagesFromAllPartitions =
                     partitionOffsets.Keys
-                    |> Seq.map (fun x -> async { return! ConsumerHandling.consumeInChunks x None partitionOffsets consumerOptions topicName brokerRouter })
+                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName, brokerRouter) })
                     |> Async.Parallel
                 messagesFromAllPartitions
                 |> Seq.concat
@@ -693,6 +699,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
 type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
+    inherit BaseConsumer()
+
     let mutable disposed = false
     let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
@@ -719,10 +727,10 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
     /// Gets the offset manager
     member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
-    member __.Consume(_) =
+    member self.Consume(_) =
         if disposed then invalidOp "Consumer has been disposed"
         partitionOffsets.Keys
-        |> Seq.map (fun x -> async { return! ConsumerHandling.consumeInChunks x None partitionOffsets consumerOptions topicName brokerRouter })
+        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName, brokerRouter) })
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
