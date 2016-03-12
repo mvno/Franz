@@ -603,9 +603,21 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string -> Async<seq<MessageWithMetadata>>
+    abstract member GetPosition : unit -> PartitionOffset array
+    abstract member SetPosition : PartitionOffset seq -> unit
 
     /// The position of the consumer
     default __.PartitionOffsets with get() = partitionOffsets
+
+    /// Get the current consumer offsets
+    default __.GetPosition() =
+        partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
+    /// Sets the current consumer offsets
+    default __.SetPosition(offsets : PartitionOffset seq) =
+        if partitionWhitelist <> null then
+            offsets
+            |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
+            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
@@ -677,17 +689,6 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             }
         Async.Start(consume(), cancellationToken)
         blockingCollection.GetConsumingEnumerable(cancellationToken)
-    /// Get the current consumer offsets
-    member self.GetPosition() =
-        if disposed then invalidOp "Consumer has been disposed"
-        self.PartitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
-    /// Sets the current consumer offsets
-    member self.SetPosition(offsets : PartitionOffset seq) =
-        if disposed then invalidOp "Consumer has been disposed"
-        if partitionWhitelist <> null then
-            offsets
-            |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
-            |> Seq.iter (fun x -> self.PartitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
         else
             offsets
             |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
@@ -698,8 +699,10 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             disposed <- true
     interface IConsumer with
         member self.GetPosition() =
+            if disposed then invalidOp "Consumer has been disposed"
             self.GetPosition()
         member self.SetPosition(offsets) =
+            if disposed then invalidOp "Consumer has been disposed"
             self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
@@ -729,17 +732,6 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
-    /// Get the current consumer offsets
-    member self.GetPosition() =
-        if disposed then invalidOp "Consumer has been disposed"
-        self.PartitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
-    /// Sets the current consumer offsets
-    member self.SetPosition(offsets : PartitionOffset seq) =
-        if disposed then invalidOp "Consumer has been disposed"
-        if partitionWhitelist <> null then
-            offsets
-            |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
-            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
         else
             offsets
             |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
@@ -750,8 +742,10 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
             disposed <- true
     interface IConsumer with
         member self.GetPosition() =
+            if disposed then invalidOp "Consumer has been disposed"
             self.GetPosition()
         member self.SetPosition(offsets) =
+            if disposed then invalidOp "Consumer has been disposed"
             self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
