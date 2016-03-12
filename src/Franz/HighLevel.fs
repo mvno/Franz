@@ -578,8 +578,30 @@ module private ConsumerHandling =
         |> Seq.min
 
 [<AbstractClass>]
-type BaseConsumer(brokerSeeds, brokerRouter : BrokerRouter) =
+type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : BrokerRouter) =
+    let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
+    let updateTopicPartitions (brokers : Broker seq) =
+        brokers
+        |> Seq.map (fun x -> x.LeaderFor)
+        |> Seq.concat
+        |> Seq.filter (fun x -> x.TopicName = topicName)
+        |> Seq.map (fun x ->
+            match partitionWhitelist with
+            | null | [||] -> x.PartitionIds
+            | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
+        |> Seq.concat
+        |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
+    
+    do
+        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
+        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.GetAllBrokers() |> updateTopicPartitions
+        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+
+    abstract member PartitionOffsets : ConcurrentDictionary<Id, Offset> with get
     abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string -> Async<seq<MessageWithMetadata>>
+
+    default __.PartitionOffsets with get() = partitionOffsets
     
     default self.ConsumeInChunks(partitionId, maxBytes : int option, partitionOffsets : ConcurrentDictionary<Id, Offset>, consumerOptions : ConsumerOptions, topicName) =
         async {
@@ -622,28 +644,11 @@ type BaseConsumer(brokerSeeds, brokerRouter : BrokerRouter) =
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, brokerRouter)
+    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter)
 
     let mutable disposed = false
     let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
-    let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
-    let updateTopicPartitions (brokers : Broker seq) =
-        brokers
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
-        |> Seq.filter (fun x -> x.TopicName = topicName)
-        |> Seq.map (fun x ->
-            match partitionWhitelist with
-            | null | [||] -> x.PartitionIds
-            | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
-        |> Seq.concat
-        |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
-    do
-        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect(brokerSeeds)
-        brokerRouter.GetAllBrokers() |> updateTopicPartitions
-        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds, topicName, consumerOptions) = new Consumer(brokerSeeds, topicName, consumerOptions, [||])
     new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new Consumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
@@ -656,8 +661,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         let rec consume() =
             async {
                 let! messagesFromAllPartitions =
-                    partitionOffsets.Keys
-                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName) })
+                    self.PartitionOffsets.Keys
+                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, self.PartitionOffsets, consumerOptions, topicName) })
                     |> Async.Parallel
                 messagesFromAllPartitions
                 |> Seq.concat
@@ -667,16 +672,16 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
         Async.Start(consume(), cancellationToken)
         blockingCollection.GetConsumingEnumerable(cancellationToken)
     /// Get the current consumer offsets
-    member __.GetPosition() =
+    member self.GetPosition() =
         if disposed then invalidOp "Consumer has been disposed"
-        partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
+        self.PartitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
     /// Sets the current consumer offsets
-    member __.SetPosition(offsets : PartitionOffset seq) =
+    member self.SetPosition(offsets : PartitionOffset seq) =
         if disposed then invalidOp "Consumer has been disposed"
         if partitionWhitelist <> null then
             offsets
             |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
-            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
+            |> Seq.iter (fun x -> self.PartitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
         else
             offsets
             |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
@@ -699,28 +704,11 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
 type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, brokerRouter)
+    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter)
 
     let mutable disposed = false
     let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
-    let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
-    let updateTopicPartitions (brokers : Broker seq) =
-        brokers
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
-        |> Seq.filter (fun x -> x.TopicName = topicName)
-        |> Seq.map (fun x ->
-            match partitionWhitelist with
-            | null | [||] -> x.PartitionIds
-            | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
-        |> Seq.concat
-        |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
-    do
-        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect(brokerSeeds)
-        brokerRouter.GetAllBrokers() |> updateTopicPartitions
-        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
     new (brokerSeeds, topicName, consumerOptions) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, [||])
     new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
@@ -729,17 +717,17 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(_) =
         if disposed then invalidOp "Consumer has been disposed"
-        partitionOffsets.Keys
-        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName) })
+        self.PartitionOffsets.Keys
+        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, self.PartitionOffsets, consumerOptions, topicName) })
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
     /// Get the current consumer offsets
-    member __.GetPosition() =
+    member self.GetPosition() =
         if disposed then invalidOp "Consumer has been disposed"
-        partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
+        self.PartitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
     /// Sets the current consumer offsets
-    member __.SetPosition(offsets : PartitionOffset seq) =
+    member self.SetPosition(offsets : PartitionOffset seq) =
         if disposed then invalidOp "Consumer has been disposed"
         if partitionWhitelist <> null then
             offsets
