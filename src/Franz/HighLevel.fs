@@ -579,9 +579,9 @@ module private ConsumerHandling =
 
 [<AbstractClass>]
 type BaseConsumer(brokerRouter : BrokerRouter) =
-    abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string * BrokerRouter -> Async<seq<MessageWithMetadata>>
+    abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string -> Async<seq<MessageWithMetadata>>
     
-    default self.ConsumeInChunks(partitionId, maxBytes : int option, partitionOffsets : ConcurrentDictionary<Id, Offset>, consumerOptions : ConsumerOptions, topicName, brokerRouter : BrokerRouter) =
+    default self.ConsumeInChunks(partitionId, maxBytes : int option, partitionOffsets : ConcurrentDictionary<Id, Offset>, consumerOptions : ConsumerOptions, topicName) =
         async {
             try
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
@@ -600,12 +600,12 @@ type BaseConsumer(brokerRouter : BrokerRouter) =
                     return messages
                 | ErrorCode.NotLeaderForPartition ->
                     brokerRouter.RefreshMetadata()
-                    return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName, brokerRouter)
+                    return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName)
                 | ErrorCode.OffsetOutOfRange ->
                     let broker = brokerRouter.GetBroker(topicName, partitionId)
                     let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-                    return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName, brokerRouter)
+                    return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName)
                 | _ ->
                     invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                     return Seq.empty<_>
@@ -613,7 +613,7 @@ type BaseConsumer(brokerRouter : BrokerRouter) =
             | :? BufferOverflowException as e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "%s. Temporarily increasing fetch size" e.Message)
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
-                return! self.ConsumeInChunks(partitionId, Some increasedFetchSize, partitionOffsets, consumerOptions, topicName, brokerRouter)
+                return! self.ConsumeInChunks(partitionId, Some increasedFetchSize, partitionOffsets, consumerOptions, topicName)
             | e ->
                 LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming. Retrying in %i milliseconds" consumerOptions.ConnectionRetryInterval, e)
                 do! Async.Sleep consumerOptions.ConnectionRetryInterval
@@ -657,7 +657,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             async {
                 let! messagesFromAllPartitions =
                     partitionOffsets.Keys
-                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName, brokerRouter) })
+                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName) })
                     |> Async.Parallel
                 messagesFromAllPartitions
                 |> Seq.concat
@@ -730,7 +730,7 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
     member self.Consume(_) =
         if disposed then invalidOp "Consumer has been disposed"
         partitionOffsets.Keys
-        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName, brokerRouter) })
+        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, partitionOffsets, consumerOptions, topicName) })
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
