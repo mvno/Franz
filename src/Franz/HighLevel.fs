@@ -564,19 +564,6 @@ type ConsumerOptions() =
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
 
-module private ConsumerHandling =
-    let handleOffsetOutOfRangeError (broker : Broker) (partitionId : Id) (topicName : string) =
-        let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
-        let response = broker.Send(request)
-        response.Topics
-        |> Seq.filter (fun x -> x.Name = topicName)
-        |> Seq.map (fun x -> x.Partitions)
-        |> Seq.concat
-        |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
-        |> Seq.map (fun x -> x.Offsets)
-        |> Seq.concat
-        |> Seq.min
-
 [<AbstractClass>]
 type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : BrokerRouter) =
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
@@ -591,6 +578,18 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
             | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
+
+    let handleOffsetOutOfRangeError (broker : Broker) (partitionId : Id) (topicName : string) =
+        let request = new OffsetRequest(-1, [| { Name = topicName; Partitions = [| { Id = partitionId; MaxNumberOfOffsets = 1; Time = int64 -2 } |] } |])
+        let response = broker.Send(request)
+        response.Topics
+        |> Seq.filter (fun x -> x.Name = topicName)
+        |> Seq.map (fun x -> x.Partitions)
+        |> Seq.concat
+        |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
+        |> Seq.map (fun x -> x.Offsets)
+        |> Seq.concat
+        |> Seq.min
     
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -643,7 +642,7 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
                     return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName)
                 | ErrorCode.OffsetOutOfRange ->
                     let broker = brokerRouter.GetBroker(topicName, partitionId)
-                    let earliestOffset = ConsumerHandling.handleOffsetOutOfRangeError broker partitionId topicName
+                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId topicName
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes, partitionOffsets, consumerOptions, topicName)
                 | _ ->
