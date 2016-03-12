@@ -578,7 +578,7 @@ module private ConsumerHandling =
         |> Seq.min
 
 [<AbstractClass>]
-type BaseConsumer() =
+type BaseConsumer(brokerRouter : BrokerRouter) =
     abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string * BrokerRouter -> Async<seq<MessageWithMetadata>>
     
     default self.ConsumeInChunks(partitionId, maxBytes : int option, partitionOffsets : ConcurrentDictionary<Id, Offset>, consumerOptions : ConsumerOptions, topicName, brokerRouter : BrokerRouter) =
@@ -622,7 +622,7 @@ type BaseConsumer() =
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer()
+    inherit BaseConsumer(brokerRouter)
 
     let mutable disposed = false
     let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
@@ -699,7 +699,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
 type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer()
+    inherit BaseConsumer(brokerRouter)
 
     let mutable disposed = false
     let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
