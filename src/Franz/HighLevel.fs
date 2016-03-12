@@ -699,10 +699,8 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             disposed <- true
     interface IConsumer with
         member self.GetPosition() =
-            if disposed then invalidOp "Consumer has been disposed"
             self.GetPosition()
         member self.SetPosition(offsets) =
-            if disposed then invalidOp "Consumer has been disposed"
             self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
@@ -739,10 +737,8 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
             disposed <- true
     interface IConsumer with
         member self.GetPosition() =
-            if disposed then invalidOp "Consumer has been disposed"
             self.GetPosition()
         member self.SetPosition(offsets) =
-            if disposed then invalidOp "Consumer has been disposed"
             self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
