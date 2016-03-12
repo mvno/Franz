@@ -535,15 +535,6 @@ type OffsetStorage =
     /// Store offsets on the Kafka brokers, using version 2
     | KafkaV2 = 4
 
-module private OffsetHandling =
-    let createOffsetManager (brokerSeeds : EndPoint seq) (topicName : string) (brokerRouter : BrokerRouter) offsetStorage =
-        match offsetStorage with
-            | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
-
 /// Consumer options
 type ConsumerOptions() =
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
@@ -564,7 +555,13 @@ type ConsumerOptions() =
     member val ConnectionRetryInterval = 5000 with get, set
 
 [<AbstractClass>]
-type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : BrokerRouter) =
+type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
+    let offsetManager = match consumerOptions.OffsetStorage with
+            | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+            | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
@@ -601,8 +598,15 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     abstract member ConsumeInChunks : Id * int option * ConcurrentDictionary<Id, Offset> * ConsumerOptions * string -> Async<seq<MessageWithMetadata>>
+    /// Get the current consumer offsets
     abstract member GetPosition : unit -> PartitionOffset array
+    /// Sets the current consumer offsets
     abstract member SetPosition : PartitionOffset seq -> unit
+    /// Gets the offset manager
+    abstract member OffsetManager : IConsumerOffsetManager
+
+    /// Gets the offset manager
+    default __.OffsetManager = offsetManager
 
     /// The position of the consumer
     default __.PartitionOffsets with get() = partitionOffsets
@@ -610,6 +614,7 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
     /// Get the current consumer offsets
     default __.GetPosition() =
         partitionOffsets |> Seq.map (fun x -> { PartitionId = x.Key; Offset = x.Value; Metadata = String.Empty }) |> Seq.toArray
+
     /// Sets the current consumer offsets
     default __.SetPosition(offsets : PartitionOffset seq) =
         if partitionWhitelist <> null then
@@ -660,16 +665,13 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
 
 /// High level kafka consumer.
 type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter)
+    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter, consumerOptions)
 
     let mutable disposed = false
-    let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
 
     new (brokerSeeds, topicName, consumerOptions) = new Consumer(brokerSeeds, topicName, consumerOptions, [||])
     new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new Consumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
-    /// Gets the offset manager
-    member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
         if disposed then invalidOp "Consumer has been disposed"
@@ -711,16 +713,13 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
 type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter)
+    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter, consumerOptions)
 
     let mutable disposed = false
-    let offsetManager = consumerOptions.OffsetStorage |> OffsetHandling.createOffsetManager brokerSeeds topicName brokerRouter
 
     new (brokerSeeds, topicName, consumerOptions) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, [||])
     new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
     new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
-    /// Gets the offset manager
-    member __.OffsetManager = offsetManager
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(_) =
