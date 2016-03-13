@@ -597,7 +597,7 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
     abstract member PartitionOffsets : ConcurrentDictionary<Id, Offset> with get
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
-    abstract member ConsumeInChunks : Id * int option * string -> Async<seq<MessageWithMetadata>>
+    abstract member ConsumeInChunks : Id * int option -> Async<seq<MessageWithMetadata>>
     /// Get the current consumer offsets
     abstract member GetPosition : unit -> PartitionOffset array
     /// Sets the current consumer offsets
@@ -624,7 +624,7 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
     
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
-    default self.ConsumeInChunks(partitionId, maxBytes : int option, topicName) =
+    default self.ConsumeInChunks(partitionId, maxBytes : int option) =
         async {
             try
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
@@ -643,12 +643,12 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
                     return messages
                 | ErrorCode.NotLeaderForPartition ->
                     brokerRouter.RefreshMetadata()
-                    return! self.ConsumeInChunks(partitionId, maxBytes, topicName)
+                    return! self.ConsumeInChunks(partitionId, maxBytes)
                 | ErrorCode.OffsetOutOfRange ->
                     let broker = brokerRouter.GetBroker(topicName, partitionId)
                     let earliestOffset = handleOffsetOutOfRangeError broker partitionId topicName
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
-                    return! self.ConsumeInChunks(partitionId, maxBytes, topicName)
+                    return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
                     invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                     return Seq.empty<_>
@@ -656,7 +656,7 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
             | :? BufferOverflowException as e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "%s. Temporarily increasing fetch size" e.Message)
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
-                return! self.ConsumeInChunks(partitionId, Some increasedFetchSize, topicName)
+                return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
             | e ->
                 LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming. Retrying in %i milliseconds" consumerOptions.ConnectionRetryInterval, e)
                 do! Async.Sleep consumerOptions.ConnectionRetryInterval
@@ -680,7 +680,7 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
             async {
                 let! messagesFromAllPartitions =
                     self.PartitionOffsets.Keys
-                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, topicName) })
+                    |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None) })
                     |> Async.Parallel
                 messagesFromAllPartitions
                 |> Seq.concat
@@ -723,7 +723,7 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
     member self.Consume(_) =
         if disposed then invalidOp "Consumer has been disposed"
         self.PartitionOffsets.Keys
-        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None, topicName) })
+        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None) })
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
