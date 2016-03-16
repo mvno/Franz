@@ -576,6 +576,8 @@ type ConsumerOptions() =
     member val OffsetStorage = OffsetStorage.Zookeeper with get, set
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
+    /// The partitions to consume messages from
+    member val PartitionWhitelist = [||] with get, set
 
 [<AbstractClass>]
 type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
