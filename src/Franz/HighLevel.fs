@@ -25,6 +25,29 @@ type IProducer =
     abstract member SendMessages : string * string * string array -> unit
     abstract member SendMessages : string * string * string array * RequiredAcks * int -> unit
 
+[<AbstractClass>]
+type BaseProducer private(brokerSeeds, brokerRouter : BrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
+    do
+        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
+        brokerRouter.Connect(brokerSeeds)
+
+    abstract member Send : string * string array * RequiredAcks * int -> unit
+
+    default self.Send(key, messages, requiredAcks, brokerProcessingTimeout) =
+        let messageSets = Compression.CompressMessages(compressionCodec, messages)
+        let partitionId = partitionSelector.Invoke(topicName, key)
+        let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
+        let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
+        let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
+        let response = brokerRouter.TrySendToBroker(topicName, partitionId, request)
+        let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
+        match partitionResponse.ErrorCode with
+        | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
+        | ErrorCode.NotLeaderForPartition ->
+            brokerRouter.RefreshMetadata()
+            self.Send(key, messages, requiredAcks, brokerProcessingTimeout)
+        | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+
 /// High level kafka producer
 type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
