@@ -580,7 +580,7 @@ type ConsumerOptions() =
     member val PartitionWhitelist = [||] with get, set
 
 [<AbstractClass>]
-type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
+type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
     let offsetManager = match consumerOptions.OffsetStorage with
             | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
             | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
@@ -594,9 +594,9 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
         |> Seq.concat
         |> Seq.filter (fun x -> x.TopicName = topicName)
         |> Seq.map (fun x ->
-            match partitionWhitelist with
+            match consumerOptions.PartitionWhitelist with
             | null | [||] -> x.PartitionIds
-            | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray partitionWhitelist) |> Set.toArray)
+            | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray consumerOptions.PartitionWhitelist) |> Set.toArray)
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
 
@@ -642,9 +642,9 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
 
     /// Sets the current consumer offsets
     default __.SetPosition(offsets : PartitionOffset seq) =
-        if partitionWhitelist <> null then
+        if consumerOptions.PartitionWhitelist <> null then
             offsets
-            |> Seq.filter (fun x -> partitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
+            |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
             |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
@@ -689,14 +689,13 @@ type BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter : Bro
         }
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter, consumerOptions)
+type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
+    inherit BaseConsumer(brokerSeeds, topicName, brokerRouter, consumerOptions)
 
     let mutable disposed = false
 
-    new (brokerSeeds, topicName, consumerOptions) = new Consumer(brokerSeeds, topicName, consumerOptions, [||])
-    new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
-    new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new Consumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
+    new (brokerSeeds, topicName, consumerOptions) = new Consumer(brokerSeeds, topicName, consumerOptions, new BrokerRouter(consumerOptions.TcpTimeout))
+    new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
         if disposed then invalidOp "Consumer has been disposed"
@@ -735,14 +734,13 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partiti
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
-type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, partitionWhitelist : Id array, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, topicName, partitionWhitelist, brokerRouter, consumerOptions)
+type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
+    inherit BaseConsumer(brokerSeeds, topicName, brokerRouter, consumerOptions)
 
     let mutable disposed = false
 
-    new (brokerSeeds, topicName, consumerOptions) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, [||])
-    new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions(), [||])
-    new (brokerSeeds, topicName, consumerOptions, partitionWhitelist) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, partitionWhitelist, new BrokerRouter(consumerOptions.TcpTimeout))
+    new (brokerSeeds, topicName, consumerOptions) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, new BrokerRouter(consumerOptions.TcpTimeout))
+    new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(_) =
