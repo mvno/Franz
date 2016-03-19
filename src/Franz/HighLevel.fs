@@ -205,23 +205,6 @@ type IConsumerOffsetManager =
 /// Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.
 type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
-    let partitions = new ConcurrentDictionary<_, _>()
-    let updatePartitions (brokers : Broker seq) =
-        brokers
-            |> Seq.map (fun x -> x.LeaderFor)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.TopicName = topicName)
-            |> Seq.map (fun x -> x.PartitionIds)
-            |> Seq.concat
-            |> Seq.iter (fun x -> if partitions.ContainsKey(x) then () else partitions.TryAdd(x, null) |> ignore)
-        brokers
-            |> Seq.map (fun x -> x.LeaderFor)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.TopicName = topicName)
-            |> Seq.map (fun x -> x.PartitionIds)
-            |> Seq.concat
-            |> Seq.filter (partitions.ContainsKey >> not)
-            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
@@ -232,7 +215,8 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     let innerFetch consumerGroup =
         let broker = brokerRouter.GetAllBrokers() |> Seq.head
-        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions.Keys |> Seq.toArray } |], int16 0)
+        let partitions = brokerRouter.GetAvailablePartitionIds(topicName)
+        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions } |], int16 0)
         let response = broker.Send(request)
         response.Topics
             |> Seq.filter (fun x -> x.Name = topicName)
@@ -250,8 +234,6 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     do
         brokerRouter.Connect(brokerSeeds)
-        brokerRouter.GetAllBrokers() |> updatePartitions
-        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
     new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV0(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     member __.Dispose() =
         if not disposed then
@@ -279,23 +261,6 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
 type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
-    let partitions = new ConcurrentDictionary<_, _>()
-    let updatePartitions (brokers : Broker seq) =
-        brokers
-            |> Seq.map (fun x -> x.LeaderFor)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.TopicName = topicName)
-            |> Seq.map (fun x -> x.PartitionIds)
-            |> Seq.concat
-            |> Seq.iter (fun x -> if partitions.ContainsKey(x) then () else partitions.TryAdd(x, null) |> ignore)
-        brokers
-            |> Seq.map (fun x -> x.LeaderFor)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.TopicName = topicName)
-            |> Seq.map (fun x -> x.PartitionIds)
-            |> Seq.concat
-            |> Seq.filter (partitions.ContainsKey >> not)
-            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
@@ -318,7 +283,8 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     let rec innerFetch consumerGroup =
         let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
-        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions.Keys |> Seq.toArray } |], int16 1)
+        let partitions = brokerRouter.GetAvailablePartitionIds(topicName)
+        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions } |], int16 1)
         let response = coordinator.Send(request)
         let partitions =
             response.Topics
@@ -361,8 +327,6 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     do
         brokerRouter.Connect(brokerSeeds)
-        brokerRouter.GetAllBrokers() |> updatePartitions
-        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
     new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV1(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     member __.Dispose() =
         if not disposed then
@@ -388,23 +352,6 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
 type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
-    let partitions = new ConcurrentDictionary<_, _>()
-    let updatePartitions (brokers : Broker seq) =
-        brokers
-            |> Seq.map (fun x -> x.LeaderFor)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.TopicName = topicName)
-            |> Seq.map (fun x -> x.PartitionIds)
-            |> Seq.concat
-            |> Seq.iter (fun x -> if partitions.ContainsKey(x) then () else partitions.TryAdd(x, null) |> ignore)
-        brokers
-            |> Seq.map (fun x -> x.LeaderFor)
-            |> Seq.concat
-            |> Seq.filter (fun x -> x.TopicName = topicName)
-            |> Seq.map (fun x -> x.PartitionIds)
-            |> Seq.concat
-            |> Seq.filter (partitions.ContainsKey >> not)
-            |> Seq.iter (partitions.TryRemove >> ignore)
     let refreshMetadataOnException f =
         try
             f()
@@ -427,7 +374,8 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     let rec innerFetch consumerGroup =
         let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
-        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions.Keys |> Seq.toArray } |], int16 1)
+        let partitions = brokerRouter.GetAvailablePartitionIds(topicName)
+        let request = new OffsetFetchRequest(consumerGroup, [| { OffsetFetchRequestTopic.Name = topicName; Partitions = partitions } |], int16 1)
         let response = coordinator.Send(request)
         let partitions =
             response.Topics
@@ -470,8 +418,6 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
 
     do
         brokerRouter.Connect(brokerSeeds)
-        brokerRouter.GetAllBrokers() |> updatePartitions
-        brokerRouter.MetadataRefreshed.Add(fun x -> x |> updatePartitions)
     new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV2(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
     member __.Dispose() =
         if not disposed then
