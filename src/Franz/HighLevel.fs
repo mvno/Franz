@@ -560,6 +560,7 @@ type OffsetStorage =
 
 /// Consumer options
 type ConsumerOptions() =
+    let mutable partitionWhitelist = [||]
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
     member val TcpTimeout = 10000 with get, set
     /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
@@ -577,7 +578,13 @@ type ConsumerOptions() =
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
     /// The partitions to consume messages from
-    member val PartitionWhitelist = [||] with get, set
+    member __.PartitionWhitelist
+        with get() = partitionWhitelist
+        and set x =
+            if x = null then
+                partitionWhitelist <- [||]
+            else
+                partitionWhitelist <- x
 
 [<AbstractClass>]
 type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
@@ -595,7 +602,7 @@ type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerO
         |> Seq.filter (fun x -> x.TopicName = topicName)
         |> Seq.map (fun x ->
             match consumerOptions.PartitionWhitelist with
-            | null | [||] -> x.PartitionIds
+            | [||] -> x.PartitionIds
             | _ -> Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray consumerOptions.PartitionWhitelist) |> Set.toArray)
         |> Seq.concat
         |> Seq.iter (fun id -> partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
@@ -642,10 +649,9 @@ type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerO
 
     /// Sets the current consumer offsets
     default __.SetPosition(offsets : PartitionOffset seq) =
-        if consumerOptions.PartitionWhitelist <> null then
-            offsets
-            |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
-            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
+        offsets
+        |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
+        |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
@@ -713,9 +719,6 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, brokerR
             }
         Async.Start(consume(), cancellationToken)
         blockingCollection.GetConsumingEnumerable(cancellationToken)
-        else
-            offsets
-            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
         if not disposed then
@@ -750,9 +753,6 @@ type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, 
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
-        else
-            offsets
-            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
         if not disposed then
