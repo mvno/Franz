@@ -298,6 +298,16 @@ type BrokerRouter(tcpTimeout) as self =
     member self.TrySendToBroker(topicName, partitionId, request) =
         let broker = self.GetBroker(topicName, partitionId)
         Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
+    member __.GetAvailablePartitionIds(topicName) =
+        if disposed then invalidOp "Router has been disposed"
+        let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
+        brokers
+            |> Seq.map (fun x -> x.LeaderFor)
+            |> Seq.concat
+            |> Seq.filter (fun x -> x.TopicName = topicName)
+            |> Seq.map (fun x -> x.PartitionIds)
+            |> Seq.concat
+            |> Seq.toArray
     /// Dispose the router
     member __.Dispose() =
         if not disposed then
