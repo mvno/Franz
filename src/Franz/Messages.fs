@@ -289,21 +289,42 @@ module Messages =
     let DefaultGenerationId = -1
 
     /// Broker
-    [<NoEquality;NoComparison>] type Broker = { NodeId : int32; Host : string; Port : int32; }
+    [<NoEquality;NoComparison>]
+    type Broker = { NodeId : int32; Host : string; Port : int32; }
     /// PartitionMetadata
-    [<NoEquality;NoComparison>] type PartitionMetadata = { ErrorCode : ErrorCode; PartitionId : int32; Leader : Id; Replicas : Replicas; Isr : Isr; }
+    [<NoEquality;NoComparison>]
+    type PartitionMetadata(errorCode, partitionId, leader, replicas, isr) =
+        member __.ErrorCode = errorCode
+        member __.PartitionId = partitionId
+        member __.Leader = leader
+        member __.Replicas = replicas
+        member __.Isr = isr
     /// TopicMetadata
-    [<NoEquality;NoComparison>] type TopicMetadata = { ErrorCode : ErrorCode; Name : string; PartitionMetadata : PartitionMetadata array; }
+    [<NoEquality;NoComparison>]
+    type TopicMetadata(errorCode, name, partitionMetadata) =
+        member __.ErrorCode = errorCode
+        member __.Name = name
+        member __.PartitionMetadata = partitionMetadata
     /// PartitionProduceRequest
     [<NoEquality;NoComparison>] type PartitionProduceRequest = { Id : int32; TotalMessageSetsSize : MessageSize; MessageSets : MessageSet array; }
     /// PartitionProduceResponse
-    [<NoEquality;NoComparison>] type PartitionProduceResponse = { Id : int32; ErrorCode : ErrorCode; Offset : Offset }
+    [<NoEquality;NoComparison>]
+    type PartitionProduceResponse(id, errorCode, offset) =
+        member __.Id = id
+        member __.ErrorCode = errorCode
+        member __.Offset = offset
     /// TopicProduceRequest
     [<NoEquality;NoComparison>] type TopicProduceRequest = { Name : string; Partitions : PartitionProduceRequest array }
     /// TopicProduceResponse
     [<NoEquality;NoComparison>] type TopicProduceResponse = { Name : string; Partitions : PartitionProduceResponse array }
     /// FetchPartitionResponse
-    [<NoEquality;NoComparison>] type FetchPartitionResponse = { Id : Id; ErrorCode : ErrorCode; HighwaterMarkOffset : Offset; MessageSetSize : MessageSize; MessageSets : MessageSet array; }
+    [<NoEquality;NoComparison>]
+    type FetchPartitionResponse(id, errorCode, highwaterMarkOffset, messageSetSize, messageSets) =
+        member __.Id = id
+        member __.ErrorCode = errorCode
+        member __.HighwaterMarkOffset = highwaterMarkOffset
+        member __.MessageSetSize = messageSetSize
+        member __.MessageSets = messageSets
     /// FetchTopicResponse
     [<NoEquality;NoComparison>] type FetchTopicResponse = { TopicName : string; Partitions : FetchPartitionResponse array; }
     /// FetchPartitionRequest
@@ -315,7 +336,11 @@ module Messages =
     /// OffsetRequestTopic
     [<NoEquality;NoComparison>] type OffsetRequestTopic = { Name : string; Partitions : OffsetRequestPartition array }
     /// PartitionOffset
-    [<NoEquality;NoComparison>] type PartitionOffset = { Id : Id; ErrorCode : ErrorCode; Offsets : Offset array; }
+    [<NoEquality;NoComparison>]
+    type PartitionOffset(id, errorCode, offsets) =
+        member __.Id = id
+        member __.ErrorCode = errorCode
+        member __.Offsets = offsets
     /// OffsetResponseTopic
     [<NoEquality;NoComparison>] type OffsetResponseTopic = { Name : string; Partitions : PartitionOffset array; }
     /// OffsetCommitRequestV1Partition
@@ -323,13 +348,21 @@ module Messages =
     /// OffsetCommitRequestV1Topic
     [<NoEquality;NoComparison>] type OffsetCommitRequestV1Topic = { Name : string; Partitions : OffsetCommitRequestV1Partition array; }
     /// OffsetCommitResponsePartition
-    [<NoEquality;NoComparison>] type OffsetCommitResponsePartition = { Id : Id; ErrorCode : ErrorCode;  }
+    [<NoEquality;NoComparison>]
+    type OffsetCommitResponsePartition(id, errorCode) =
+        member __.Id = id
+        member __.ErrorCode = errorCode
     /// OffsetCommitResponseTopic
     [<NoEquality;NoComparison>] type OffsetCommitResponseTopic = { Name : string; Partitions : OffsetCommitResponsePartition array; }
     /// OffsetFetchRequestTopic
     [<NoEquality;NoComparison>] type OffsetFetchRequestTopic = { Name : string; Partitions : Id array }
     /// OffsetFetchResponsePartition
-    [<NoEquality;NoComparison>] type OffsetFetchResponsePartition = { Id : Id; Offset : Offset; Metadata : string; ErrorCode : ErrorCode; }
+    [<NoEquality;NoComparison>]
+    type OffsetFetchResponsePartition(id, offset, metadata, errorCode) =
+        member __.Id = id
+        member __.Offset = offset
+        member __.Metadata = metadata
+        member __.ErrorCode = errorCode
     /// OffsetFetchResponseTopic
     [<NoEquality;NoComparison>] type OffsetFetchResponseTopic = { Name : string; Partitions : OffsetFetchResponsePartition array; }
     /// OffsetCommitRequestV0Partition
@@ -363,7 +396,7 @@ module Messages =
                     let replicaCount = stream |> BigEndianReader.ReadInt32
                     let replicas = MetadataResponse.readIds [] replicaCount stream
                     let isrs = MetadataResponse.readIds [] (stream |> BigEndianReader.ReadInt32) stream
-                    let metadata = { ErrorCode = enum<ErrorCode>(int32 errorCode); PartitionId = partitionId; Leader = leader; Replicas = replicas |> List.toArray; Isr = isrs |> List.toArray }
+                    let metadata = new PartitionMetadata(enum<ErrorCode>(int32 errorCode), partitionId, leader, replicas |> List.toArray, isrs |> List.toArray)
                     MetadataResponse.readPartitionMetadata (metadata :: list) (count - 1) stream
         static member private readTopicMetadata list count stream =
             match count with
@@ -373,7 +406,7 @@ module Messages =
                 let topicName = stream |> BigEndianReader.ReadString
                 let numberOfPartitionMetadata = stream |> BigEndianReader.ReadInt32
                 let partitionMetadata = MetadataResponse.readPartitionMetadata [] numberOfPartitionMetadata stream
-                let metadata = { ErrorCode = enum<ErrorCode>(int32 errorCode); Name = topicName; PartitionMetadata = partitionMetadata |> List.toArray; }
+                let metadata = new TopicMetadata(enum<ErrorCode>(int32 errorCode), topicName, partitionMetadata |> List.toArray)
                 MetadataResponse.readTopicMetadata (metadata :: list) (count - 1) stream
         /// Deserialize response from a stream
         static member Deserialize(stream) =
@@ -392,7 +425,7 @@ module Messages =
             match count with
             | 0 -> list
             | _ ->
-                let partition = { PartitionProduceResponse.Id = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>; Offset = stream |> BigEndianReader.ReadInt64; }
+                let partition = new PartitionProduceResponse(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>, stream |> BigEndianReader.ReadInt64)
                 ProduceResponse.readPartition (partition :: list) (count - 1) stream
         static member private readTopic list count stream =
             match count with
@@ -419,7 +452,7 @@ module Messages =
                 let highwaterMarkOffset = stream |> BigEndianReader.ReadInt64
                 let messageSetSize = stream |> BigEndianReader.ReadInt32
                 let messageSets = stream |> BigEndianReader.Read messageSetSize |> MessageSet.Deserialize |> List.rev |> Array.ofList
-                let partition = { FetchPartitionResponse.Id = id; ErrorCode = errorCode; HighwaterMarkOffset = highwaterMarkOffset; MessageSetSize = messageSetSize; MessageSets = messageSets }
+                let partition = new FetchPartitionResponse(id, errorCode, highwaterMarkOffset, messageSetSize, messageSets)
                 FetchResponse.readPartition (partition :: list) (count - 1) stream
         static member private readTopic list count stream =
             match count with
@@ -447,7 +480,7 @@ module Messages =
             match count with
             | 0 -> list
             | _ ->
-                let partition = { Id = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int32 |> enum<ErrorCode>; Offsets = OffsetResponse.readOffsets [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+                let partition = new PartitionOffset(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt16 |> int32 |> enum<ErrorCode>, OffsetResponse.readOffsets [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray)
                 OffsetResponse.readPartition (partition :: list) (count - 1) stream
         static member private readTopic list count stream =
             match count with
@@ -483,7 +516,7 @@ module Messages =
             match count with
             | 0 -> list
             | _ ->
-                let partition = { OffsetCommitResponsePartition.Id = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
+                let partition = new OffsetCommitResponsePartition(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>)
                 OffsetCommitResponse.readPartition (partition :: list) (count - 1) stream
         static member private readTopic list count stream =
             match count with
@@ -504,7 +537,7 @@ module Messages =
             match count with
             | 0 -> list
             | _ ->
-                let partition = { Id = stream |> BigEndianReader.ReadInt32; Offset = stream |> BigEndianReader.ReadInt64; Metadata = stream |> BigEndianReader.ReadString; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
+                let partition = new OffsetFetchResponsePartition(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt64, stream |> BigEndianReader.ReadString, stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>)
                 OffsetFetchResponse.readPartition (partition :: list) (count - 1) stream
         static member private readTopic list count stream =
             match count with
