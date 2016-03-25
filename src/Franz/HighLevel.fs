@@ -27,13 +27,7 @@ type IProducer =
 
 [<AbstractClass>]
 type BaseProducer private(brokerSeeds, brokerRouter : BrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
-    do
-        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect(brokerSeeds)
-
-    abstract member Send : string * string array * RequiredAcks * int -> unit
-
-    default self.Send(key, messages, requiredAcks, brokerProcessingTimeout) =
+    let rec send key messages requiredAcks brokerProcessingTimeout =
         let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
@@ -45,8 +39,22 @@ type BaseProducer private(brokerSeeds, brokerRouter : BrokerRouter, topicName, c
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
-            self.Send(key, messages, requiredAcks, brokerProcessingTimeout)
+            send key messages requiredAcks brokerProcessingTimeout
         | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+
+    do
+        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
+        brokerRouter.Connect(brokerSeeds)
+
+    abstract member Send : string * string array * RequiredAcks * int -> unit
+
+    default __.Send(key, messages, requiredAcks, brokerProcessingTimeout) =
+        try
+            send key messages requiredAcks brokerProcessingTimeout
+        with
+        | _ ->
+            brokerRouter.RefreshMetadata()
+            send key messages requiredAcks brokerProcessingTimeout
 
 /// High level kafka producer
 type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =

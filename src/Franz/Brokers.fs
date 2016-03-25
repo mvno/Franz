@@ -48,10 +48,15 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Connect the broker
     member __.Connect() =
         if disposed then invalidOp "Broker has been disposed"
-        client <- new TcpClient()
-        client.ReceiveTimeout <- tcpTimeout
-        client.SendTimeout <- tcpTimeout
-        client.Connect(endPoint.Address, endPoint.Port)
+        try
+            client <- new TcpClient()
+            client.ReceiveTimeout <- tcpTimeout
+            client.SendTimeout <- tcpTimeout
+            client.Connect(endPoint.Address, endPoint.Port)
+        with
+        | _ ->
+            client <- null
+            reraise()
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
         if disposed then invalidOp "Broker has been disposed"
