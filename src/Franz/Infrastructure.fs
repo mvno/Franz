@@ -17,7 +17,7 @@ module Seq =
         let length = list |> Seq.length
         if (lastPos < length - 1) then
             let pos = lastPos + 1
-            (pos, list |> Seq.nth pos)
+            (pos, list |> Seq.item pos)
         else
             (0, list |> Seq.head)
 
