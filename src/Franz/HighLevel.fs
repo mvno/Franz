@@ -643,7 +643,7 @@ type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerO
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
                 return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
             | e ->
-                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming. Retrying in %i milliseconds" consumerOptions.ConnectionRetryInterval, e)
+                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" topicName partitionId consumerOptions.ConnectionRetryInterval, e)
                 do! Async.Sleep consumerOptions.ConnectionRetryInterval
                 return Seq.empty<_>
         }
