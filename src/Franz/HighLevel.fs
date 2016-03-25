@@ -533,12 +533,13 @@ type ConsumerOptions() =
 
 [<AbstractClass>]
 type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
-    let offsetManager = match consumerOptions.OffsetStorage with
-            | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-            | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
+    let offsetManager =
+        match consumerOptions.OffsetStorage with
+        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
