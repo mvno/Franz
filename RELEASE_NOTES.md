@@ -12,6 +12,7 @@
 * Support user-defined logging by implementing the ILogger interface and set the logger through LogConfiguration
 * Move partition whitelist into ConsumerOptions
 * Fix bug in producer where an unavailable broker would result in not refreshing the metadata
+* Fix bug where consuming data from a broker going down would result in a infinite loop
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
