@@ -275,7 +275,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         metadataRefreshed.Trigger(updatedBrokers)
         (index, updatedBrokers)
     /// Get broker by topic and partition id
-    member private self.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) =
+    member private __.GetBroker(brokers, lastRoundRobinIndex, topic, partitionId) =
         findBroker brokers lastRoundRobinIndex 0 topic partitionId
     /// Add broker to the list of available brokers
     member __.AddBroker(broker : Broker) =
