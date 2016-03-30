@@ -111,7 +111,7 @@ type BrokerRouterMessage =
     | Connect of EndPoint seq * AsyncReplyChannel<unit>
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
-type BrokerRouter(tcpTimeout) as self =
+type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     let mutable disposed = false
     let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()
@@ -239,7 +239,7 @@ type BrokerRouter(tcpTimeout) as self =
     [<CLIEvent>]
     member __.MetadataRefreshed = metadataRefreshed.Publish
     /// Connect the router to the cluster using the broker seeds.
-    member __.Connect(brokerSeeds) = router.PostAndReply(fun reply -> Connect(brokerSeeds, reply))
+    member __.Connect() = router.PostAndReply(fun reply -> Connect(brokerSeeds, reply))
     /// Refresh metadata for the broker cluster
     member private __.RefreshMetadata(brokers, lastRoundRobinIndex, ?topics) =
         LogConfiguration.Logger.Trace.Invoke("Refreshing metadata...")

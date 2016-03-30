@@ -26,7 +26,7 @@ type IProducer =
     abstract member SendMessages : string * string * string array * RequiredAcks * int -> unit
 
 [<AbstractClass>]
-type BaseProducer private(brokerSeeds, brokerRouter : BrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
+type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
     let rec send key messages requiredAcks brokerProcessingTimeout =
         let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
@@ -44,7 +44,7 @@ type BaseProducer private(brokerSeeds, brokerRouter : BrokerRouter, topicName, c
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.Connect()
 
     abstract member Send : string * string array * RequiredAcks * int -> unit
 
@@ -57,7 +57,7 @@ type BaseProducer private(brokerSeeds, brokerRouter : BrokerRouter, topicName, c
             send key messages requiredAcks brokerProcessingTimeout
 
 /// High level kafka producer
-type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
+type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
 
     let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout =
@@ -77,11 +77,11 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.Connect()
     new (brokerSeeds, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
-    new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), partitionSelector)
-    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionSelector)
-    new (brokerSeeds, brokerRouter : BrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, brokerRouter, CompressionCodec.None, partitionSelector)
+    new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), partitionSelector)
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, partitionSelector)
+    new (brokerRouter : BrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerRouter, CompressionCodec.None, partitionSelector)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, key, message) =
         self.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
@@ -117,7 +117,7 @@ type Producer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : Compr
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
-type RoundRobinProducer(brokerSeeds, brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
+type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
     let mutable producer = None
     let topicPartitions = new TopicPartitions()
     let sortTopicPartitions() =
@@ -157,16 +157,16 @@ type RoundRobinProducer(brokerSeeds, brokerRouter : BrokerRouter, compressionCod
             nextId
 
     do
-        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.Connect()
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
-        producer <- Some <| new Producer(brokerSeeds, brokerRouter, compressionCodec, new Func<string, string, Id>(getNextPartitionId))
+        producer <- Some <| new Producer(brokerRouter, compressionCodec, new Func<string, string, Id>(getNextPartitionId))
 
     new (brokerSeeds) = new RoundRobinProducer(brokerSeeds, 10000)
-    new (brokerSeeds, tcpTimeout : int) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout))
-    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, null)
-    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionWhiteList : Id array) = new RoundRobinProducer(brokerSeeds, new BrokerRouter(tcpTimeout), compressionCodec, partitionWhiteList)
-    new (brokerSeeds, brokerRouter : BrokerRouter) = new RoundRobinProducer(brokerSeeds, brokerRouter, CompressionCodec.None, null)
+    new (brokerSeeds, tcpTimeout : int) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout))
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, null)
+    new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionWhiteList : Id array) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, partitionWhiteList)
+    new (brokerRouter : BrokerRouter) = new RoundRobinProducer(brokerRouter, CompressionCodec.None, null)
 
     /// Releases all connections and disposes the producer
     member __.Dispose() =
@@ -211,7 +211,7 @@ type IConsumerOffsetManager =
     abstract member Commit : string * PartitionOffset seq -> unit
 
 /// Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.
-type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
     let refreshMetadataOnException f =
         try
@@ -241,8 +241,8 @@ type ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter : BrokerRouter
         broker.Send(request)
 
     do
-        brokerRouter.Connect(brokerSeeds)
-    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV0(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+        brokerRouter.Connect()
+    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV0(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
     member __.Dispose() =
         if not disposed then
             brokerRouter.Dispose()
@@ -273,7 +273,7 @@ module internal ErrorHelper =
 
 
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
-type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
@@ -337,8 +337,8 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
             | None -> ()
 
     do
-        brokerRouter.Connect(brokerSeeds)
-    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV1(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+        brokerRouter.Connect()
+    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV1(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
     member __.Dispose() =
         if not disposed then
             brokerRouter.Dispose()
@@ -360,7 +360,7 @@ type ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter : BrokerRouter
         member self.Dispose() = self.Dispose()
 
 /// Offset manager for version 2. This commits and fetches offset to/from Kafka broker.
-type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
@@ -424,8 +424,8 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
             | None -> ()
 
     do
-        brokerRouter.Connect(brokerSeeds)
-    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV2(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+        brokerRouter.Connect()
+    new (brokerSeeds, topicName, tcpTimeout) = new ConsumerOffsetManagerV2(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
     member __.Dispose() =
         if not disposed then
             brokerRouter.Dispose()
@@ -447,11 +447,11 @@ type ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter : BrokerRouter
         member self.Dispose() = self.Dispose()
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
-type ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : BrokerRouter) =
     let mutable disposed = false
-    let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
-    let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter) :> IConsumerOffsetManager
-    new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, new BrokerRouter(tcpTimeout))
+    let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(topicName, brokerRouter) :> IConsumerOffsetManager
+    let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(topicName, brokerRouter) :> IConsumerOffsetManager
+    new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
         if disposed then invalidOp "Offset manager has been disposed"
@@ -540,13 +540,13 @@ type ConsumerOptions() =
                 partitionWhitelist <- x
 
 [<AbstractClass>]
-type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
+type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
     let offsetManager =
         match consumerOptions.OffsetStorage with
-        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(brokerSeeds, topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(topicName, brokerRouter)) :> IConsumerOffsetManager
         | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
@@ -575,7 +575,7 @@ type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerO
     
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect(brokerSeeds)
+        brokerRouter.Connect()
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
 
@@ -649,12 +649,12 @@ type BaseConsumer(brokerSeeds, topicName, brokerRouter : BrokerRouter, consumerO
         }
 
 /// High level kafka consumer.
-type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, topicName, brokerRouter, consumerOptions)
+type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
+    inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
 
     let mutable disposed = false
 
-    new (brokerSeeds, topicName, consumerOptions) = new Consumer(brokerSeeds, topicName, consumerOptions, new BrokerRouter(consumerOptions.TcpTimeout))
+    new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new Consumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
     new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
@@ -691,12 +691,12 @@ type Consumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, brokerR
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
-type ChunkedConsumer(brokerSeeds, topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
-    inherit BaseConsumer(brokerSeeds, topicName, brokerRouter, consumerOptions)
+type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
+    inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
 
     let mutable disposed = false
 
-    new (brokerSeeds, topicName, consumerOptions) = new ChunkedConsumer(brokerSeeds, topicName, consumerOptions, new BrokerRouter(consumerOptions.TcpTimeout))
+    new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new ChunkedConsumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
     new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
