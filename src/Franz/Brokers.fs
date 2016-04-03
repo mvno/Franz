@@ -104,7 +104,7 @@ type BrokerRouterMessage =
     /// Get a broker by topic and partition id
     | GetBroker of string * Id * AsyncReplyChannel<BrokerRouterReturnMessage<Broker>>
     /// Get all available brokers
-    | GetAllBrokers of AsyncReplyChannel<Broker list>
+    | GetAllBrokers of AsyncReplyChannel<Broker seq>
     /// Closes the router
     | Close
     /// Connect to the cluster
