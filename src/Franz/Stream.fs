@@ -59,6 +59,8 @@ type BigEndianReader() =
     static let rec readLoop offset bytesLeft (stream : Stream) buffer =
         let bytesRead = stream.Read(buffer, offset, bytesLeft)
         if bytesRead <> bytesLeft then
+            if bytesRead = 0 then
+                invalidOp "Could not read data from stream as connection has been closed"
             readLoop (offset + bytesRead) (bytesLeft - bytesRead) stream buffer
 
     /// Convert an array to big endian if needed

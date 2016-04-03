@@ -150,6 +150,7 @@
   <ItemGroup>
     <Compile Include="Crc32.fs" />
     <Compile Include="Infrastructure.fs" />
+    <Compile Include="Logging.fs" />
     <Compile Include="Stream.fs" />
     <Compile Include="Messages.fs" />
     <Compile Include="Compression.fs" />

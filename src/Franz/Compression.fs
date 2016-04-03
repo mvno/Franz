@@ -70,3 +70,29 @@ type GzipCompression private() =
         gzipStream.Close()
         let buffer = stream.ToArray()
         [| MessageSet.Create(-1L, gzipCompressionFlag, null, buffer) |]
+
+/// Helper methods related to compression
+[<Sealed;AbstractClass>]
+type Compression private() =
+    /// Decompress a single messageset
+    static member DecompressMessageSet (messageSet : MessageSet) =
+        match messageSet.Message.CompressionCodec with
+        | CompressionCodec.Gzip -> GzipCompression.Decode(messageSet)
+        | CompressionCodec.Snappy -> SnappyCompression.Decode(messageSet)
+        | CompressionCodec.None -> [ messageSet ]
+        | x -> failwithf "Unknown compression codec %A" x
+
+    /// Decompress multiple messagesets
+    static member DecompressMessageSets (messageSets : MessageSet seq) =
+        messageSets
+        |> Seq.map Compression.DecompressMessageSet
+        |> Seq.concat
+
+    /// Compress messages, using the specified compression codec
+    static member CompressMessages (compressionCodec, messages : string array) =
+        let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, System.Text.Encoding.UTF8.GetBytes(x)))
+        match compressionCodec with
+        | CompressionCodec.None -> messageSets
+        | CompressionCodec.Gzip -> GzipCompression.Encode(messageSets)
+        | CompressionCodec.Snappy -> SnappyCompression.Encode(messageSets)
+        | x -> failwithf "Unsupported compression codec %A" x
