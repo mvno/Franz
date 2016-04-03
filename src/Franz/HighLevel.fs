@@ -514,6 +514,7 @@ type OffsetStorage =
 /// Consumer options
 type ConsumerOptions() =
     let mutable partitionWhitelist = [||]
+    let mutable offsetManager = OffsetStorage.Zookeeper
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
     member val TcpTimeout = 10000 with get, set
     /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
@@ -527,7 +528,7 @@ type ConsumerOptions() =
     /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
     member val MaxBytes = 1024 * 5 with get, set
     /// Indicates how offsets should be stored
-    member val OffsetStorage = OffsetStorage.Zookeeper with get, set
+    member val OffsetStorage = offsetManager with get, set
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
     /// The partitions to consume messages from
