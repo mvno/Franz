@@ -71,6 +71,7 @@
     <Compile Include="StreamTest.fs" />
     <Compile Include="MessagesTest.fs" />
     <Compile Include="CompressionTest.fs" />
+    <Compile Include="ConsumerOptionsTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
