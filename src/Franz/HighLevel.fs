@@ -514,6 +514,7 @@ type OffsetStorage =
 /// Consumer options
 type ConsumerOptions() =
     let mutable partitionWhitelist = [||]
+    let mutable offsetManager = OffsetStorage.Zookeeper
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
     member val TcpTimeout = 10000 with get, set
     /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
@@ -527,7 +528,7 @@ type ConsumerOptions() =
     /// The maximum bytes to include in the message set for a partition. This helps bound the size of the response. Default value is 5120.
     member val MaxBytes = 1024 * 5 with get, set
     /// Indicates how offsets should be stored
-    member val OffsetStorage = OffsetStorage.Zookeeper with get, set
+    member val OffsetStorage = offsetManager with get, set
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
     /// The partitions to consume messages from
@@ -572,6 +573,11 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
         |> Seq.map (fun x -> x.Offsets)
         |> Seq.concat
         |> Seq.min
+
+    let getThePartitionOffsetsWeWantToAddOrUpdate(offsets : PartitionOffset seq) =
+        match (Seq.isEmpty consumerOptions.PartitionWhitelist) with
+        | true -> offsets
+        | false -> offsets |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
     
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -604,9 +610,9 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
     /// Sets the current consumer offsets
     default __.SetPosition(offsets : PartitionOffset seq) =
         offsets
-        |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
+        |> getThePartitionOffsetsWeWantToAddOrUpdate
         |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
-    
+
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     default self.ConsumeInChunks(partitionId, maxBytes : int option) =
