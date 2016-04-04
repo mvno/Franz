@@ -573,6 +573,11 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
         |> Seq.map (fun x -> x.Offsets)
         |> Seq.concat
         |> Seq.min
+
+    let getThePartitionOffsetsWeWantToAddOrUpdate(offsets : PartitionOffset seq) =
+        match (Seq.isEmpty consumerOptions.PartitionWhitelist) with
+            | true -> offsets
+            | false -> offsets |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
     
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -605,9 +610,9 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
     /// Sets the current consumer offsets
     default __.SetPosition(offsets : PartitionOffset seq) =
         offsets
-        |> Seq.filter (fun x -> consumerOptions.PartitionWhitelist |> Seq.exists (fun y -> y = x.PartitionId))
-        |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
-    
+            |> getThePartitionOffsetsWeWantToAddOrUpdate
+            |> Seq.iter (fun x -> partitionOffsets.AddOrUpdate(x.PartitionId, new Func<Id, Offset>(fun _ -> x.Offset), fun _ _ -> x.Offset) |> ignore)
+
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     default self.ConsumeInChunks(partitionId, maxBytes : int option) =
