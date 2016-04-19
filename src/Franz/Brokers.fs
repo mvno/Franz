@@ -214,7 +214,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
         match candidateBrokers |> Seq.length with
         | 0 ->
-            LogConfiguration.Logger.Trace.Invoke(sprintf "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId)
+            LogConfiguration.Logger.Warning.Invoke(sprintf "Could not find broker of %s partition %i... Refreshing metadata..." topic partitionId)
             let (index, brokers) = self.RefreshMetadata(brokers, lastRoundRobinIndex, [| topic |])
             System.Threading.Thread.Sleep(500)
             if attempt < 3 then findBroker brokers index (attempt + 1) topic partitionId
