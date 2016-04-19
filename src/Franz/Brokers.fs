@@ -66,7 +66,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             with
             | e ->
                 LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while sending request", e)
-                LogConfiguration.Logger.Trace.Invoke("Reconnecting...")
+                LogConfiguration.Logger.Info.Invoke("Reconnecting...")
                 self.Connect()
                 try
                     send self request
@@ -135,7 +135,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         match seeds with
         | head :: tail ->
             try
-                LogConfiguration.Logger.Trace.Invoke(sprintf "Connecting to %s:%i..." head.Address head.Port)
+                LogConfiguration.Logger.Info.Invoke(sprintf "Connecting to %s:%i..." head.Address head.Port)
                 let broker = new Broker(-1, head, [||], tcpTimeout)
                 broker.Connect()
                 broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers [] seeds
@@ -154,7 +154,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             let! msg = inbox.Receive()
             match msg with
             | AddBroker broker ->
-                LogConfiguration.Logger.Trace.Invoke(sprintf "Adding broker with endpoint %A" broker.EndPoint)
+                LogConfiguration.Logger.Info.Invoke(sprintf "Adding broker with endpoint %A" broker.EndPoint)
                 if not broker.IsConnected then broker.Connect()
                 let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
                 return! loop (broker :: existingBrokers) lastRoundRobinIndex connected
@@ -242,7 +242,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     member __.Connect() = router.PostAndReply(fun reply -> Connect(brokerSeeds, reply))
     /// Refresh metadata for the broker cluster
     member private __.RefreshMetadata(brokers, lastRoundRobinIndex, ?topics) =
-        LogConfiguration.Logger.Trace.Invoke("Refreshing metadata...")
+        LogConfiguration.Logger.Info.Invoke("Refreshing metadata...")
         let topics =
             match topics with
             | Some x -> x
