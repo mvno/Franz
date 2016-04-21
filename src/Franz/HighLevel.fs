@@ -310,10 +310,12 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerFetch consumerGroup
         | _ ->
-            partitions
-            |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
-            |> Seq.map (fun x -> { PartitionId = x.Id; Metadata = ""; Offset = x.Offset })
-            |> Seq.toArray
+            let offsets = partitions
+                            |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
+                            |> Seq.map (fun x -> { PartitionId = x.Id; Metadata = ""; Offset = x.Offset })
+                            |> Seq.toArray
+            LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Kafka (using Kafka): %A" offsets)
+            offsets
 
     let rec innerCommit consumerGroup offsets =
         let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
@@ -335,7 +337,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
             | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
-            | None -> ()
+            | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using Kafka): %A" offsets)
 
     do
         brokerRouter.Connect()
