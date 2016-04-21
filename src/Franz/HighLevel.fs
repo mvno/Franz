@@ -200,6 +200,7 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
         member self.Dispose() = self.Dispose()
 
 /// Information about offsets
+[<StructuredFormatDisplay("Id: {PartitionId}, Offset: {Offset}, Metadata: {Metadata}")>]
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
 
 /// Interface for offset managers
