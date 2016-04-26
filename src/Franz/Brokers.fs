@@ -65,7 +65,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
                 send self request
             with
             | e ->
-                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while sending request", e)
+                LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while sending request: %s" (e.ToString()) )
                 LogConfiguration.Logger.Info.Invoke("Reconnecting...")
                 self.Connect()
                 try
@@ -141,7 +141,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers [] seeds
             with
             | e ->
-                LogConfiguration.Logger.Error.Invoke(sprintf "Could not connect to %s:%i got exception %s" head.Address head.Port e.Message, e)
+                LogConfiguration.Logger.Warning.Invoke(sprintf "Could not connect to %s:%i got exception %s\r\n%s" head.Address head.Port e.Message (e.ToString()))
                 innerConnect tail
         | [] -> invalidOp "Could not connect to any of the broker seeds"
     let connect brokerSeeds =
@@ -204,7 +204,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 (index, response)
         with
         | e ->
-            LogConfiguration.Logger.Error.Invoke("Got exception while getting metadata", e)
+            LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while getting metadata:\r\n %s" (e.ToString()))
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
                 LogConfiguration.Logger.Error.Invoke("Could not get metadata as none of the brokers are available", new Exception())
@@ -226,7 +226,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             Ok(broker, lastRoundRobinIndex)
 
     let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
-        LogConfiguration.Logger.Error.Invoke("Got exception while sending request", e)
+        LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while sending request:\r\n%s" (e.ToString()))
         brokerRouter.RefreshMetadata()
         brokerRouter.GetBroker(topicName, partitionId)
 
@@ -263,7 +263,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                     x.Connect()
                 with
                 | e ->
-                    LogConfiguration.Logger.Error.Invoke(sprintf "Could not connect to broker %A" x, e))
+                    LogConfiguration.Logger.Warning.Invoke(sprintf "Could not connect to broker %A\r\n%s" x (e.ToString())))
         let nonExistingBrokers =
             newBrokers
             |> Seq.filter (fun x -> x.IsConnected)
