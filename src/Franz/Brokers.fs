@@ -28,13 +28,19 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     let mutable disposed = false
     let mutable client : TcpClient = null
     let send (self : Broker) (request : Request<'TResponse>) =
-        if client |> isNull then self.Connect()
-        let stream = client.GetStream()
-        stream |> request.Serialize
-        let messageSize = stream |> BigEndianReader.ReadInt32
-        LogConfiguration.Logger.Trace.Invoke(sprintf "Received message of size %i" messageSize)
-        let buffer = stream |> BigEndianReader.Read messageSize
-        new MemoryStream(buffer)
+        try
+            if client |> isNull then self.Connect()
+            let stream = client.GetStream()
+            stream |> request.Serialize
+            let messageSize = stream |> BigEndianReader.ReadInt32
+            LogConfiguration.Logger.Trace.Invoke(sprintf "Received message of size %i" messageSize)
+            let buffer = stream |> BigEndianReader.Read messageSize
+            new MemoryStream(buffer)
+        with
+            | _ ->
+                client <- null
+                reraise()
+
     /// Gets the broker TcpClient
     member __.Client with get() = client
     /// Gets the broker endpoint
@@ -48,6 +54,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Connect the broker
     member __.Connect() =
         if disposed then invalidOp "Broker has been disposed"
+        LogConfiguration.Logger.Info.Invoke("Creating new tcp connecting...")
         try
             client <- new TcpClient()
             client.ReceiveTimeout <- tcpTimeout
@@ -64,16 +71,12 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             try
                 send self request
             with
+            | :? UnderlyingConnectionClosedException as e ->
+                LogConfiguration.Logger.Info.Invoke(sprintf "Broker connection in bad state, unable to send due to handled exception: %s" (e.ToString()))
+                send self request
             | e ->
-                LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while sending request: %s" (e.ToString()) )
-                LogConfiguration.Logger.Info.Invoke("Reconnecting...")
-                self.Connect()
-                try
-                    send self request
-                with
-                | _ ->
-                    client <- null
-                    reraise()
+                LogConfiguration.Logger.Warning.Invoke(sprintf "Broker unable to send due to unhandled exception: %s" (e.ToString()))
+                send self request
             )
         request.DeserializeResponse(rawResponseStream)
     /// Closes the connection and disposes the broker

@@ -4,6 +4,8 @@ open System
 open System.IO
 open System.Text
 
+exception UnderlyingConnectionClosedException of string
+
 /// Writes to a stream conforming to the Kafka protocol
 [<AbstractClass; Sealed>]
 type BigEndianWriter() =
@@ -60,7 +62,7 @@ type BigEndianReader() =
         let bytesRead = stream.Read(buffer, offset, bytesLeft)
         if bytesRead <> bytesLeft then
             if bytesRead = 0 then
-                invalidOp "Could not read data from stream as connection has been closed"
+                raise(UnderlyingConnectionClosedException "Could not read any data from stream")
             readLoop (offset + bytesRead) (bytesLeft - bytesRead) stream buffer
 
     /// Convert an array to big endian if needed
