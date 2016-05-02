@@ -48,6 +48,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     /// Connect the broker
     member __.Connect() =
         if disposed then invalidOp "Broker has been disposed"
+        LogConfiguration.Logger.Info.Invoke("Creating new tcp connecting...")
         try
             client <- new TcpClient()
             client.ReceiveTimeout <- tcpTimeout
