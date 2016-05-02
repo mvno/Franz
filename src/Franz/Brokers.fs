@@ -68,12 +68,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             | e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Broker unable to send: %s" (e.ToString()))
                 self.Connect()
-                try
-                    send self request
-                with
-                | _ ->
-                    client <- null
-                    reraise()
+                send self request
             )
         request.DeserializeResponse(rawResponseStream)
     /// Closes the connection and disposes the broker
