@@ -73,11 +73,9 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             with
             | :? UnderlyingConnectionClosedException as e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Broker connection in bad state, unable to send due to handled exception: %s" (e.ToString()))
-                self.Connect()
                 send self request
             | e ->
                 LogConfiguration.Logger.Warning.Invoke(sprintf "Broker unable to send due to unhandled exception: %s" (e.ToString()))
-                self.Connect()
                 send self request
             )
         request.DeserializeResponse(rawResponseStream)
