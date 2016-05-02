@@ -28,13 +28,19 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     let mutable disposed = false
     let mutable client : TcpClient = null
     let send (self : Broker) (request : Request<'TResponse>) =
-        if client |> isNull then self.Connect()
-        let stream = client.GetStream()
-        stream |> request.Serialize
-        let messageSize = stream |> BigEndianReader.ReadInt32
-        LogConfiguration.Logger.Trace.Invoke(sprintf "Received message of size %i" messageSize)
-        let buffer = stream |> BigEndianReader.Read messageSize
-        new MemoryStream(buffer)
+        try
+            if client |> isNull then self.Connect()
+            let stream = client.GetStream()
+            stream |> request.Serialize
+            let messageSize = stream |> BigEndianReader.ReadInt32
+            LogConfiguration.Logger.Trace.Invoke(sprintf "Received message of size %i" messageSize)
+            let buffer = stream |> BigEndianReader.Read messageSize
+            new MemoryStream(buffer)
+        with
+            | _ ->
+                client <- null
+                reraise()
+
     /// Gets the broker TcpClient
     member __.Client with get() = client
     /// Gets the broker endpoint
