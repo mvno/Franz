@@ -66,8 +66,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
                 send self request
             with
             | e ->
-                LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while sending request: %s" (e.ToString()) )
-                LogConfiguration.Logger.Info.Invoke("Reconnecting...")
+                LogConfiguration.Logger.Info.Invoke(sprintf "Broker unable to send: %s" (e.ToString()))
                 self.Connect()
                 try
                     send self request
