@@ -71,7 +71,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             try
                 send self request
             with
-            | :? InvalidOperationException as e ->
+            | :? UnderlyingConnectionClosedException as e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Broker connection in bad state, unable to send due to handled exception: %s" (e.ToString()))
                 self.Connect()
                 send self request
