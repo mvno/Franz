@@ -207,7 +207,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 (index, response)
         with
         | e ->
-            LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while getting metadata:\r\n %s" (e.ToString()))
+            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata, retrying. Exception message was:\r\n %s" e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
                 LogConfiguration.Logger.Error.Invoke("Could not get metadata as none of the brokers are available", new Exception())
