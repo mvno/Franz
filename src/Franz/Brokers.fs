@@ -157,7 +157,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             let! msg = inbox.Receive()
             match msg with
             | AddBroker broker ->
-                LogConfiguration.Logger.Info.Invoke(sprintf "Adding broker with endpoint %A" broker.EndPoint)
+                LogConfiguration.Logger.Info.Invoke(sprintf "Adding broker %i with endpoint %A" broker.NodeId broker.EndPoint)
                 if not broker.IsConnected then broker.Connect()
                 let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
                 return! loop (broker :: existingBrokers) lastRoundRobinIndex connected
@@ -207,7 +207,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 (index, response)
         with
         | e ->
-            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata, retrying. Exception message was:\r\n %s" e.Message)
+            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i, retrying. Exception message was:\r\n %s" broker.NodeId e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
                 raise (UnableToConnectToAnyBrokerException "Could not get metadata as none of the brokers are available")
