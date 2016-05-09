@@ -266,7 +266,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                     x.Connect()
                 with
                 | e ->
-                    LogConfiguration.Logger.Warning.Invoke(sprintf "Could not connect to broker %A\r\n%s" x (e.ToString())))
+                    LogConfiguration.Logger.Warning.Invoke(sprintf "Could not connect to NEW broker %A\r\n%s" x (e.ToString())))
         let nonExistingBrokers =
             newBrokers
             |> Seq.filter (fun x -> x.IsConnected)
