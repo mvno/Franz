@@ -222,8 +222,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             System.Threading.Thread.Sleep(500)
             if attempt < 3 then findBroker brokers index (attempt + 1) topic partitionId
             else
-                LogConfiguration.Logger.Warning.Invoke(sprintf "Could not find broker for topic %s partition %i" topic partitionId)
-                Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i" topic partitionId))
+                Failure(InvalidOperationException(sprintf "Could not find broker for topic %s partition %i after several retries." topic partitionId))
         | _ ->
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
