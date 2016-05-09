@@ -210,8 +210,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata, retrying. Exception message was:\r\n %s" e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
-                LogConfiguration.Logger.Error.Invoke("Could not get metadata as none of the brokers are available", new Exception())
-                invalidOp "Could not get metadata as none of the brokers are available"
+                raise (UnableToConnectToAnyBrokerException "Could not get metadata as none of the brokers are available")
 
     let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId =
         let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))

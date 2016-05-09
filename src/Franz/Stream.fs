@@ -6,6 +6,7 @@ open System.Text
 
 exception UnderlyingConnectionClosedException of string
 exception NoBrokerFoundForTopicPartitionException of string
+exception UnableToConnectToAnyBrokerException of string
 
 /// Writes to a stream conforming to the Kafka protocol
 [<AbstractClass; Sealed>]
