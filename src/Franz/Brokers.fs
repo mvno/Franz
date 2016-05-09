@@ -144,7 +144,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers [] seeds
             with
             | e ->
-                LogConfiguration.Logger.Warning.Invoke(sprintf "Could not connect to %s:%i got exception %s\r\n%s" head.Address head.Port e.Message (e.ToString()))
+                LogConfiguration.Logger.Info.Invoke(sprintf "Could not connect to %s:%i, retrying. Exception was %s\r\n%s" head.Address head.Port e.Message (e.ToString()))
                 innerConnect tail
         | [] -> invalidOp "Could not connect to any of the broker seeds"
     let connect brokerSeeds =
