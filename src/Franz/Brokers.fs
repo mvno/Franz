@@ -229,7 +229,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             Ok(broker, lastRoundRobinIndex)
 
     let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
-        LogConfiguration.Logger.Warning.Invoke(sprintf "Got exception while sending request:\r\n%s" (e.ToString()))
+        LogConfiguration.Logger.Info.Invoke(sprintf "Unable to send request to broker, refreshing metadata. Exception message: %s" e.Message)
         brokerRouter.RefreshMetadata()
         brokerRouter.GetBroker(topicName, partitionId)
 
