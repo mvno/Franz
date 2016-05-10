@@ -73,10 +73,10 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
                 send self request
             with
             | :? UnderlyingConnectionClosedException as e ->
-                LogConfiguration.Logger.Info.Invoke(sprintf "Broker connection in bad state, unable to send due to handled exception: %s" e.Message)
+                LogConfiguration.Logger.InfoWithException.Invoke("Broker connection in bad state, unable to send due to handled exception.", e)
                 send self request
             | e ->
-                LogConfiguration.Logger.Warning.Invoke(sprintf "Broker unable to send due to unhandled exception: %s" (e.ToString()))
+                LogConfiguration.Logger.WarningWithException.Invoke("Broker unable to send due to unhandled exception.", e)
                 send self request
             )
         request.DeserializeResponse(rawResponseStream)
@@ -145,7 +145,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 broker.Send(new MetadataRequest([||])) |> mapMetadataResponseToBrokers [] seeds
             with
             | e ->
-                LogConfiguration.Logger.Info.Invoke(sprintf "Could not connect to %s:%i, retrying. Exception was %s\r\n%s" head.Address head.Port e.Message (e.ToString()))
+                LogConfiguration.Logger.InfoWithException.Invoke(sprintf "Could not connect to %s:%i, retrying." head.Address head.Port, e)
                 innerConnect tail
         | [] -> invalidOp "Could not connect to any of the broker seeds"
     let connect brokerSeeds =
@@ -208,7 +208,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 (index, response)
         with
         | e ->
-            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i, retrying. Exception message was:\r\n %s" broker.NodeId e.Message)
+            LogConfiguration.Logger.InfoWithException.Invoke(sprintf "Unable to get metadata from broker %i, retrying." broker.NodeId, e)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
                 raise (UnableToConnectToAnyBrokerException "Could not get metadata as none of the brokers are available")
@@ -228,7 +228,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             Ok(broker, lastRoundRobinIndex)
 
     let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
-        LogConfiguration.Logger.Info.Invoke(sprintf "Unable to send request to broker, refreshing metadata. Exception message: %s" e.Message)
+        LogConfiguration.Logger.InfoWithException.Invoke("Unable to send request to broker, refreshing metadata.", e)
         brokerRouter.RefreshMetadata()
         brokerRouter.GetBroker(topicName, partitionId)
 
@@ -265,7 +265,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                     x.Connect()
                 with
                 | e ->
-                    LogConfiguration.Logger.Warning.Invoke(sprintf "Could not connect to NEW broker %A\r\n%s" x (e.ToString())))
+                    LogConfiguration.Logger.WarningWithException.Invoke(sprintf "Could not connect to NEW broker %A" x, e))
         let nonExistingBrokers =
             newBrokers
             |> Seq.filter (fun x -> x.IsConnected)

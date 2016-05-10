@@ -340,7 +340,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
         | _ ->
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
-            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
+            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, ClusterErrorException("Got error while commiting offset", int x.ErrorCode))
             | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using Kafka): %A" offsets)
 
     do
@@ -429,7 +429,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
         | _ ->
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
-            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
+            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, ClusterErrorException("Got error while commiting offset", int x.ErrorCode))
             | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using KafkaV2): %A" offsets)
 
     do
@@ -654,7 +654,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     return Seq.empty<_>
             with
             | :? BufferOverflowException as e ->
-                LogConfiguration.Logger.Info.Invoke(sprintf "%s. Temporarily increasing fetch size" e.Message)
+                LogConfiguration.Logger.InfoWithException.Invoke("Temporarily increasing fetch size.", e)
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
                 return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
             | e ->
