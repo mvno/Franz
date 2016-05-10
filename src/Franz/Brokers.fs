@@ -5,6 +5,7 @@ open Franz.Internal
 open System.Net.Sockets
 open System.IO
 open Franz.Stream
+open Exceptions
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]

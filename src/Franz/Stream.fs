@@ -3,10 +3,7 @@ namespace Franz.Stream
 open System
 open System.IO
 open System.Text
-
-exception UnderlyingConnectionClosedException of string
-exception NoBrokerFoundForTopicPartitionException of string
-exception UnableToConnectToAnyBrokerException of string
+open Exceptions
 
 /// Writes to a stream conforming to the Kafka protocol
 [<AbstractClass; Sealed>]

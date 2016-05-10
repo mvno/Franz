@@ -14,6 +14,7 @@ module Messages =
     open System.IO
     open Franz.Stream
     open Franz.Internal
+    open Exceptions
 
     /// Message size
     type MessageSize = int32
@@ -211,8 +212,6 @@ module Messages =
             | 1y -> CompressionCodec.Gzip
             | 2y -> CompressionCodec.Snappy
             | _ -> failwith "Unsupported compression format"
-
-    exception BufferOverflowException of string
 
     /// Type for messageset.
     type MessageSet(offset : Offset, size : MessageSize, message : Message) =
