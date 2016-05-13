@@ -6,6 +6,7 @@ open System.IO
 open System.Threading
 open Franz
 open Franz.Internal.ErrorHandling
+open System
 
 type RequestType =
     | Close = -11
@@ -194,10 +195,10 @@ type Watcher = { Path : string; Callback : unit -> unit }
 type ZookeeperMessages =
     private
     | Connect of string * int * int * AsyncReplyChannel<Result<unit, exn>>
-    | GetChildrenWithWatcher of string * Watcher * AsyncReplyChannel<Async<ResponsePacket>>
-    | GetChildren of string * AsyncReplyChannel<Async<ResponsePacket>>
+    | GetChildrenWithWatcher of string * Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
+    | GetChildren of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Ping
-    | GetData of string * AsyncReplyChannel<Async<ResponsePacket>>
+    | GetData of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
 
 type RequestPacket(xid) =
     let mutable response = None
@@ -250,7 +251,8 @@ type ZookeeperClient() =
                 let response = WatcherEvent.Deserialize(header, ms)
                 let success, watcher = watchers.TryGetValue(response.Path)
                 if success then
-                    inbox.PostAndReply(fun reply -> GetChildrenWithWatcher(response.Path, watcher, reply)) |> Async.Ignore |> Async.Start
+                    inbox.PostAndReply(fun reply -> GetChildrenWithWatcher(response.Path, watcher, reply))
+                    |> either (fun x -> x |> Async.Ignore |> Async.Start) (fun x -> LogConfiguration.Logger.Error.Invoke(sprintf "Could not reregister watcher for %s" response.Path, x))
                     watcher.Callback()
                 else LogConfiguration.Logger.Warning.Invoke(sprintf "Got notification '%A', but cannot find a matching watcher" response.Path)
             | x when x = request.Xid ->
@@ -259,53 +261,77 @@ type ZookeeperClient() =
             | _ ->
                 raise (new IOException(sprintf "Xid out of order. Got %i expected %i" header.Xid request.Xid))
             receive stream
-        
+
+        let replyEither (reply : AsyncReplyChannel<Result<'a, exn>>) oldState result : State =
+            match result with
+            | Success (state, x) -> reply.Reply(x |> succeed); state
+            | Failure x -> reply.Reply(x |> fail); oldState
+
+        let connect host port sessionTimeout state =
+            let client = state.TcpClient |> TcpClient.connectTo host port
+            let request = new ConnectRequest(0, lastZxid.Value, sessionTimeout, int64 0, Array.zeroCreate(16))
+            let response =
+                client
+                |> TcpClient.write (request.Serialize(-1))
+                |> TcpClient.read ConnectResponse.Deserialize
+            let receiver = async { do receive client.Stream.Value }
+            receiver |> Async.Start
+            let pinger = inbox |> createPinger sessionTimeout
+            { state with TcpClient = client; SessionId = response.SessionId; Password = response.Password; SessionTimeout = sessionTimeout; Receiver = Some receiver; Pinger = Some pinger }
+
+        let getChildren path state =
+            let xid = state.LastXid + 1
+            let request = new GetChildrenRequest(path, false)
+            let requestPacket = new RequestPacket(xid)
+            pendingRequests.Enqueue(requestPacket)
+            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
+            ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
+
+        let getChildrenWithWatcher path watcher state =
+            let xid = state.LastXid + 1
+            let request = new GetChildrenRequest(path, true)
+            let requestPacket = new RequestPacket(xid)
+            pendingRequests.Enqueue(requestPacket)
+            watchers.TryAdd(path, watcher) |> ignore
+            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
+            ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
+
+        let getData path state =
+            let xid = state.LastXid + 1
+            let request = new GetDataRequest(path)
+            let requestPacket = new RequestPacket(xid)
+            pendingRequests.Enqueue(requestPacket)
+            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
+            ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
+
+        let ping state =
+            state.TcpClient |> TcpClient.write ((new PingRequest()).Serialize(XidConstants.Ping)) |> ignore
+
         let rec loop state = async {
             let xid = state.LastXid + 1
             let! msg = inbox.Receive()
             match msg with
             | Connect (host, port, sessionTimeout, reply) ->
-                try
-                    let client = state.TcpClient |> TcpClient.connectTo host port
-                    let request = new ConnectRequest(0, lastZxid.Value, sessionTimeout, int64 0, Array.zeroCreate(16))
-                    let response =
-                        client
-                        |> TcpClient.write (request.Serialize(xid))
-                        |> TcpClient.read ConnectResponse.Deserialize
-                    let receiver = async { do receive client.Stream.Value }
-                    receiver |> Async.Start
-                    reply.Reply(Success())
-                    let pinger = inbox |> createPinger sessionTimeout
-                    return! loop { state with TcpClient = client; SessionId = response.SessionId; Password = response.Password; SessionTimeout = sessionTimeout; Receiver = Some receiver; Pinger = Some pinger }
-                with
-                | e -> reply.Reply(e |> fail)
+                return! loop
+                    (catch (connect host port sessionTimeout) state
+                    |> either (fun newState -> reply.Reply(() |> succeed); newState) (fun x -> reply.Reply(x |> fail); state))
             | GetChildrenWithWatcher (path, watcher, reply) ->
-                let request = new GetChildrenRequest(path, true)
-                let requestPacket = new RequestPacket(xid)
-                pendingRequests.Enqueue(requestPacket)
-                watchers.TryAdd(path, watcher) |> ignore
-                state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-                reply.Reply(requestPacket.GetResponseAsync(state.SessionTimeout))
-                return! loop { state with LastXid = xid }
+                return! loop (catch (getChildrenWithWatcher path watcher) state |> replyEither reply state)
             | GetChildren (path, reply) ->
-                let request = new GetChildrenRequest(path, false)
-                let requestPacket = new RequestPacket(xid)
-                pendingRequests.Enqueue(requestPacket)
-                state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-                reply.Reply(requestPacket.GetResponseAsync(state.SessionTimeout))
-                return! loop { state with LastXid = xid }
+                return! loop (catch (getChildren path) state |> replyEither reply state)
             | Ping ->
-                state.TcpClient |> TcpClient.write ((new PingRequest()).Serialize(XidConstants.Ping)) |> ignore
-                return! loop { state with LastXid = xid }
+                return! loop
+                    (catch ping state
+                    |> either (fun () -> state) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not ping", x); state))
             | GetData (path, reply) ->
-                let request = new GetDataRequest(path)
-                let requestPacket = new RequestPacket(xid)
-                pendingRequests.Enqueue(requestPacket)
-                state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-                reply.Reply(requestPacket.GetResponseAsync(state.SessionTimeout))
-                return! loop { state with LastXid = xid }
+                return! loop (catch (getData path) state |> replyEither reply state)
         }
         loop { TcpClient = TcpClient.create(); SessionId = 0L; Password = Array.empty; LastXid = 0; SessionTimeout = 0; Receiver = None; Pinger = None })
+
+    let handleAsyncReply fSuccess (result : Result<Async<'a>, exn>) =
+        match result with
+        | Success x -> x |> Async.RunSynchronously |> fSuccess
+        | Failure x -> raise (new Exception(x.Message, x))
 
     do
         agent.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke("Got exception in zookeeper agent", x))
@@ -318,13 +344,10 @@ type ZookeeperClient() =
     member __.GetChildren(path, watcherCallback) =
         let watcher = { Path = path; Callback = watcherCallback }
         agent.PostAndReply(fun reply -> GetChildrenWithWatcher(path, watcher, reply))
-        |> Async.RunSynchronously
-        |> deserialize GetChildrenResponse.Deserialize
+        |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
     member __.GetChildren(path) =
         agent.PostAndReply(fun reply -> GetChildren(path, reply))
-        |> Async.RunSynchronously
-        |> deserialize GetChildrenResponse.Deserialize
+        |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
     member __.GetData(path) =
         agent.PostAndReply(fun reply -> GetData(path, reply))
-        |> Async.RunSynchronously
-        |> deserialize GetDataResponse.Deserialize
+        |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
