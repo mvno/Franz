@@ -29,6 +29,5 @@ module TcpClient =
         if client |> isDisconnected then invalidOp "Not connected"
         client.Stream.Value |> f
     let reconnect client =
-        if client |> isConnected then invalidOp "Already connected"
-        let newClient = { client with Client = new TcpClient(); Stream = None }
+        let newClient = { client with Client = new TcpClient(); Stream = None; State = NotConnected }
         newClient |> connectTo client.Host client.Port

@@ -199,6 +199,7 @@ type ZookeeperMessages =
     | GetChildren of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Ping
     | GetData of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
+    | Reconnect of TcpClient.T
 
 type RequestPacket(xid) =
     let mutable response = None
@@ -267,17 +268,28 @@ type ZookeeperClient() =
             | Success (state, x) -> reply.Reply(x |> succeed); state
             | Failure x -> reply.Reply(x |> fail); oldState
 
-        let connect host port sessionTimeout state =
-            let client = state.TcpClient |> TcpClient.connectTo host port
+        let sendConnectRequest sessionTimeout state =
             let request = new ConnectRequest(0, lastZxid.Value, sessionTimeout, int64 0, Array.zeroCreate(16))
             let response =
-                client
+                state.TcpClient
                 |> TcpClient.write (request.Serialize(-1))
                 |> TcpClient.read ConnectResponse.Deserialize
-            let receiver = async { do receive client.Stream.Value }
-            receiver |> Async.Start
             let pinger = inbox |> createPinger sessionTimeout
-            { state with TcpClient = client; SessionId = response.SessionId; Password = response.Password; SessionTimeout = sessionTimeout; Receiver = Some receiver; Pinger = Some pinger }
+            let receiver = async {
+                try
+                    do receive state.TcpClient.Stream.Value
+                with
+                | _ ->
+                    printfn "Got receiver exception"
+                    pinger.CancellationTokenSource.Cancel()
+                    inbox.Post(Reconnect(state.TcpClient))
+            }
+            receiver |> Async.Start
+            { state with SessionId = response.SessionId; Password = response.Password; SessionTimeout = sessionTimeout; Receiver = Some receiver; Pinger = Some pinger }
+
+        let connect host port sessionTimeout state =
+            { state with TcpClient = state.TcpClient |> TcpClient.connectTo host port }
+            |> sendConnectRequest sessionTimeout
 
         let getChildren path state =
             let xid = state.LastXid + 1
@@ -324,6 +336,16 @@ type ZookeeperClient() =
                     |> either (fun () -> state) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not ping", x); state))
             | GetData (path, reply) ->
                 return! loop (catch (getData path) state |> replyEither reply state)
+            | Reconnect oldClient ->
+                let newState =
+                    if not <| oldClient.Client.Equals(state.TcpClient.Client) then
+                        LogConfiguration.Logger.Trace.Invoke("Not reconnecting as state has changed since requested")
+                        state
+                    else
+                        let newClient = state.TcpClient |> TcpClient.reconnect
+                        catch (sendConnectRequest state.SessionTimeout) { state with TcpClient = newClient }
+                        |> either (fun x -> x) (fun x -> LogConfiguration.Logger.Fatal.Invoke("Could not reconnect", x); raise (new Exception(x.Message, x)))
+                return! loop newState
         }
         loop { TcpClient = TcpClient.create(); SessionId = 0L; Password = Array.empty; LastXid = 0; SessionTimeout = 0; Receiver = None; Pinger = None })
 
