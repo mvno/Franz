@@ -38,3 +38,21 @@ module ExceptionUtilities =
 
     let raiseIfDisposed (disposed : bool) =
         if disposed then raiseWithFatalLog(ObjectDisposedException "Illegal attempt made by calling af function on type which have been marked as disposed")
+
+module internal ErrorHandling =
+    type Result<'a, 'b> =
+    | Success of 'a
+    | Failure of 'b
+
+    let catch f x =
+        try
+            f x |> Success
+        with
+        | e -> e |> Failure
+
+    let fail x = x |> Failure
+    let succeed x = x |> Success
+    let either fSuccess fFailure result =
+        match result with
+        | Success x -> fSuccess x
+        | Failure x -> fFailure x

@@ -5,6 +5,7 @@ open Franz.Internal
 open System.IO
 open System.Threading
 open Franz
+open Franz.Internal.ErrorHandling
 
 type RequestType =
     | Close = -11
@@ -188,10 +189,6 @@ type GetDataRequest(path : string) =
 
 type ResponsePacket = { Content : Stream; Header : ReplyHeader }
 
-type private Result<'a, 'b> =
-    | Success of 'a
-    | Error of 'b
-
 type Watcher = { Path : string; Callback : unit -> unit }
 
 type ZookeeperMessages =
@@ -281,7 +278,7 @@ type ZookeeperClient() =
                     let pinger = inbox |> createPinger sessionTimeout
                     return! loop { state with TcpClient = client; SessionId = response.SessionId; Password = response.Password; SessionTimeout = sessionTimeout; Receiver = Some receiver; Pinger = Some pinger }
                 with
-                | e -> reply.Reply(Error(e))
+                | e -> reply.Reply(e |> fail)
             | GetChildrenWithWatcher (path, watcher, reply) ->
                 let request = new GetChildrenRequest(path, true)
                 let requestPacket = new RequestPacket(xid)
@@ -316,7 +313,7 @@ type ZookeeperClient() =
     member __.Connect(host, port, sessionTimeout) =
         let result = agent.PostAndReply(fun reply -> Connect(host, port, sessionTimeout, reply))
         match result with
-        | Error x -> raise x
+        | Failure x -> raise x
         | Success _ -> ()
     member __.GetChildren(path, watcherCallback) =
         let watcher = { Path = path; Callback = watcherCallback }
