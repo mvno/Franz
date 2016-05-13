@@ -308,7 +308,6 @@ type ZookeeperClient() =
             state.TcpClient |> TcpClient.write ((new PingRequest()).Serialize(XidConstants.Ping)) |> ignore
 
         let rec loop state = async {
-            let xid = state.LastXid + 1
             let! msg = inbox.Receive()
             match msg with
             | Connect (host, port, sessionTimeout, reply) ->
