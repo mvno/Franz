@@ -68,6 +68,7 @@
     <Compile Include="Messages.fs" />
     <Compile Include="Compression.fs" />
     <Compile Include="Brokers.fs" />
+    <Compile Include="Zookeeper.fs" />
     <Compile Include="HighLevel.fs" />
     <None Include="paket.references" />
     <None Include="paket.template" />
