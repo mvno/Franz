@@ -46,6 +46,13 @@ type BigEndianWriter() =
             stream |> BigEndianWriter.WriteInt16 (Convert.ToInt16(x.Length))
             x |> Encoding.UTF8.GetBytes |> BigEndianWriter.Write stream
 
+    static member WriteZookeeperString (x : string) stream =
+        if x |> isNull then
+            stream |> BigEndianWriter.WriteInt32 kafkaNullSize
+        else
+            stream |> BigEndianWriter.WriteInt32 x.Length
+            x |> Encoding.UTF8.GetBytes |> BigEndianWriter.Write stream
+
     /// Write a byte array to the stream, with a prefixed int32 indicating the size of the array
     static member WriteBytes (x : byte array) stream =
         if x |> isNull then
@@ -101,6 +108,11 @@ type BigEndianReader() =
     /// Read a string from the stream, using the prefixed int16 to determine the length of the string
     static member ReadString stream =
         let size = stream |> BigEndianReader.ReadInt16 |> int
+        if size = kafkaNullSize then null
+        else stream |> BigEndianReader.Read size |> Encoding.UTF8.GetString
+
+    static member ReadZookeeperString stream =
+        let size = stream |> BigEndianReader.ReadInt32 |> int
         if size = kafkaNullSize then null
         else stream |> BigEndianReader.Read size |> Encoding.UTF8.GetString
 
