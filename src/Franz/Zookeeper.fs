@@ -206,6 +206,7 @@ and ZookeeperMessages =
     | Ping
     | GetData of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Reconnect of TcpClient.T
+    | Dispose
 
 type RequestPacket(xid) =
     let mutable response = None
@@ -225,6 +226,7 @@ type private Pinger = { Body : Async<unit>; CancellationTokenSource : Cancellati
 type private State = { TcpClient : TcpClient.T; SessionId : int64; Password : byte array; LastXid : Xid; SessionTimeout : int; Receiver : Async<unit> option; Pinger : Pinger option }
 
 type ZookeeperClient(connectionLossCallback : Action) =
+    let mutable disposed = false
     let deserialize f response = f(response.Header, response.Content)
     let createPinger sessionTimeout (agent : Agent<ZookeeperMessages>) =
         let cts = new CancellationTokenSource()
@@ -347,6 +349,9 @@ type ZookeeperClient(connectionLossCallback : Action) =
                 return! loop (catch (getData path) state |> replyEither reply state)
             | Reconnect oldClient ->
                 return! loop (reconnect oldClient state)
+            | Dispose ->
+                LogConfiguration.Logger.Info.Invoke("Zookeeper agent was disposed")
+                ()
         }
         loop { TcpClient = TcpClient.create(); SessionId = 0L; Password = Array.empty; LastXid = 0; SessionTimeout = 0; Receiver = None; Pinger = None })
 
@@ -359,17 +364,25 @@ type ZookeeperClient(connectionLossCallback : Action) =
         agent.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke("Got exception in zookeeper agent", x))
 
     member __.Connect(host, port, sessionTimeout) =
+        if disposed then invalidOp "Client has been disposed"
         let result = agent.PostAndReply(fun reply -> Connect(host, port, sessionTimeout, reply))
         match result with
         | Failure x -> raise x
         | Success _ -> ()
     member __.GetChildren(path, watcherCallback) =
+        if disposed then invalidOp "Client has been disposed"
         let watcher = { Path = path; Callback = watcherCallback }
         agent.PostAndReply(fun reply -> GetChildrenWithWatcher(path, watcher, reply))
         |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
     member __.GetChildren(path) =
+        if disposed then invalidOp "Client has been disposed"
         agent.PostAndReply(fun reply -> GetChildren(path, reply))
         |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
     member __.GetData(path) =
+        if disposed then invalidOp "Client has been disposed"
         agent.PostAndReply(fun reply -> GetData(path, reply))
         |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
+    interface IDisposable with
+        member __.Dispose() =
+            agent.Post(Dispose)
+            disposed <- true
