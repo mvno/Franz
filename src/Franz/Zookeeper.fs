@@ -263,10 +263,14 @@ type RequestPacket(xid) =
 type private Pinger = { Body : Async<unit>; CancellationTokenSource : CancellationTokenSource }
 type private State = { TcpClient : TcpClient.T; SessionId : int64; Password : byte array; LastXid : Xid; SessionTimeout : int; Receiver : Async<unit> option; Pinger : Pinger option }
 
+type ZookeeperException(msg : string) = inherit Exception(msg)
+
 type ZookeeperClient(connectionLossCallback : Action) =
     let mutable disposed = false
-    let deserialize f response =
-        f(response.Header, response.Content)
+    let deserialize f (response : ResponsePacket) =
+        if response.Header.Error = ErrorCode.Ok then f(response.Header, response.Content)
+        else raise (ZookeeperException(sprintf "Got error %A" response.Header.Error))
+
     let createPinger sessionTimeout (agent : Agent<ZookeeperMessages>) =
         let cts = new CancellationTokenSource()
         let body =
@@ -302,7 +306,6 @@ type ZookeeperClient(connectionLossCallback : Action) =
             if not success && header.Xid <> XidConstants.Ping && header.Xid <> XidConstants.Notification then
                 raise (new IOException(sprintf "Nothing in queue, but got xid %i" header.Xid))
             if header.Zxid > 0L then Interlocked.Increment(lastZxid) |> ignore
-            if header.Error <> ErrorCode.Ok then raise (new IOException(sprintf "Got error code %A" header.Error))
             match header.Xid with
             | XidConstants.Ping -> LogConfiguration.Logger.Trace.Invoke("Got ping response")
             | XidConstants.Notification ->
