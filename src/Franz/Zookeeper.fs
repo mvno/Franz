@@ -270,8 +270,8 @@ type ZookeeperClient(connectionLossCallback : Action) =
             | Success (state, x) -> reply.Reply(x |> succeed); state
             | Failure x -> reply.Reply(x |> fail); oldState
 
-        let sendConnectRequest sessionTimeout state =
-            let request = new ConnectRequest(0, lastZxid.Value, sessionTimeout, int64 0, Array.zeroCreate(16))
+        let sendConnectRequest sessionTimeout sessionId password state =
+            let request = new ConnectRequest(0, lastZxid.Value, sessionTimeout, sessionId, password)
             let response =
                 state.TcpClient
                 |> TcpClient.write (request.Serialize(-1))
@@ -291,7 +291,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
 
         let connect host port sessionTimeout state =
             { state with TcpClient = state.TcpClient |> TcpClient.connectTo host port }
-            |> sendConnectRequest sessionTimeout
+            |> sendConnectRequest sessionTimeout (int64 0) (Array.zeroCreate(16))
 
         let getChildren path state =
             let xid = state.LastXid + 1
@@ -346,7 +346,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     else
                         let reconnect state =
                             let newClient = state.TcpClient |> TcpClient.reconnect
-                        catch (sendConnectRequest state.SessionTimeout) { state with TcpClient = newClient }
+                        catch (sendConnectRequest state.SessionTimeout state.SessionId state.Password) { state with TcpClient = newClient }
                         catch reconnect state
                         |> either (fun x -> x) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not reconnect", x); connectionLossCallback.Invoke(); state)
                 return! loop newState
