@@ -242,8 +242,8 @@ type ZookeeperClient(connectionLossCallback : Action) =
 
     let agent = Agent.Start(fun inbox ->
         let lastZxid = ref 0L
-        let pendingRequests = new System.Collections.Concurrent.ConcurrentQueue<RequestPacket>()
-        let childWatchers = new System.Collections.Concurrent.ConcurrentDictionary<string, Watcher>()
+        let pendingRequests = new ConcurrentQueue<RequestPacket>()
+        let childWatchers = new ConcurrentDictionary<string, Watcher>()
 
         let sendNewRequest (request : IRequest) state =
             let xid = state.LastXid + 1
