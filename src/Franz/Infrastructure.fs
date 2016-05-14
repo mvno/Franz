@@ -14,6 +14,19 @@ module Seq =
         else
             (0, list |> Seq.head)
 
+[<AutoOpen>]
+module Array =
+    let rand = new System.Random()
+
+    let swap (a: _[]) x y =
+        let tmp = a.[x]
+        a.[x] <- a.[y]
+        a.[y] <- tmp
+
+    // shuffle an array (in-place)
+    let shuffle a =
+        Array.iteri (fun i _ -> swap a i (rand.Next(i, Array.length a))) a
+
 module Retry =
     let retryOnException (state : 'a) (onException : exn -> 'a) (f : 'a -> 'b) : 'b =
         try
