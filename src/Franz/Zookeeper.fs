@@ -15,6 +15,29 @@ type RequestType =
     | GetChildren2 = 12
     | GetData = 4
 
+type ErrorCode =
+    | Ok = 0
+    | SystemError = -1
+    | RuntimeInconsistency = -2
+    | DataInconsistency = -3
+    | ConnectionLoss = -4
+    | MarshallingError = -5
+    | Unimplemented = -6
+    | OperationTimeout = -7
+    | BadArguments = -8
+    | ApiError = -100
+    | NoNode = -101
+    | NoAuth = -102
+    | BadVersion = -103
+    | NoChildrenForEphemerals = -108
+    | NodeExists = -110
+    | NotEmpty = -111
+    | SessionExpired = -112
+    | InvalidCallback = -113
+    | InvalidAcl = -114
+    | AuthFailed = -115
+    | SessionMoved = -116
+
 type Xid = int
 type Zxid = int64
 type Time = int64
@@ -38,12 +61,12 @@ type ConnectResponse(protocolVersion : int, timeout : int, sessionId : int64, pa
         let password = stream |> BigEndianReader.ReadBytes
         new ConnectResponse(protocolVersion, timeout, sessionId, password)
 
-type ReplyHeader(xid : Xid, zxid : Zxid, error : int) =
+type ReplyHeader(xid : Xid, zxid : Zxid, error : ErrorCode) =
     member __.Xid = xid
     member __.Zxid = zxid
     member __.Error = error
     static member Deserialize(stream) =
-        new ReplyHeader(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt64, stream |> BigEndianReader.ReadInt32)
+        new ReplyHeader(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt64, stream |> BigEndianReader.ReadInt32 |> enum<ErrorCode>)
 
 type Stat =
     { CreatedZxid : Zxid; LastModifiedZxid : Zxid; CreatedTime : Time; ModifiedTime : Time; Version : int; ChildVersion : int; AclVersion : int; EphemeralOwner : int64; DataLength : int; NumberOfChildren : int; LastModifiedChildrenZxid : Zxid }
@@ -242,7 +265,8 @@ type private State = { TcpClient : TcpClient.T; SessionId : int64; Password : by
 
 type ZookeeperClient(connectionLossCallback : Action) =
     let mutable disposed = false
-    let deserialize f response = f(response.Header, response.Content)
+    let deserialize f response =
+        f(response.Header, response.Content)
     let createPinger sessionTimeout (agent : Agent<ZookeeperMessages>) =
         let cts = new CancellationTokenSource()
         let body =
@@ -278,7 +302,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
             if not success && header.Xid <> XidConstants.Ping && header.Xid <> XidConstants.Notification then
                 raise (new IOException(sprintf "Nothing in queue, but got xid %i" header.Xid))
             if header.Zxid > 0L then Interlocked.Increment(lastZxid) |> ignore
-            if header.Error <> 0 then raise (new IOException(sprintf "Got error code %i" header.Error))
+            if header.Error <> ErrorCode.Ok then raise (new IOException(sprintf "Got error code %A" header.Error))
             match header.Xid with
             | XidConstants.Ping -> LogConfiguration.Logger.Trace.Invoke("Got ping response")
             | XidConstants.Notification ->
