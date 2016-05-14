@@ -282,7 +282,6 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     do receive state.TcpClient.Stream.Value
                 with
                 | _ ->
-                    printfn "Got receiver exception"
                     pinger.CancellationTokenSource.Cancel()
                     inbox.Post(Reconnect(state.TcpClient))
             }
