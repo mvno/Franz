@@ -13,6 +13,8 @@ type UnderlyingConnectionClosedException() =
 type BigEndianWriter() =
     /// The size unused to indicate NULL in the protocol
     static let kafkaNullSize = -1
+    /// The size unused to indicate NULL in the protocol
+    static let zkNullSize = -1
 
     /// Convert an array to big endian if needed
     static member ConvertToBigEndian isLittleEndian x =
@@ -46,9 +48,9 @@ type BigEndianWriter() =
             stream |> BigEndianWriter.WriteInt16 (Convert.ToInt16(x.Length))
             x |> Encoding.UTF8.GetBytes |> BigEndianWriter.Write stream
 
-    static member WriteZookeeperString (x : string) stream =
+    static member WriteZKString (x : string) stream =
         if x |> isNull then
-            stream |> BigEndianWriter.WriteInt32 kafkaNullSize
+            stream |> BigEndianWriter.WriteInt32 zkNullSize
         else
             stream |> BigEndianWriter.WriteInt32 x.Length
             x |> Encoding.UTF8.GetBytes |> BigEndianWriter.Write stream
@@ -66,6 +68,8 @@ type BigEndianWriter() =
 type BigEndianReader() =
     /// The size unused to indicate NULL in the protocol
     static let kafkaNullSize = -1
+    /// The size unused to indicate NULL in the protocol
+    static let zkNullSize = -1
 
     static let rec readLoop offset bytesLeft (stream : Stream) buffer =
         let bytesRead = stream.Read(buffer, offset, bytesLeft)
@@ -111,9 +115,9 @@ type BigEndianReader() =
         if size = kafkaNullSize then null
         else stream |> BigEndianReader.Read size |> Encoding.UTF8.GetString
 
-    static member ReadZookeeperString stream =
+    static member ReadZKString stream =
         let size = stream |> BigEndianReader.ReadInt32 |> int
-        if size = kafkaNullSize then null
+        if size = zkNullSize then null
         else stream |> BigEndianReader.Read size |> Encoding.UTF8.GetString
 
     /// Read a byte array from the stream, using the prefixed int32 to determine the length of the array

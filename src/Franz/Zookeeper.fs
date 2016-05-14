@@ -93,7 +93,7 @@ type GetChildrenResponse(header : ReplyHeader, children : string array, stat : S
         match count with
         | 0 -> list
         | _ ->
-            let child = stream |> BigEndianReader.ReadZookeeperString
+            let child = stream |> BigEndianReader.ReadZKString
             GetChildrenResponse.readChildren (child :: list) (count - 1) stream
     static member Deserialize(replyHeader, stream) =
         let numberOfChildren = stream |> BigEndianReader.ReadInt32;
@@ -127,7 +127,7 @@ type WatcherEvent(header : ReplyHeader, eventType : EventType, state : int, path
     static member Deserialize(replyHeader, stream : Stream) =
         let eventType = stream |> BigEndianReader.ReadInt32
         let state = stream |> BigEndianReader.ReadInt32
-        let path = stream |> BigEndianReader.ReadZookeeperString
+        let path = stream |> BigEndianReader.ReadZKString
         new WatcherEvent(replyHeader, eventType |> enum<EventType>, state, path)
 
 type IRequest =
@@ -191,7 +191,7 @@ type GetChildrenRequest(path : string, watch : bool) =
         let ms = new MemoryStream()
         ms |> BigEndianWriter.WriteInt32 0
         BigEndianWriter.Write ms (RequestHeader.Serialize(xid, RequestType.GetChildren2))
-        ms |> BigEndianWriter.WriteZookeeperString path
+        ms |> BigEndianWriter.WriteZKString path
         ms |> BigEndianWriter.WriteInt8 ((if watch then 1 else 0) |> int8)
         let size = int32 ms.Length
         ms.Seek(0L, SeekOrigin.Begin) |> ignore
@@ -209,7 +209,7 @@ type GetDataRequest(path : string, watch : bool) =
         let ms = new MemoryStream()
         ms |> BigEndianWriter.WriteInt32 0
         BigEndianWriter.Write ms (RequestHeader.Serialize(xid, RequestType.GetData))
-        ms |> BigEndianWriter.WriteZookeeperString path
+        ms |> BigEndianWriter.WriteZKString path
         ms |> BigEndianWriter.WriteInt8 ((if watch then 1 else 0) |> int8)
         let size = int32 ms.Length
         ms.Seek(0L, SeekOrigin.Begin) |> ignore
