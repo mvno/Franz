@@ -8,6 +8,7 @@ open Franz
 open Franz.Internal.ErrorHandling
 open System
 open System.Collections.Concurrent
+open System.Runtime.Serialization.Json
 
 type RequestType =
     | Close = -11
@@ -451,3 +452,10 @@ type ZookeeperClient(connectionLossCallback : Action) =
         member __.Dispose() =
             agent.Post(Dispose)
             disposed <- true
+
+module private JsonHelper =
+    let fromJson<'a> (data : byte array) =
+        let serializer = new DataContractJsonSerializer(typeof<'a>)
+        use ms = new MemoryStream(data)
+        let obj = serializer.ReadObject(ms)
+        obj :?> 'a
