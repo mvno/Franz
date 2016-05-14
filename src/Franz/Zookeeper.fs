@@ -317,6 +317,17 @@ type ZookeeperClient(connectionLossCallback : Action) =
         let ping state =
             state.TcpClient |> TcpClient.write ((new PingRequest()).Serialize(XidConstants.Ping)) |> ignore
 
+        let reconnect (oldClient : TcpClient.T) state =
+            if not <| oldClient.Client.Equals(state.TcpClient.Client) then
+                LogConfiguration.Logger.Trace.Invoke("Not reconnecting as state has changed since requested")
+                state
+            else
+                let reconnect state =
+                    let newClient = state.TcpClient |> TcpClient.reconnect
+                    sendConnectRequest state.SessionTimeout state.SessionId state.Password { state with TcpClient = newClient }
+                catch reconnect state
+                |> either (fun x -> x) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not reconnect", x); connectionLossCallback.Invoke(); state)
+
         let rec loop state = async {
             let! msg = inbox.Receive()
             match msg with
@@ -335,17 +346,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
             | GetData (path, reply) ->
                 return! loop (catch (getData path) state |> replyEither reply state)
             | Reconnect oldClient ->
-                let newState =
-                    if not <| oldClient.Client.Equals(state.TcpClient.Client) then
-                        LogConfiguration.Logger.Trace.Invoke("Not reconnecting as state has changed since requested")
-                        state
-                    else
-                        let reconnect state =
-                            let newClient = state.TcpClient |> TcpClient.reconnect
-                        catch (sendConnectRequest state.SessionTimeout state.SessionId state.Password) { state with TcpClient = newClient }
-                        catch reconnect state
-                        |> either (fun x -> x) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not reconnect", x); connectionLossCallback.Invoke(); state)
-                return! loop newState
+                return! loop (reconnect oldClient state)
         }
         loop { TcpClient = TcpClient.create(); SessionId = 0L; Password = Array.empty; LastXid = 0; SessionTimeout = 0; Receiver = None; Pinger = None })
 
