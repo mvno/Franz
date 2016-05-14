@@ -238,7 +238,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
     let agent = Agent.Start(fun inbox ->
         let lastZxid = ref 0L
         let pendingRequests = new System.Collections.Concurrent.ConcurrentQueue<RequestPacket>()
-        let watchers = new System.Collections.Concurrent.ConcurrentDictionary<string, Watcher>()
+        let childWatchers = new System.Collections.Concurrent.ConcurrentDictionary<string, Watcher>()
         
         let rec receive (stream : Stream) =
             let responseSize = stream |> BigEndianReader.ReadInt32
@@ -253,7 +253,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
             | XidConstants.Ping -> LogConfiguration.Logger.Trace.Invoke("Got ping response")
             | XidConstants.Notification ->
                 let response = WatcherEvent.Deserialize(header, ms)
-                let success, watcher = watchers.TryGetValue(response.Path)
+                let success, watcher = childWatchers.TryGetValue(response.Path)
                 if success then
                     watcher.Reregister(watcher, inbox)
                     watcher.Callback()
@@ -306,7 +306,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
             let request = new GetChildrenRequest(path, true)
             let requestPacket = new RequestPacket(xid)
             pendingRequests.Enqueue(requestPacket)
-            watchers.TryAdd(path, watcher) |> ignore
+            childWatchers.TryAdd(path, watcher) |> ignore
             state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
             ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
 
