@@ -7,6 +7,7 @@ open System.Threading
 open Franz
 open Franz.Internal.ErrorHandling
 open System
+open System.Collections.Concurrent
 
 type RequestType =
     | Close = -11
@@ -187,6 +188,8 @@ type GetDataRequest(path : string) =
         let buffer = Array.zeroCreate(size)
         ms.Read(buffer, 0, size) |> ignore
         buffer
+    interface IRequest with
+        member self.Serialize(xid) = self.Serialize(xid)
 
 type ResponsePacket = { Content : Stream; Header : ReplyHeader }
 
@@ -239,7 +242,14 @@ type ZookeeperClient(connectionLossCallback : Action) =
         let lastZxid = ref 0L
         let pendingRequests = new System.Collections.Concurrent.ConcurrentQueue<RequestPacket>()
         let childWatchers = new System.Collections.Concurrent.ConcurrentDictionary<string, Watcher>()
-        
+
+        let sendNewRequest (request : IRequest) state =
+            let xid = state.LastXid + 1
+            let requestPacket = new RequestPacket(xid)
+            pendingRequests.Enqueue(requestPacket)
+            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
+            ({ state with LastXid = state.LastXid + 1}, requestPacket.GetResponseAsync(state.SessionTimeout))
+
         let rec receive (stream : Stream) =
             let responseSize = stream |> BigEndianReader.ReadInt32
             let ms = new MemoryStream(stream |> BigEndianReader.Read responseSize)
@@ -293,24 +303,16 @@ type ZookeeperClient(connectionLossCallback : Action) =
             |> sendConnectRequest sessionTimeout (int64 0) (Array.zeroCreate(16))
 
         let getChildren path watcher state =
-            let xid = state.LastXid + 1
             let shouldWatch = if watcher |> Option.isSome then true else false
             let request = new GetChildrenRequest(path, shouldWatch)
-            let requestPacket = new RequestPacket(xid)
-            pendingRequests.Enqueue(requestPacket)
             if shouldWatch then childWatchers.TryAdd(path, watcher.Value) |> ignore
-            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-            ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
+            sendNewRequest request state
 
         let getChildrenWithoutWatcher path = getChildren path None
 
         let getData path state =
-            let xid = state.LastXid + 1
             let request = new GetDataRequest(path)
-            let requestPacket = new RequestPacket(xid)
-            pendingRequests.Enqueue(requestPacket)
-            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-            ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
+            sendNewRequest request state
 
         let ping state =
             state.TcpClient |> TcpClient.write ((new PingRequest()).Serialize(XidConstants.Ping)) |> ignore
