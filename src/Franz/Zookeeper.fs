@@ -190,9 +190,12 @@ type GetDataRequest(path : string) =
 
 type ResponsePacket = { Content : Stream; Header : ReplyHeader }
 
-type Watcher = { Path : string; Callback : unit -> unit }
-
-type ZookeeperMessages =
+type Watcher =
+    { Path : string; Callback : unit -> unit }
+    member self.Reregister(watcher, agent : Agent<ZookeeperMessages>) =
+        agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self.Path, watcher, reply))
+        |> either (fun x -> x |> Async.Ignore |> Async.Start) (fun x -> LogConfiguration.Logger.Error.Invoke(sprintf "Could not reregister watcher for %s" self.Path, x))
+and ZookeeperMessages =
     private
     | Connect of string * int * int * AsyncReplyChannel<Result<unit, exn>>
     | GetChildrenWithWatcher of string * Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
@@ -252,8 +255,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
                 let response = WatcherEvent.Deserialize(header, ms)
                 let success, watcher = watchers.TryGetValue(response.Path)
                 if success then
-                    inbox.PostAndReply(fun reply -> GetChildrenWithWatcher(response.Path, watcher, reply))
-                    |> either (fun x -> x |> Async.Ignore |> Async.Start) (fun x -> LogConfiguration.Logger.Error.Invoke(sprintf "Could not reregister watcher for %s" response.Path, x))
+                    watcher.Reregister(watcher, inbox)
                     watcher.Callback()
                 else LogConfiguration.Logger.Warning.Invoke(sprintf "Got notification '%A', but cannot find a matching watcher" response.Path)
             | x when x = request.Xid ->
