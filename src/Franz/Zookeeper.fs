@@ -89,7 +89,14 @@ type GetDataResponse(header : ReplyHeader, data : byte array) =
         let data = stream |> BigEndianReader.ReadBytes
         new GetDataResponse(replyHeader, data)
 
-type WatcherEvent(header : ReplyHeader, eventType : int, state : int, path : string) =
+type EventType =
+    | None = -1
+    | NodeCreated = 1
+    | NodeDeleted = 2
+    | NodeDataChanged = 3
+    | NodeChildrenChanged = 4
+
+type WatcherEvent(header : ReplyHeader, eventType : EventType, state : int, path : string) =
     member __.Header = header
     member __.EventType = eventType
     member __.State = state
@@ -98,7 +105,7 @@ type WatcherEvent(header : ReplyHeader, eventType : int, state : int, path : str
         let eventType = stream |> BigEndianReader.ReadInt32
         let state = stream |> BigEndianReader.ReadInt32
         let path = stream |> BigEndianReader.ReadZookeeperString
-        new WatcherEvent(replyHeader, eventType, state, path)
+        new WatcherEvent(replyHeader, eventType |> enum<EventType>, state, path)
 
 type IRequest =
     abstract member Serialize : Xid -> byte array
@@ -173,14 +180,14 @@ type GetChildrenRequest(path : string, watch : bool) =
     interface IRequest with
         member self.Serialize(xid) = self.Serialize(xid)
 
-type GetDataRequest(path : string) =
+type GetDataRequest(path : string, watch : bool) =
     member __.Path = path
     member __.Serialize(xid) =
         let ms = new MemoryStream()
         ms |> BigEndianWriter.WriteInt32 0
         BigEndianWriter.Write ms (RequestHeader.Serialize(xid, RequestType.GetData))
         ms |> BigEndianWriter.WriteZookeeperString path
-        ms |> BigEndianWriter.WriteInt8 (0 |> int8)
+        ms |> BigEndianWriter.WriteInt8 ((if watch then 1 else 0) |> int8)
         let size = int32 ms.Length
         ms.Seek(0L, SeekOrigin.Begin) |> ignore
         ms |> BigEndianWriter.WriteInt32 (size - 4)
@@ -193,10 +200,17 @@ type GetDataRequest(path : string) =
 
 type ResponsePacket = { Content : Stream; Header : ReplyHeader }
 
+type WatcherType =
+    private
+    | Child
+    | Data
+
 type Watcher =
-    { Path : string; Callback : unit -> unit }
-    member self.Reregister(watcher, agent : Agent<ZookeeperMessages>) =
-        agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self.Path, watcher, reply))
+    { Path : string; Callback : unit -> unit; Type : WatcherType }
+    member self.Reregister(agent : Agent<ZookeeperMessages>) =
+        match self.Type with
+        | Child -> agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self.Path, self, reply))
+        | Data -> agent.PostAndReply(fun reply -> GetDataWithWatcher(self.Path, self, reply))
         |> either (fun x -> x |> Async.Ignore |> Async.Start) (fun x -> LogConfiguration.Logger.Error.Invoke(sprintf "Could not reregister watcher for %s" self.Path, x))
 and ZookeeperMessages =
     private
@@ -205,6 +219,7 @@ and ZookeeperMessages =
     | GetChildren of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Ping
     | GetData of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
+    | GetDataWithWatcher of string * Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Reconnect of TcpClient.T
     | Dispose
 
@@ -244,6 +259,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
         let lastZxid = ref 0L
         let pendingRequests = new ConcurrentQueue<RequestPacket>()
         let childWatchers = new ConcurrentDictionary<string, Watcher>()
+        let dataWatchers = new ConcurrentDictionary<string, Watcher>()
 
         let sendNewRequest (request : IRequest) state =
             let xid = state.LastXid + 1
@@ -251,6 +267,8 @@ type ZookeeperClient(connectionLossCallback : Action) =
             pendingRequests.Enqueue(requestPacket)
             state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
             ({ state with LastXid = state.LastXid + 1}, requestPacket.GetResponseAsync(state.SessionTimeout))
+
+        let tryToOption (success, x) = if success then Some x else None
 
         let rec receive (stream : Stream) =
             let responseSize = stream |> BigEndianReader.ReadInt32
@@ -265,11 +283,20 @@ type ZookeeperClient(connectionLossCallback : Action) =
             | XidConstants.Ping -> LogConfiguration.Logger.Trace.Invoke("Got ping response")
             | XidConstants.Notification ->
                 let response = WatcherEvent.Deserialize(header, ms)
-                let success, watcher = childWatchers.TryGetValue(response.Path)
-                if success then
-                    watcher.Reregister(watcher, inbox)
-                    watcher.Callback()
-                else LogConfiguration.Logger.Warning.Invoke(sprintf "Got notification '%A', but cannot find a matching watcher" response.Path)
+                let watcher, suppress =
+                    match response.EventType with
+                    | EventType.NodeChildrenChanged -> (childWatchers.TryGetValue(response.Path) |> tryToOption, false)
+                    | EventType.NodeDataChanged -> (dataWatchers.TryGetValue(response.Path) |> tryToOption, false)
+                    | EventType.NodeDeleted | EventType.NodeCreated -> (None, true)
+                    | _ ->
+                        LogConfiguration.Logger.Warning.Invoke("Got unsupported notification")
+                        (None, false)
+                match watcher with
+                | Some x ->
+                    x.Reregister(inbox)
+                    x.Callback()
+                | None when not suppress -> LogConfiguration.Logger.Warning.Invoke(sprintf "Got notification for '%A', but cannot find a matching watcher" response.Path)
+                | _ -> ()
             | x when x = request.Xid ->
                 LogConfiguration.Logger.Trace.Invoke(sprintf "Received with xid %i" header.Xid)
                 { Header = header; Content = ms } |> request.ResponseReceived
@@ -312,9 +339,13 @@ type ZookeeperClient(connectionLossCallback : Action) =
 
         let getChildrenWithoutWatcher path = getChildren path None
 
-        let getData path state =
-            let request = new GetDataRequest(path)
+        let getData path watcher state =
+            let shouldWatch = if watcher |> Option.isSome then true else false
+            let request = new GetDataRequest(path, shouldWatch)
+            if shouldWatch then dataWatchers.TryAdd(path, watcher.Value) |> ignore
             sendNewRequest request state
+
+        let getDataWithoutWatcher path = getData path None
 
         let ping state =
             state.TcpClient |> TcpClient.write ((new PingRequest()).Serialize(XidConstants.Ping)) |> ignore
@@ -346,7 +377,9 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     (catch ping state
                     |> either (fun () -> state) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not ping", x); state))
             | GetData (path, reply) ->
-                return! loop (catch (getData path) state |> replyEither reply state)
+                return! loop (catch (getDataWithoutWatcher path) state |> replyEither reply state)
+            | GetDataWithWatcher (path, watcher, reply) ->
+                return! loop (catch (getData path (Some watcher)) state |> replyEither reply state)
             | Reconnect oldClient ->
                 return! loop (reconnect oldClient state)
             | Dispose ->
@@ -371,7 +404,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
         | Success _ -> ()
     member __.GetChildren(path, watcherCallback) =
         if disposed then invalidOp "Client has been disposed"
-        let watcher = { Path = path; Callback = watcherCallback }
+        let watcher = { Path = path; Callback = watcherCallback; Type = Child }
         agent.PostAndReply(fun reply -> GetChildrenWithWatcher(path, watcher, reply))
         |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
     member __.GetChildren(path) =
@@ -381,6 +414,11 @@ type ZookeeperClient(connectionLossCallback : Action) =
     member __.GetData(path) =
         if disposed then invalidOp "Client has been disposed"
         agent.PostAndReply(fun reply -> GetData(path, reply))
+        |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
+    member __.GetData(path, watcherCallback) =
+        if disposed then invalidOp "Client has been disposed"
+        let watcher = { Path = path; Callback = watcherCallback; Type = Data }
+        agent.PostAndReply(fun reply -> GetDataWithWatcher(path, watcher, reply))
         |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
     interface IDisposable with
         member __.Dispose() =
