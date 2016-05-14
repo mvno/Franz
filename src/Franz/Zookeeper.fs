@@ -293,22 +293,17 @@ type ZookeeperClient(connectionLossCallback : Action) =
             { state with TcpClient = state.TcpClient |> TcpClient.connectTo host port }
             |> sendConnectRequest sessionTimeout (int64 0) (Array.zeroCreate(16))
 
-        let getChildren path state =
+        let getChildren path watcher state =
             let xid = state.LastXid + 1
-            let request = new GetChildrenRequest(path, false)
+            let shouldWatch = if watcher |> Option.isSome then true else false
+            let request = new GetChildrenRequest(path, shouldWatch)
             let requestPacket = new RequestPacket(xid)
             pendingRequests.Enqueue(requestPacket)
+            if shouldWatch then childWatchers.TryAdd(path, watcher.Value) |> ignore
             state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
             ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
 
-        let getChildrenWithWatcher path watcher state =
-            let xid = state.LastXid + 1
-            let request = new GetChildrenRequest(path, true)
-            let requestPacket = new RequestPacket(xid)
-            pendingRequests.Enqueue(requestPacket)
-            childWatchers.TryAdd(path, watcher) |> ignore
-            state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-            ({ state with LastXid = xid }, requestPacket.GetResponseAsync(state.SessionTimeout))
+        let getChildrenWithoutWatcher path = getChildren path None
 
         let getData path state =
             let xid = state.LastXid + 1
@@ -329,9 +324,9 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     (catch (connect host port sessionTimeout) state
                     |> either (fun newState -> reply.Reply(() |> succeed); newState) (fun x -> reply.Reply(x |> fail); state))
             | GetChildrenWithWatcher (path, watcher, reply) ->
-                return! loop (catch (getChildrenWithWatcher path watcher) state |> replyEither reply state)
+                return! loop (catch (getChildren path (Some watcher)) state |> replyEither reply state)
             | GetChildren (path, reply) ->
-                return! loop (catch (getChildren path) state |> replyEither reply state)
+                return! loop (catch (getChildrenWithoutWatcher path) state |> replyEither reply state)
             | Ping ->
                 return! loop
                     (catch ping state
