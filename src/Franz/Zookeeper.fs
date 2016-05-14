@@ -9,6 +9,8 @@ open Franz.Internal.ErrorHandling
 open System
 open System.Collections.Concurrent
 open System.Runtime.Serialization.Json
+open System.Runtime.Serialization
+open System.Collections.Generic
 
 type RequestType =
     | Close = -11
@@ -266,6 +268,7 @@ type private State = { TcpClient : TcpClient.T; SessionId : int64; Password : by
 
 type ZookeeperException(msg : string) = inherit Exception(msg)
 
+[<AllowNullLiteral>]
 type ZookeeperClient(connectionLossCallback : Action) =
     let mutable disposed = false
     let deserialize f (response : ResponsePacket) =
@@ -411,7 +414,6 @@ type ZookeeperClient(connectionLossCallback : Action) =
             | Reconnect oldClient ->
                 return! loop (reconnect oldClient state)
             | Dispose ->
-                LogConfiguration.Logger.Info.Invoke("Zookeeper agent was disposed")
                 ()
         }
         loop { TcpClient = TcpClient.create(); SessionId = 0L; Password = Array.empty; LastXid = 0; SessionTimeout = 0; Receiver = None; Pinger = None })
@@ -424,9 +426,9 @@ type ZookeeperClient(connectionLossCallback : Action) =
     do
         agent.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke("Got exception in zookeeper agent", x))
 
-    member __.Connect(host, port, sessionTimeout) =
+    member __.Connect(endpoint, sessionTimeout) =
         if disposed then invalidOp "Client has been disposed"
-        let result = agent.PostAndReply(fun reply -> Connect(host, port, sessionTimeout, reply))
+        let result = agent.PostAndReply(fun reply -> Connect(endpoint.Address, endpoint.Port, sessionTimeout, reply))
         match result with
         | Failure x -> raise x
         | Success _ -> ()
@@ -450,12 +452,151 @@ type ZookeeperClient(connectionLossCallback : Action) =
         |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
     interface IDisposable with
         member __.Dispose() =
-            agent.Post(Dispose)
-            disposed <- true
+            if not disposed then
+                agent.Post(Dispose)
+                disposed <- true
 
 module private JsonHelper =
+    let settings =
+        let s = new DataContractJsonSerializerSettings()
+        s.UseSimpleDictionaryFormat <- true
+        s
+
     let fromJson<'a> (data : byte array) =
-        let serializer = new DataContractJsonSerializer(typeof<'a>)
+        let serializer = new DataContractJsonSerializer(typeof<'a>, settings)
         use ms = new MemoryStream(data)
         let obj = serializer.ReadObject(ms)
         obj :?> 'a
+
+[<CLIMutableAttribute; DataContractAttribute>]
+type BrokerRegistrationInformation = {
+    [<DataMember(Name="version")>]
+    Version : int;
+    [<DataMember(Name="host")>]
+    Host : string;
+    [<DataMember(Name="port")>]
+    Port : int;
+    [<DataMember(Name="endpoints")>]
+    Endpoints : string array;}
+
+[<CLIMutableAttribute; DataContractAttribute>]
+type TopicRegistrationInformation = {
+    [<DataMember(Name="version")>]
+    Version : int;
+    [<DataMember(Name="partitions")>]
+    Partitions : IDictionary<string, int array>;
+}
+
+[<CLIMutableAttribute; DataContractAttribute>]
+type TopicPartitionState = {
+    [<DataMember(Name="version")>]
+    Version : int;
+    [<DataMember(Name="isr")>]
+    Isr: int array;
+    [<DataMember(Name="leader")>]
+    Leader : int
+}
+
+type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
+    let brokerIdsPath = "/brokers/ids"
+    let topicsPath = "/brokers/topics"
+    let mutable client : ZookeeperClient = null
+    let mutable disposed = false
+    let connectionLostEvent = new Event<_>()
+    let numberOfEndpoints = endpoints.Length
+    let endpointSeq =
+        endpoints |> Array.shuffle
+        let rec innerSeq =
+            seq {
+                for x in endpoints do yield x
+                yield! innerSeq
+            }
+        innerSeq
+
+    let connectionLost fConnect =
+        LogConfiguration.Logger.Info.Invoke("Lost connection to zookeeper, trying to reconnect...")
+        (client :> IDisposable).Dispose()
+        client <- fConnect 0
+
+    let rec connectToZookeeper attempts =
+        if attempts = numberOfEndpoints then
+            LogConfiguration.Logger.Fatal.Invoke("Could not connect to any of the zookeeper hosts", null)
+            connectionLostEvent.Trigger()
+            null
+        else
+            printfn "Sleeping for 10 seconds..."
+            Thread.Sleep(10000)
+            let endpoint = endpointSeq |> Seq.head
+            let newClient = new ZookeeperClient(new Action(fun () -> connectionLost connectToZookeeper))
+            try
+                newClient.Connect(endpoint, sessionTimeout)
+                printfn "Connected"
+                newClient
+            with
+            | e ->
+                (newClient :> IDisposable).Dispose()
+                LogConfiguration.Logger.Error.Invoke(sprintf "Could not connect to the zookeeper host %s:%i" endpoint.Address endpoint.Port, e)
+                connectToZookeeper (attempts + 1)
+
+    let checkIfConnected() =
+        if client |> isNull then invalidOp "Not connected to any zookeeper host"
+
+    do
+        if endpoints |> isNull || endpoints |> Seq.isEmpty then invalidArg "endpoints" "At least one endpoint should be provided"
+
+    [<CLIEventAttribute>]
+    member __.ConnectionLost = connectionLostEvent.Publish
+    member __.Connect() = client <- connectToZookeeper 0
+    member __.GetChildren(path) =
+        checkIfConnected()
+        client.GetChildren(path).Children
+    member __.GetChildren(path, watcherCallback) =
+        checkIfConnected()
+        client.GetChildren(path, watcherCallback).Children
+    member self.GetBrokerIds() =
+        checkIfConnected()
+        self.GetChildren(brokerIdsPath) |> Array.map (fun x -> x |> int)
+    member self.GetBrokerIds(watcherCallback) =
+        checkIfConnected()
+        self.GetChildren(brokerIdsPath, watcherCallback) |> Array.map (fun x -> x |> int)
+    member __.GetData(path) =
+        checkIfConnected()
+        client.GetData(path).Data
+    member __.GetData(path, watcherCallback) =
+        checkIfConnected()
+        client.GetData(path, watcherCallback).Data
+    member self.GetBrokerRegistrationInfo(id) =
+        checkIfConnected()
+        self.GetData(sprintf "%s/%i" brokerIdsPath id)
+        |> JsonHelper.fromJson<BrokerRegistrationInformation>
+    member self.GetAllBrokerRegistrationInfo() =
+        checkIfConnected()
+        self.GetBrokerIds()
+        |> Seq.map (fun x -> self.GetBrokerRegistrationInfo(x))
+    member self.GetTopics() =
+        checkIfConnected()
+        self.GetChildren(topicsPath)
+    member self.GetTopics(watcherCallback) =
+        checkIfConnected()
+        self.GetChildren(topicsPath, watcherCallback)
+    member self.GetTopicRegistrationInfo(topic) =
+        checkIfConnected()
+        self.GetData(sprintf "%s/%s" topicsPath topic)
+        |> JsonHelper.fromJson<TopicRegistrationInformation>
+    member self.GetTopicRegistrationInfo(topic, watcherCallback) =
+        checkIfConnected()
+        self.GetData(sprintf "%s/%s" topicsPath topic, watcherCallback)
+        |> JsonHelper.fromJson<TopicRegistrationInformation>
+    member self.GetTopicPartitionState(topic, partitionId) =
+        let path = sprintf "%s/%s/partitions/%i/state" topicsPath topic partitionId
+        self.GetData(path)
+        |> JsonHelper.fromJson<TopicPartitionState>
+    member self.GetTopicPartitionState(topic, partitionId, watcherCallback) =
+        let path = sprintf "%s/%s/partitions/%i/state" topicsPath topic partitionId
+        self.GetData(path, watcherCallback)
+        |> JsonHelper.fromJson<TopicPartitionState>
+    interface IDisposable with
+        member __.Dispose() =
+            if not disposed then
+                if client <> null then (client :> IDisposable).Dispose()
+                disposed <- true
