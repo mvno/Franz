@@ -232,17 +232,17 @@ type Watcher =
     { Path : string; Callback : unit -> unit; Type : WatcherType }
     member self.Reregister(agent : Agent<ZookeeperMessages>) =
         match self.Type with
-        | Child -> agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self.Path, self, reply))
-        | Data -> agent.PostAndReply(fun reply -> GetDataWithWatcher(self.Path, self, reply))
+        | Child -> agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self, reply))
+        | Data -> agent.PostAndReply(fun reply -> GetDataWithWatcher(self, reply))
         |> either (fun x -> x |> Async.Ignore |> Async.Start) (fun x -> LogConfiguration.Logger.Error.Invoke(sprintf "Could not reregister watcher for %s" self.Path, x))
 and ZookeeperMessages =
     private
     | Connect of string * int * int * AsyncReplyChannel<Result<unit, exn>>
-    | GetChildrenWithWatcher of string * Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
+    | GetChildrenWithWatcher of Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | GetChildren of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Ping
     | GetData of string * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
-    | GetDataWithWatcher of string * Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
+    | GetDataWithWatcher of Watcher * AsyncReplyChannel<Result<Async<ResponsePacket>, exn>>
     | Reconnect of TcpClient.T
     | Dispose
 
@@ -395,8 +395,8 @@ type ZookeeperClient(connectionLossCallback : Action) =
                 return! loop
                     (catch (connect host port sessionTimeout) state
                     |> either (fun newState -> reply.Reply(() |> succeed); newState) (fun x -> reply.Reply(x |> fail); state))
-            | GetChildrenWithWatcher (path, watcher, reply) ->
-                return! loop (catch (getChildren path (Some watcher)) state |> replyEither reply state)
+            | GetChildrenWithWatcher (watcher, reply) ->
+                return! loop (catch (getChildren watcher.Path (Some watcher)) state |> replyEither reply state)
             | GetChildren (path, reply) ->
                 return! loop (catch (getChildrenWithoutWatcher path) state |> replyEither reply state)
             | Ping ->
@@ -405,8 +405,8 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     |> either (fun () -> state) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not ping", x); state))
             | GetData (path, reply) ->
                 return! loop (catch (getDataWithoutWatcher path) state |> replyEither reply state)
-            | GetDataWithWatcher (path, watcher, reply) ->
-                return! loop (catch (getData path (Some watcher)) state |> replyEither reply state)
+            | GetDataWithWatcher (watcher, reply) ->
+                return! loop (catch (getData watcher.Path (Some watcher)) state |> replyEither reply state)
             | Reconnect oldClient ->
                 return! loop (reconnect oldClient state)
             | Dispose ->
@@ -432,7 +432,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
     member __.GetChildren(path, watcherCallback) =
         if disposed then invalidOp "Client has been disposed"
         let watcher = { Path = path; Callback = watcherCallback; Type = Child }
-        agent.PostAndReply(fun reply -> GetChildrenWithWatcher(path, watcher, reply))
+        agent.PostAndReply(fun reply -> GetChildrenWithWatcher(watcher, reply))
         |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
     member __.GetChildren(path) =
         if disposed then invalidOp "Client has been disposed"
@@ -445,7 +445,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
     member __.GetData(path, watcherCallback) =
         if disposed then invalidOp "Client has been disposed"
         let watcher = { Path = path; Callback = watcherCallback; Type = Data }
-        agent.PostAndReply(fun reply -> GetDataWithWatcher(path, watcher, reply))
+        agent.PostAndReply(fun reply -> GetDataWithWatcher(watcher, reply))
         |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
     interface IDisposable with
         member __.Dispose() =
