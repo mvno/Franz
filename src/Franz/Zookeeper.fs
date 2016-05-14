@@ -218,7 +218,7 @@ type RequestPacket(xid) =
 type private Pinger = { Body : Async<unit>; CancellationTokenSource : CancellationTokenSource }
 type private State = { TcpClient : TcpClient.T; SessionId : int64; Password : byte array; LastXid : Xid; SessionTimeout : int; Receiver : Async<unit> option; Pinger : Pinger option }
 
-type ZookeeperClient() =
+type ZookeeperClient(connectionLossCallback : Action) =
     let deserialize f response = f(response.Header, response.Content)
     let createPinger sessionTimeout (agent : Agent<ZookeeperMessages>) =
         let cts = new CancellationTokenSource()
@@ -342,9 +342,11 @@ type ZookeeperClient() =
                         LogConfiguration.Logger.Trace.Invoke("Not reconnecting as state has changed since requested")
                         state
                     else
-                        let newClient = state.TcpClient |> TcpClient.reconnect
+                        let reconnect state =
+                            let newClient = state.TcpClient |> TcpClient.reconnect
                         catch (sendConnectRequest state.SessionTimeout) { state with TcpClient = newClient }
-                        |> either (fun x -> x) (fun x -> LogConfiguration.Logger.Fatal.Invoke("Could not reconnect", x); raise (new Exception(x.Message, x)))
+                        catch reconnect state
+                        |> either (fun x -> x) (fun x -> LogConfiguration.Logger.Error.Invoke("Could not reconnect", x); connectionLossCallback.Invoke(); state)
                 return! loop newState
         }
         loop { TcpClient = TcpClient.create(); SessionId = 0L; Password = Array.empty; LastXid = 0; SessionTimeout = 0; Receiver = None; Pinger = None })
