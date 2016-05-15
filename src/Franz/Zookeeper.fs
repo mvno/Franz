@@ -318,7 +318,8 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     match response.EventType with
                     | EventType.NodeChildrenChanged -> (childWatchers.TryGetValue(response.Path) |> tryToOption, false)
                     | EventType.NodeDataChanged -> (dataWatchers.TryGetValue(response.Path) |> tryToOption, false)
-                    | EventType.NodeDeleted | EventType.NodeCreated -> (None, true)
+                    | EventType.NodeDeleted | EventType.NodeCreated ->
+                        (None, true)
                     | _ ->
                         LogConfiguration.Logger.Warning.Invoke("Got unsupported notification")
                         (None, false)
