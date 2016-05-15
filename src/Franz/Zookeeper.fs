@@ -298,7 +298,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
             let requestPacket = new RequestPacket(xid)
             pendingRequests.Enqueue(requestPacket)
             state.TcpClient |> TcpClient.write (request.Serialize(xid)) |> ignore
-            ({ state with LastXid = state.LastXid + 1}, requestPacket.GetResponseAsync(state.SessionTimeout))
+            ({ state with LastXid = xid}, requestPacket.GetResponseAsync(state.SessionTimeout))
 
         let tryToOption (success, x) = if success then Some x else None
 
