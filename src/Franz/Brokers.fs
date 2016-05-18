@@ -345,3 +345,9 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     interface IDisposable with
         /// Dispose the router
         member self.Dispose() = self.Dispose()
+    interface IBrokerRouter with
+        member self.Connect() = self.Connect()
+        member self.GetAllBrokers() = self.GetAllBrokers()
+        member self.GetAvailablePartitionIds(topicName) = self.GetAvailablePartitionIds(topicName)
+        member self.TryToSendToBroker(topicName, partitionId, request) = self.TrySendToBroker(topicName, partitionId, request)
+        member self.GetBroker(topic, partitionId) = self.GetBroker(topic, partitionId)
