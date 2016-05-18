@@ -146,6 +146,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             self.SendMessages(topicName, key, messages)
         member self.Dispose() = self.Dispose()
 
+/// Producer sending messages in a round-robin fashion
 type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
     let mutable producer = None
     let topicPartitions = new TopicPartitions()
@@ -548,7 +549,9 @@ type MessageWithMetadata =
 type IConsumer =
     inherit IDisposable
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
+    /// Get the current consumer position
     abstract member GetPosition : unit -> PartitionOffset array
+    /// Set the current consumer position
     abstract member SetPosition : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
 
@@ -749,8 +752,10 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : Broke
     member __.Dispose() =
         base.Dispose()
     interface IConsumer with
+        /// Get the current consumer position
         member self.GetPosition() =
             self.GetPosition()
+        /// Set the current consumer position
         member self.SetPosition(offsets) =
             self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager
@@ -778,8 +783,10 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
     member __.Dispose() =
         base.Dispose()
     interface IConsumer with
+        /// Get the current consumer position
         member self.GetPosition() =
             self.GetPosition()
+        /// Set the current consumer position
         member self.SetPosition(offsets) =
             self.SetPosition(offsets)
         member self.OffsetManager = self.OffsetManager

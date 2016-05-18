@@ -12,12 +12,18 @@ open System.Runtime.Serialization.Json
 open System.Runtime.Serialization
 open System.Collections.Generic
 
+/// The type of the Zookeeper request
 type RequestType =
+    /// Close connection
     | Close = -11
+    /// Ping
     | Ping = 11
+    /// Get node children
     | GetChildren2 = 12
+    /// Get node data
     | GetData = 4
 
+/// Zookeeper error codes
 type ErrorCode =
     | Ok = 0
     | SystemError = -1
@@ -41,20 +47,28 @@ type ErrorCode =
     | AuthFailed = -115
     | SessionMoved = -116
 
+/// Transaction id
 type Xid = int
+/// Zookeeper transaction id
 type Zxid = int64
 type Time = int64
 
+/// Transaction id constants
 module XidConstants =
+    /// Ping transaction id
     [<Literal>]
     let Ping : Xid = -2
+    /// Notification transaction id
     [<Literal>]
     let Notification : Xid = -1
 
 type ConnectResponse(protocolVersion : int, timeout : int, sessionId : int64, password : byte array) =
     member __.ProtocolVersion = protocolVersion
+    /// The session timeout
     member __.Timeout = timeout
+    /// The session id
     member __.SessionId = sessionId
+    /// The session password
     member __.Password = password
     static member Deserialize(stream) =
         stream |> BigEndianReader.ReadInt32 |> ignore
@@ -64,13 +78,18 @@ type ConnectResponse(protocolVersion : int, timeout : int, sessionId : int64, pa
         let password = stream |> BigEndianReader.ReadBytes
         new ConnectResponse(protocolVersion, timeout, sessionId, password)
 
+/// The reply header available in all responses except the connect response
 type ReplyHeader(xid : Xid, zxid : Zxid, error : ErrorCode) =
+    /// The transaction id
     member __.Xid = xid
+    /// The zookeeper transaction id
     member __.Zxid = zxid
+    /// The error code
     member __.Error = error
     static member Deserialize(stream) =
         new ReplyHeader(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt64, stream |> BigEndianReader.ReadInt32 |> enum<ErrorCode>)
 
+/// Node statistics
 type Stat =
     { CreatedZxid : Zxid; LastModifiedZxid : Zxid; CreatedTime : Time; ModifiedTime : Time; Version : int; ChildVersion : int; AclVersion : int; EphemeralOwner : int64; DataLength : int; NumberOfChildren : int; LastModifiedChildrenZxid : Zxid }
     static member Deserialize(stream) =
@@ -88,9 +107,13 @@ type Stat =
             LastModifiedChildrenZxid = stream |> BigEndianReader.ReadInt64;
         }
 
+/// The get children response
 type GetChildrenResponse(header : ReplyHeader, children : string array, stat : Stat) =
+    /// The name of the children
     member __.Children = children
+    /// The node statistics
     member __.Stat = stat;
+    /// The reply header
     member __.Header = header
     static member private readChildren list count stream : string list =
         match count with
@@ -103,18 +126,24 @@ type GetChildrenResponse(header : ReplyHeader, children : string array, stat : S
         let children = GetChildrenResponse.readChildren [] numberOfChildren stream
         new GetChildrenResponse(replyHeader, children |> List.toArray, stream |> Stat.Deserialize)
 
+/// The ping response
 type PingResponse(header : ReplyHeader) =
+    /// The reply header
     member __.Header = header
     static member Deserialize(replyHeader, _) =
         new PingResponse(replyHeader)
 
+/// The get data response
 type GetDataResponse(header : ReplyHeader, data : byte array) =
+    /// The reply header
     member __.Header = header
+    /// The node data
     member __.Data = data
     static member Deserialize(replyHeader, stream) =
         let data = stream |> BigEndianReader.ReadBytes
         new GetDataResponse(replyHeader, data)
 
+/// The notification event type
 type EventType =
     | None = -1
     | NodeCreated = 1
@@ -122,10 +151,14 @@ type EventType =
     | NodeDataChanged = 3
     | NodeChildrenChanged = 4
 
+/// Response received when a notification is triggered
 type WatcherEvent(header : ReplyHeader, eventType : EventType, state : int, path : string) =
+    /// The reply header
     member __.Header = header
+    /// The event type
     member __.EventType = eventType
     member __.State = state
+    /// The path notified about
     member __.Path = path
     static member Deserialize(replyHeader, stream : Stream) =
         let eventType = stream |> BigEndianReader.ReadInt32
@@ -136,6 +169,7 @@ type WatcherEvent(header : ReplyHeader, eventType : EventType, state : int, path
 type IRequest =
     abstract member Serialize : Xid -> byte array
 
+/// Header available in all requests
 [<AbstractClass; Sealed>]
 type RequestHeader() =
     static member Serialize(xid : Xid, requestType : RequestType) = 
@@ -148,6 +182,7 @@ type RequestHeader() =
         ms.Read(buffer, 0, size) |> ignore
         buffer
 
+/// Ping request
 type PingRequest() =
     member __.Serialize(_) =
         let ms = new MemoryStream()
@@ -163,11 +198,16 @@ type PingRequest() =
     interface IRequest with
         member self.Serialize(xid) = self.Serialize(xid)
 
+/// Connect request
 type ConnectRequest(protocolVersion, lastZxid, timeout, sessionId, password) =
     member val ProtocolVersion = protocolVersion with get
+    /// The last Zookeeper transaction id seen by the client
     member val LastZxid = lastZxid with get
+    /// The session timeout
     member val Timeout = timeout with get
+    /// The session id, should be zero on initial request, on reconnect it should be the last session id used
     member val SessionId = sessionId with get
+    /// The session password, should be an empty array on initial request, on reconect previous password should be provided
     member val Password = password with get
     member self.Serialize(_) =
         let ms = new MemoryStream()
@@ -187,8 +227,11 @@ type ConnectRequest(protocolVersion, lastZxid, timeout, sessionId, password) =
     interface IRequest with
         member self.Serialize(xid) = self.Serialize(xid)
 
+/// Get children request
 type GetChildrenRequest(path : string, watch : bool) =
+    /// The node path
     member __.Path = path
+    /// True if we should subscribed to notifications
     member __.Watch = watch
     member __.Serialize(xid) =
         let ms = new MemoryStream()
@@ -206,7 +249,9 @@ type GetChildrenRequest(path : string, watch : bool) =
     interface IRequest with
         member self.Serialize(xid) = self.Serialize(xid)
 
+/// Get data request
 type GetDataRequest(path : string, watch : bool) =
+    /// The node path
     member __.Path = path
     member __.Serialize(xid) =
         let ms = new MemoryStream()
@@ -224,15 +269,28 @@ type GetDataRequest(path : string, watch : bool) =
     interface IRequest with
         member self.Serialize(xid) = self.Serialize(xid)
 
+/// Intermediate type containing a response's header and content
 type ResponsePacket = { Content : Stream; Header : ReplyHeader }
 
+/// Wathcer type
 type WatcherType =
     private
+    /// Child watcher
     | Child
+    /// Data watcher
     | Data
 
+/// Contains information about a watcher
 type Watcher =
-    { Path : string; Callback : unit -> unit; Type : WatcherType }
+    {
+        /// The watched node path
+        Path : string;
+        /// The notification callback
+        Callback : unit -> unit;
+        /// The watcher type
+        Type : WatcherType
+    }
+    /// Reregister the watcher
     member self.Reregister(agent : Agent<ZookeeperMessages>) =
         match self.Type with
         | Child -> agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self, reply))
@@ -249,10 +307,13 @@ and ZookeeperMessages =
     | Reconnect of TcpClient.T
     | Dispose
 
+/// Intermediate request type
 type RequestPacket(xid) =
     let mutable response = None
     let waiter = new System.Threading.ManualResetEventSlim()
+    /// The transaction id
     member __.Xid = xid
+    /// Get the response async
     member __.GetResponseAsync(timeout : int) =
         async {
             let success = waiter.Wait(timeout)
@@ -266,8 +327,10 @@ type RequestPacket(xid) =
 type private Pinger = { Body : Async<unit>; CancellationTokenSource : CancellationTokenSource }
 type private State = { TcpClient : TcpClient.T; SessionId : int64; Password : byte array; LastXid : Xid; SessionTimeout : int; Receiver : Async<unit> option; Pinger : Pinger option }
 
+/// Zookeeper exception
 type ZookeeperException(msg : string) = inherit Exception(msg)
 
+/// Zookeeper client. Handle the communication with a single Zookeeper instance
 [<AllowNullLiteral>]
 type ZookeeperClient(connectionLossCallback : Action) =
     let mutable disposed = false
@@ -427,25 +490,30 @@ type ZookeeperClient(connectionLossCallback : Action) =
     do
         agent.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke("Got exception in zookeeper agent", x))
 
+    /// Connect to the provided Zookeeper instance
     member __.Connect(endpoint, sessionTimeout) =
         if disposed then invalidOp "Client has been disposed"
         let result = agent.PostAndReply(fun reply -> Connect(endpoint.Address, endpoint.Port, sessionTimeout, reply))
         match result with
         | Failure x -> raise x
         | Success _ -> ()
+    /// Get node children and subscribe to notifications about the node children
     member __.GetChildren(path, watcherCallback) =
         if disposed then invalidOp "Client has been disposed"
         let watcher = { Path = path; Callback = watcherCallback; Type = Child }
         agent.PostAndReply(fun reply -> GetChildrenWithWatcher(watcher, reply))
         |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
+    /// Get node children
     member __.GetChildren(path) =
         if disposed then invalidOp "Client has been disposed"
         agent.PostAndReply(fun reply -> GetChildren(path, reply))
         |> handleAsyncReply (deserialize GetChildrenResponse.Deserialize)
+    /// Get the node data
     member __.GetData(path) =
         if disposed then invalidOp "Client has been disposed"
         agent.PostAndReply(fun reply -> GetData(path, reply))
         |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
+    /// Get the node data and subscribe to data change notification
     member __.GetData(path, watcherCallback) =
         if disposed then invalidOp "Client has been disposed"
         let watcher = { Path = path; Callback = watcherCallback; Type = Data }
@@ -469,35 +537,49 @@ module private JsonHelper =
         let obj = serializer.ReadObject(ms)
         obj :?> 'a
 
+/// Kafka broker registration information
 [<CLIMutableAttribute; DataContractAttribute>]
 type BrokerRegistrationInformation = {
     [<DataMember(Name="version")>]
     Version : int;
+    /// Hostname of the broker
     [<DataMember(Name="host")>]
     Host : string;
+    /// Port of the broker
     [<DataMember(Name="port")>]
     Port : int;
+    /// Endpoints the broker are listening to
     [<DataMember(Name="endpoints")>]
     Endpoints : string array;}
 
+/// Topic registration information
 [<CLIMutableAttribute; DataContractAttribute>]
 type TopicRegistrationInformation = {
     [<DataMember(Name="version")>]
     Version : int;
+    /// The partitions available to the topic, and which brokers that contains them
     [<DataMember(Name="partitions")>]
     Partitions : IDictionary<string, int array>;
 }
 
+/// Topic partition state information
 [<CLIMutableAttribute; DataContractAttribute>]
 type TopicPartitionState = {
     [<DataMember(Name="version")>]
     Version : int;
+    /// The brokers which have insync replicas of the partition
     [<DataMember(Name="isr")>]
     Isr: int array;
+    /// The leader of the partition
     [<DataMember(Name="leader")>]
     Leader : int
 }
 
+/// Zookeeper manager
+///
+/// Connect to the Zookeeper cluster defined by the provided Zookeeper instances. If a connection to an instance is lost
+/// a connection to one of the other instances is made. If unable to connect to any of the instances in the cluster,
+/// the ConnectionLost event is raised and should be handle by the user.
 type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
     let brokerIdsPath = "/brokers/ids"
     let topicsPath = "/brokers/topics"
@@ -545,45 +627,61 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
     do
         if endpoints |> isNull || endpoints |> Seq.isEmpty then invalidArg "endpoints" "At least one endpoint should be provided"
 
+    /// Event raised when unable to connect to any of the provided Zookeeper instances
     [<CLIEventAttribute>]
     member __.ConnectionLost = connectionLostEvent.Publish
+    /// Connect to the Zookeeper cluster
     member __.Connect() = client <- connectToZookeeper 0
+    /// Get children of the specified node
     member __.GetChildren(path) =
         checkIfConnected()
         client.GetChildren(path).Children
+    /// Get children of the specified node and subscribe to notifications
     member __.GetChildren(path, watcherCallback) =
         checkIfConnected()
         client.GetChildren(path, watcherCallback).Children
+    /// Get the available Kafka brokers
     member self.GetBrokerIds() =
         self.GetChildren(brokerIdsPath) |> Array.map (fun x -> x |> int)
+    /// Get the available Kafka brokers and subscribed to notifications
     member self.GetBrokerIds(watcherCallback) =
         self.GetChildren(brokerIdsPath, watcherCallback) |> Array.map (fun x -> x |> int)
+    /// Get node data
     member __.GetData(path) =
         checkIfConnected()
         client.GetData(path).Data
+    /// Get node data and subscribe to notifications
     member __.GetData(path, watcherCallback) =
         checkIfConnected()
         client.GetData(path, watcherCallback).Data
+    /// Get registration information about a single Kafka broker
     member self.GetBrokerRegistrationInfo(id) =
         self.GetData(sprintf "%s/%i" brokerIdsPath id)
         |> JsonHelper.fromJson<BrokerRegistrationInformation>
+    /// Get registration information about all brokers in the Kafka cluster
     member self.GetAllBrokerRegistrationInfo() =
         self.GetBrokerIds()
         |> Seq.map (fun x -> self.GetBrokerRegistrationInfo(x))
+    /// Get available Kafka topics
     member self.GetTopics() =
         self.GetChildren(topicsPath)
+    /// Get available Kafka topics and subscribe to notification
     member self.GetTopics(watcherCallback) =
         self.GetChildren(topicsPath, watcherCallback)
+    /// Get registration information about a topic
     member self.GetTopicRegistrationInfo(topic) =
         self.GetData(sprintf "%s/%s" topicsPath topic)
         |> JsonHelper.fromJson<TopicRegistrationInformation>
+    /// Get registration information about a topic and subscribe to notifications
     member self.GetTopicRegistrationInfo(topic, watcherCallback) =
         self.GetData(sprintf "%s/%s" topicsPath topic, watcherCallback)
         |> JsonHelper.fromJson<TopicRegistrationInformation>
+    /// Get topic partition state information
     member self.GetTopicPartitionState(topic, partitionId) =
         let path = sprintf "%s/%s/partitions/%i/state" topicsPath topic partitionId
         self.GetData(path)
         |> JsonHelper.fromJson<TopicPartitionState>
+    /// Get topic partition state information and subscribe to notifications
     member self.GetTopicPartitionState(topic, partitionId, watcherCallback) =
         let path = sprintf "%s/%s/partitions/%i/state" topicsPath topic partitionId
         self.GetData(path, watcherCallback)
