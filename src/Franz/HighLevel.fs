@@ -653,7 +653,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                     return Seq.empty<_>
             with
-            | :? BufferOverflowException as e ->
+            | :? BufferOverflowException ->
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
                 LogConfiguration.Logger.Info.Invoke(sprintf "Temporarily increasing fetch size to %i to accommodate increased message size." increasedFetchSize)
                 return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)

@@ -72,7 +72,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             try
                 send self request
             with
-            | :? UnderlyingConnectionClosedException as e ->
+            | :? UnderlyingConnectionClosedException ->
                 LogConfiguration.Logger.Info.Invoke("Broker unable to send, since the underlying connection have been closed since last usage.")
                 send self request
             | e ->
