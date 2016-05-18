@@ -540,6 +540,8 @@ module private JsonHelper =
 /// Kafka broker registration information
 [<CLIMutableAttribute; DataContractAttribute>]
 type BrokerRegistrationInformation = {
+    [<IgnoreDataMemberAttribute>]
+    Id : int;
     [<DataMember(Name="version")>]
     Version : int;
     /// Hostname of the broker
@@ -656,8 +658,10 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
         client.GetData(path, watcherCallback).Data
     /// Get registration information about a single Kafka broker
     member self.GetBrokerRegistrationInfo(id) =
-        self.GetData(sprintf "%s/%i" brokerIdsPath id)
-        |> JsonHelper.fromJson<BrokerRegistrationInformation>
+        let info =
+            self.GetData(sprintf "%s/%i" brokerIdsPath id)
+            |> JsonHelper.fromJson<BrokerRegistrationInformation>
+        { info with Id = id }
     /// Get registration information about all brokers in the Kafka cluster
     member self.GetAllBrokerRegistrationInfo() =
         self.GetBrokerIds()
