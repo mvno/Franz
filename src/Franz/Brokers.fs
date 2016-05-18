@@ -19,10 +19,10 @@ type UnableToConnectToAnyBrokerException() =
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
 module ErrorCodeExtensions =
-    type ErrorCode with
+    type Messages.ErrorCode with
         /// Check if error code is an real error
         member self.IsError() =
-            self <> ErrorCode.NoError && self <> ErrorCode.ReplicaNotAvailable
+            self <> Messages.ErrorCode.NoError && self <> Messages.ErrorCode.ReplicaNotAvailable
         /// Check if error code is success
         member self.IsSuccess() =
             not <| self.IsError()
