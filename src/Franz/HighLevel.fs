@@ -654,8 +654,8 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     return Seq.empty<_>
             with
             | :? BufferOverflowException as e ->
-                LogConfiguration.Logger.InfoWithException.Invoke("Temporarily increasing fetch size.", e)
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
+                LogConfiguration.Logger.Info.Invoke(sprintf "Temporarily increasing fetch size to %i to accommodate increased message size." increasedFetchSize)
                 return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
             | e ->
                 LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" topicName partitionId consumerOptions.ConnectionRetryInterval, e)
