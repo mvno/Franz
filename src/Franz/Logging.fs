@@ -8,7 +8,7 @@ type ILogger =
     inherit IDisposable
     abstract member Trace : Action<string> with get, set
     abstract member Info : Action<string> with get, set
-    abstract member Warning : Action<string> with get, set
+    abstract member Warning : Action<string, exn> with get, set
     abstract member Error : Action<string, exn> with get, set
     abstract member Fatal : Action<string, exn> with get, set
 
@@ -17,9 +17,9 @@ type ILogger =
 type DefaultLogger() =
     member val Trace = new Action<string>(fun x -> dprintfn "TRACE: %s" x) with get, set
     member val Info = new Action<string>(fun x -> printfn "INFO: %s" x) with get, set
-    member val Warning = new Action<string>(fun x -> printfn "WARNING: %s" x) with get, set
-    member val Error = new Action<string, exn>(fun x y -> eprintfn "ERROR: %s\r\n%s" x (y.ToString())) with get, set
-    member val Fatal = new Action<string, exn>(fun x y -> eprintfn "FATAL: %s\r\n%s" x (y.ToString())) with get, set
+    member val Warning = new Action<string, exn>(fun x y -> if y <> null then eprintfn "WARNING: %s\r\n%s" x (y.ToString()) else eprintfn "WARNING: %s" x) with get, set
+    member val Error = new Action<string, exn>(fun x y -> if y <> null then eprintfn "ERROR: %s\r\n%s" x (y.ToString()) else eprintfn "ERROR: %s" x) with get, set
+    member val Fatal = new Action<string, exn>(fun x y -> if y <> null then eprintfn "FATAL: %s\r\n%s" x (y.ToString()) else eprintfn "FATAL: %s" x) with get, set
 
     interface ILogger with
         member self.Trace with get() = self.Trace and set(x) = self.Trace <- x

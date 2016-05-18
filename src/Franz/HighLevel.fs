@@ -6,6 +6,8 @@ open Franz
 open System.Collections.Concurrent
 open Franz.Compression
 
+exception ClusterErrorException of string * int
+
 module Seq =
     /// Helper function to convert a sequence to a List<T>
     let toBclList (x : 'a seq) =
@@ -339,7 +341,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
         | _ ->
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
-            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
+            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, ClusterErrorException("Got error while commiting offset", int x.ErrorCode))
             | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using Kafka): %A" offsets)
 
     do
@@ -428,7 +430,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
         | _ ->
             let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
             match errorCode with
-            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, new Exception())
+            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, ClusterErrorException("Got error while commiting offset", int x.ErrorCode))
             | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using KafkaV2): %A" offsets)
 
     do
@@ -652,9 +654,9 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
                     return Seq.empty<_>
             with
-            | :? BufferOverflowException as e ->
-                LogConfiguration.Logger.Info.Invoke(sprintf "%s. Temporarily increasing fetch size" e.Message)
+            | :? BufferOverflowException ->
                 let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
+                LogConfiguration.Logger.Info.Invoke(sprintf "Temporarily increasing fetch size to %i to accommodate increased message size." increasedFetchSize)
                 return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
             | e ->
                 LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" topicName partitionId consumerOptions.ConnectionRetryInterval, e)
