@@ -491,7 +491,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
         agent.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke("Got exception in zookeeper agent", x))
 
     /// Connect to the provided Zookeeper instance
-    member __.Connect(endpoint, sessionTimeout) =
+    member __.Connect(endpoint : EndPoint, sessionTimeout) =
         if disposed then invalidOp "Client has been disposed"
         let result = agent.PostAndReply(fun reply -> Connect(endpoint.Address, endpoint.Port, sessionTimeout, reply))
         match result with

@@ -3,6 +3,9 @@
 /// Type alias for MailBoxProcessor
 type Agent<'T> = MailboxProcessor<'T>
 
+/// A endpoint
+type EndPoint = { Address : string; Port : int32 }
+
 [<AutoOpen>]
 module Seq =
     /// Function to handle round robin
