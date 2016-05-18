@@ -555,10 +555,8 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
         checkIfConnected()
         client.GetChildren(path, watcherCallback).Children
     member self.GetBrokerIds() =
-        checkIfConnected()
         self.GetChildren(brokerIdsPath) |> Array.map (fun x -> x |> int)
     member self.GetBrokerIds(watcherCallback) =
-        checkIfConnected()
         self.GetChildren(brokerIdsPath, watcherCallback) |> Array.map (fun x -> x |> int)
     member __.GetData(path) =
         checkIfConnected()
@@ -567,25 +565,19 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
         checkIfConnected()
         client.GetData(path, watcherCallback).Data
     member self.GetBrokerRegistrationInfo(id) =
-        checkIfConnected()
         self.GetData(sprintf "%s/%i" brokerIdsPath id)
         |> JsonHelper.fromJson<BrokerRegistrationInformation>
     member self.GetAllBrokerRegistrationInfo() =
-        checkIfConnected()
         self.GetBrokerIds()
         |> Seq.map (fun x -> self.GetBrokerRegistrationInfo(x))
     member self.GetTopics() =
-        checkIfConnected()
         self.GetChildren(topicsPath)
     member self.GetTopics(watcherCallback) =
-        checkIfConnected()
         self.GetChildren(topicsPath, watcherCallback)
     member self.GetTopicRegistrationInfo(topic) =
-        checkIfConnected()
         self.GetData(sprintf "%s/%s" topicsPath topic)
         |> JsonHelper.fromJson<TopicRegistrationInformation>
     member self.GetTopicRegistrationInfo(topic, watcherCallback) =
-        checkIfConnected()
         self.GetData(sprintf "%s/%s" topicsPath topic, watcherCallback)
         |> JsonHelper.fromJson<TopicRegistrationInformation>
     member self.GetTopicPartitionState(topic, partitionId) =
