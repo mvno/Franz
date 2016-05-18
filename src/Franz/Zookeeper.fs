@@ -321,13 +321,13 @@ type ZookeeperClient(connectionLossCallback : Action) =
                     | EventType.NodeDeleted | EventType.NodeCreated ->
                         (None, true)
                     | _ ->
-                        LogConfiguration.Logger.Warning.Invoke("Got unsupported notification")
+                        LogConfiguration.Logger.Warning.Invoke("Got unsupported notification", null)
                         (None, false)
                 match watcher with
                 | Some x ->
                     x.Reregister(inbox)
                     x.Callback()
-                | None when not suppress -> LogConfiguration.Logger.Warning.Invoke(sprintf "Got notification for '%A', but cannot find a matching watcher" response.Path)
+                | None when not suppress -> LogConfiguration.Logger.Warning.Invoke(sprintf "Got notification for '%A', but cannot find a matching watcher" response.Path, null)
                 | _ -> ()
             | x when x = request.Xid ->
                 LogConfiguration.Logger.Trace.Invoke(sprintf "Received with xid %i" header.Xid)
