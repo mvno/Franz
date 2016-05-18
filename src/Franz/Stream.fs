@@ -3,7 +3,8 @@ namespace Franz.Stream
 open System
 open System.IO
 open System.Text
-open Exceptions
+
+exception UnderlyingConnectionClosedException of string
 
 /// Writes to a stream conforming to the Kafka protocol
 [<AbstractClass; Sealed>]

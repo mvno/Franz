@@ -14,7 +14,8 @@ module Messages =
     open System.IO
     open Franz.Stream
     open Franz.Internal
-    open Exceptions
+
+    exception BufferOverflowException of string
 
     /// Message size
     type MessageSize = int32

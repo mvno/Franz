@@ -1,7 +1,0 @@
-﻿module Exceptions
-
-exception BufferOverflowException of string
-exception UnderlyingConnectionClosedException of string
-exception NoBrokerFoundForTopicPartitionException of string
-exception UnableToConnectToAnyBrokerException of string
-exception ClusterErrorException of string * int

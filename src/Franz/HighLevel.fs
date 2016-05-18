@@ -5,7 +5,8 @@ open System.Collections.Generic
 open Franz
 open System.Collections.Concurrent
 open Franz.Compression
-open Exceptions
+
+exception ClusterErrorException of string * int
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
