@@ -5,6 +5,7 @@ open Franz.Internal
 open System.Net.Sockets
 open System.IO
 open Franz.Stream
+open Franz.Zookeeper
 
 type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
     inherit Exception()
@@ -122,6 +123,13 @@ type BrokerRouterMessage =
     | Close
     /// Connect to the cluster
     | Connect of EndPoint seq * AsyncReplyChannel<unit>
+
+type IBrokerRouter =
+    abstract member Connect : unit -> unit
+    abstract member GetAllBrokers : unit -> Broker seq
+    abstract member GetBroker : string * Id -> Broker
+    abstract member TryToSendToBroker : string * Id * Request<'a> -> 'a
+    abstract member GetAvailablePartitionIds : string -> Id array
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
 type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
