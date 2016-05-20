@@ -21,6 +21,7 @@ type NextPartitionId = Id
 type TopicPartitions = Dictionary<string, (PartiontionIds * NextPartitionId)>
 
 type IProducer =
+    inherit IDisposable
     abstract member SendMessage : string * string * RequiredAcks * int -> unit
     abstract member SendMessage : string * string -> unit
     abstract member SendMessages : string * string array -> unit
@@ -126,7 +127,6 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             self.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, key, messages) = 
             self.SendMessages(topicName, key, messages)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
@@ -209,7 +209,6 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
             self.SendMessages(topicName, null, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, messages) =
             self.SendMessages(topicName, null, messages)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 /// Information about offsets
@@ -279,7 +278,6 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 module internal ErrorHelper =
@@ -375,7 +373,6 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 /// Offset manager for version 2. This commits and fetches offset to/from Kafka broker.
@@ -464,7 +461,6 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
@@ -492,7 +488,6 @@ type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : BrokerRouter) =
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 /// Noop offsetmanager, used when no offset should be commit
@@ -502,7 +497,6 @@ type DisabledConsumerOffsetManager() =
         member __.Fetch(_) = [||]
         /// Commit offset for the specified topic and partitions
         member __.Commit(_, _) = ()
-    interface IDisposable with
         member __.Dispose() = ()
 
 [<NoEquality;NoComparison>]
@@ -514,6 +508,7 @@ type MessageWithMetadata =
     }
 
 type IConsumer =
+    inherit IDisposable
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
     abstract member GetPosition : unit -> PartitionOffset array
     abstract member SetPosition : PartitionOffset array -> unit
@@ -724,7 +719,6 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : Broke
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
             self.Consume(cancellationToken)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
@@ -754,5 +748,4 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
         member self.OffsetManager = self.OffsetManager
         member self.Consume(cancellationToken) =
             self.Consume(cancellationToken)
-    interface IDisposable with
         member self.Dispose() = self.Dispose()

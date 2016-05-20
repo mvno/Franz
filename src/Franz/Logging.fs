@@ -27,8 +27,6 @@ type DefaultLogger() =
         member self.Warning with get() = self.Warning and set(x) = self.Warning <- x
         member self.Error with get() = self.Error and set(x) = self.Error <- x
         member self.Fatal with get() = self.Fatal and set(x) = self.Fatal <- x
-
-    interface IDisposable with
         member __.Dispose() = ()
 
 /// Log configuration
