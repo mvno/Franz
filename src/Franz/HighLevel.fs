@@ -183,6 +183,7 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
     /// Releases all connections and disposes the producer
     member __.Dispose() =
         producer.Value.Dispose()
+        brokerRouter.Dispose()
 
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, key, message) =
