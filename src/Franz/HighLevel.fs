@@ -562,6 +562,9 @@ type ConsumerOptions() =
 
 [<AbstractClass>]
 type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
+
+    let mutable disposed = false
+
     let offsetManager =
         match consumerOptions.OffsetStorage with
         | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(topicName, brokerRouter)) :> IConsumerOffsetManager
@@ -674,17 +677,27 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                 return Seq.empty<_>
         }
 
+    member __.Dispose() =
+        if not disposed then
+            offsetManager.Dispose()
+            brokerRouter.Dispose()
+            disposed <- true
+
+    member __.CheckDisposedState() =
+        if disposed then raise(ObjectDisposedException "Consumer has been disposed")
+
+    interface IDisposable with
+        member self.Dispose() = self.Dispose()
+
 /// High level kafka consumer.
 type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
     inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
-
-    let mutable disposed = false
 
     new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new Consumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
     new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
-        if disposed then raise(ObjectDisposedException "Consumer has been disposed")
+        base.CheckDisposedState()
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let rec consume() =
             async {
@@ -701,9 +714,7 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : Broke
         blockingCollection.GetConsumingEnumerable(cancellationToken)
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
-        if not disposed then
-            brokerRouter.Dispose()
-            disposed <- true
+        base.Dispose()
     interface IConsumer with
         member self.GetPosition() =
             self.GetPosition()
@@ -720,14 +731,12 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : Broke
 type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
     inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
 
-    let mutable disposed = false
-
     new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new ChunkedConsumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
     new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(_) =
-        if disposed then raise(ObjectDisposedException "Consumer has been disposed")
+        base.CheckDisposedState()
         self.PartitionOffsets.Keys
         |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None) })
         |> Async.Parallel
@@ -735,9 +744,7 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
         |> Seq.concat
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
-        if not disposed then
-            brokerRouter.Dispose()
-            disposed <- true
+        base.Dispose()
     interface IConsumer with
         member self.GetPosition() =
             self.GetPosition()
