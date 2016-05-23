@@ -7,6 +7,9 @@ open System.Collections.Concurrent
 open Franz.Compression
 
 exception ClusterErrorException of string * int
+exception RequestTimedOutException of string * int
+exception BrokerReturnedErrorException of string * ErrorCode
+exception ErrorCommitingOffsetException of string * OffsetCommitResponse
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -42,7 +45,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
             send key messages requiredAcks brokerProcessingTimeout
-        | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+        | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -62,7 +65,12 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
 type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
 
-    let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout =
+    let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
+        LogConfiguration.Logger.Warning.Invoke(sprintf "Received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException("Producer received RequestTimeOut on Ack from Brokers, retrying with increased timeout" , retryCount))
+        if retryCount > 1 then raise(RequestTimedOutException(sprintf "Received RequestTimedOut on Ack from brokers to many times ( > %i)" retryCount, retryCount))
+        retrySendFunction()
+
+    let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount =
         let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
@@ -74,8 +82,10 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
-            innerSend key messages topicName requiredAcks brokerProcessingTimeout
-        | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+            innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
+        | ErrorCode.RequestTimedOut ->
+            retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
+        | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -89,8 +99,8 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         self.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
-        if disposed then invalidOp "Producer has been disposed"
-        innerSend key messages topicName requiredAcks brokerProcessingTimeout
+        if disposed then raise(ObjectDisposedException "Producer has been disposed")
+        innerSend key messages topicName requiredAcks brokerProcessingTimeout 0
     /// Get all available brokers
     member __.GetAllBrokers() =
         brokerRouter.GetAllBrokers()
@@ -245,7 +255,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
         let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
         let response = broker.Send(request)
         if response.Topics |> Seq.exists (fun t -> t.Partitions |> Seq.exists (fun p -> p.ErrorCode.IsError())) then
-                invalidOp (sprintf "Got an error while commiting offsets. Response was %A" response)
+                raise(ErrorCommitingOffsetException("An error was returned when commiting offset.", response))
         if not (Seq.isEmpty offsets) then LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Zookeeper: %A" offsets)
 
     do
@@ -257,11 +267,11 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
             disposed <- true
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         refreshMetadataOnException (fun () -> innerFetch consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         refreshMetadataOnException (fun () -> innerCommit offsets consumerGroup)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -353,11 +363,11 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
             disposed <- true
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         refreshMetadataOnException (fun () -> innerFetch consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -442,11 +452,11 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
             disposed <- true
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         refreshMetadataOnException (fun () -> innerFetch consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -464,11 +474,11 @@ type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : BrokerRouter) =
     new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         consumerOffsetManagerV0.Fetch(consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then invalidOp "Offset manager has been disposed"
+        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
         consumerOffsetManagerV0.Commit(consumerGroup, offsets)
         consumerOffsetManagerV1.Commit(consumerGroup, offsets)
     member __.Dispose() =
@@ -651,7 +661,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
-                    invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+                    raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
                     return Seq.empty<_>
             with
             | :? BufferOverflowException ->
@@ -674,7 +684,7 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : Broke
     new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
-        if disposed then invalidOp "Consumer has been disposed"
+        if disposed then raise(ObjectDisposedException "Consumer has been disposed")
         let blockingCollection = new System.Collections.Concurrent.BlockingCollection<_>()
         let rec consume() =
             async {
@@ -717,7 +727,7 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(_) =
-        if disposed then invalidOp "Consumer has been disposed"
+        if disposed then raise(ObjectDisposedException "Consumer has been disposed")
         self.PartitionOffsets.Keys
         |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None) })
         |> Async.Parallel
