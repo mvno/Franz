@@ -11,7 +11,14 @@ type ErrorCommittingOffsetException (errorCodes : seq<string>) =
     member e.Codes = errorCodes
     override e.Message = sprintf "One or more errors occoured while committing offsets: %A" e.Codes
 
-exception RequestTimedOutException of string * int
+type RequestTimedOutException() =
+    inherit Exception()
+    override e.Message = "Producer received RequestTimedOut on Ack from Brokers"
+
+type RequestTimedOutRetryExceededException() =
+    inherit Exception()
+    override e.Message = "Producer received RequestTimedOut on Ack from Brokers to many times"
+
 exception BrokerReturnedErrorException of string * ErrorCode
 
 module Seq =
@@ -70,8 +77,8 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
     let mutable disposed = false
 
     let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
-        LogConfiguration.Logger.Warning.Invoke(sprintf "Received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException("Producer received RequestTimeOut on Ack from Brokers, retrying with increased timeout" , retryCount))
-        if retryCount > 1 then raise(RequestTimedOutException(sprintf "Received RequestTimedOut on Ack from brokers to many times ( > %i)" retryCount, retryCount))
+        LogConfiguration.Logger.Warning.Invoke(sprintf "Producer received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException())
+        if retryCount > 1 then raise(RequestTimedOutRetryExceededException())
         retrySendFunction()
 
     let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount =
