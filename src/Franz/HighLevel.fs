@@ -8,6 +8,7 @@ open Franz.Compression
 
 exception ClusterErrorException of string * int
 exception RequestTimedOutException of string * int
+exception BrokerReturnedErrorException of string * ErrorCode
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -43,7 +44,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
             send key messages requiredAcks brokerProcessingTimeout
-        | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+        | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -83,7 +84,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             innerSend key messages topicName requiredAcks brokerProcessingTimeout (retryCount + 1)
         | ErrorCode.RequestTimedOut ->
             retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
-        | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+        | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -659,7 +660,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
-                    invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
+                    raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
                     return Seq.empty<_>
             with
             | :? BufferOverflowException ->
