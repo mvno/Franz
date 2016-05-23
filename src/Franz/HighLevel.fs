@@ -7,6 +7,7 @@ open System.Collections.Concurrent
 open Franz.Compression
 
 exception ClusterErrorException of string * int
+exception RequestTimedOutException of string * int
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
