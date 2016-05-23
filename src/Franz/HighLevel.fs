@@ -9,6 +9,7 @@ open Franz.Compression
 exception ClusterErrorException of string * int
 exception RequestTimedOutException of string * int
 exception BrokerReturnedErrorException of string * ErrorCode
+exception ErrorCommitingOffsetException of string * OffsetCommitResponse
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -254,7 +255,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
         let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
         let response = broker.Send(request)
         if response.Topics |> Seq.exists (fun t -> t.Partitions |> Seq.exists (fun p -> p.ErrorCode.IsError())) then
-                invalidOp (sprintf "Got an error while commiting offsets. Response was %A" response)
+                raise(ErrorCommitingOffsetException("An error was returned when commiting offset.", response))
         if not (Seq.isEmpty offsets) then LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Zookeeper: %A" offsets)
 
     do
