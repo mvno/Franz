@@ -19,7 +19,10 @@ type RequestTimedOutRetryExceededException() =
     inherit Exception()
     override e.Message = "Producer received RequestTimedOut on Ack from Brokers to many times"
 
-exception BrokerReturnedErrorException of string * ErrorCode
+type BrokerReturnedErrorException (errorCode : ErrorCode) =
+    inherit Exception()
+    member e.Code = errorCode
+    override e.Message = sprintf "Broker returned a response with error code: %s" (e.Code.ToString())
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -56,7 +59,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
             send key messages requiredAcks brokerProcessingTimeout
-        | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
+        | _ -> raise(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -96,7 +99,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
         | ErrorCode.RequestTimedOut ->
             retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
-        | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
+        | _ -> raise(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -681,7 +684,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
-                    raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
+                    raise(BrokerReturnedErrorException partitionResponse.ErrorCode)
                     return Seq.empty<_>
             with
             | :? BufferOverflowException ->
