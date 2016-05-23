@@ -5,6 +5,7 @@ open System.Collections.Generic
 open Franz
 open System.Collections.Concurrent
 open Franz.Compression
+open Franz.Internal
 
 type ErrorCommittingOffsetException (errorCodes : seq<string>) =
     inherit Exception()
@@ -59,7 +60,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
             send key messages requiredAcks brokerProcessingTimeout
-        | _ -> raise(BrokerReturnedErrorException partitionResponse.ErrorCode)
+        | _ -> raiseWithLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -99,7 +100,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
         | ErrorCode.RequestTimedOut ->
             retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
-        | _ -> raise(BrokerReturnedErrorException partitionResponse.ErrorCode)
+        | _ -> raiseWithLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -265,7 +266,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (managerName : string) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
         match Seq.isEmpty errorCodes with
-        | false -> raise(ErrorCommittingOffsetException errorCodes)
+        | false -> raiseWithLog(ErrorCommittingOffsetException errorCodes)
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed using %s offset manager: %A" managerName offsets)
 
     let innerCommit offsets consumerGroup =
@@ -684,7 +685,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
-                    raise(BrokerReturnedErrorException partitionResponse.ErrorCode)
+                    raiseWithLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
                     return Seq.empty<_>
             with
             | :? BufferOverflowException ->
