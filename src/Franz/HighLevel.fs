@@ -63,7 +63,12 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
 type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
 
-    let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout =
+    let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
+        LogConfiguration.Logger.Warning.Invoke(sprintf "Received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException("Producer received RequestTimeOut on Ack from Brokers, retrying with increased timeout" , retryCount))
+        if retryCount > 1 then raise(RequestTimedOutException(sprintf "Received RequestTimedOut on Ack from brokers to many times ( > %i)" retryCount, retryCount))
+        retrySendFunction()
+
+    let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount =
         let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
