@@ -82,7 +82,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
-            innerSend key messages topicName requiredAcks brokerProcessingTimeout (retryCount + 1)
+            innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
         | ErrorCode.RequestTimedOut ->
             retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
         | _ -> raise(BrokerReturnedErrorException("Received broker response with error code", partitionResponse.ErrorCode))
