@@ -11,11 +11,14 @@ type RequiredAcks =
 
 [<AutoOpen>]
 module Messages =
+    open System
     open System.IO
     open Franz.Stream
     open Franz.Internal
 
-    exception BufferOverflowException of string
+    type BufferOverflowException() =
+        inherit Exception()
+        override e.Message = "Only received partial message"
 
     /// Message size
     type MessageSize = int32
@@ -237,7 +240,7 @@ module Messages =
                     decodeMessageSet list stream buffer true
             else
                 if list |> Seq.length = 0 && receviedPartialMessage then
-                    raise (BufferOverflowException "Only received partial message")
+                    raise (BufferOverflowException())
                 else
                     list
         
