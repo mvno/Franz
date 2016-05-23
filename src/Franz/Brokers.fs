@@ -50,6 +50,13 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
                 client <- null
                 reraise()
 
+    /// Check if broker is leader for the specified topic and partition
+    member self.IsLeaderFor(topic, partitionId) =
+        self.LeaderFor
+        |> Seq.filter (fun x -> x.TopicName = topic)
+        |> Seq.map (fun x -> x.PartitionIds)
+        |> Seq.concat
+        |> Seq.exists (fun x -> x = partitionId)
     /// Gets the broker TcpClient
     member __.Client with get() = client
     /// Gets the broker endpoint
