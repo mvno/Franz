@@ -22,3 +22,11 @@ module Retry =
         | e ->
             let newState = onException(e)
             f(newState)
+
+[<AutoOpen>]
+module ExceptionUtilities =
+    open Franz
+
+    let raiseWithLog (someExceptionToRaise : exn) =
+        LogConfiguration.Logger.Fatal.Invoke(someExceptionToRaise.Message, someExceptionToRaise)
+        raise(someExceptionToRaise)
