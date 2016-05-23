@@ -80,7 +80,9 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
-            innerSend key messages topicName requiredAcks brokerProcessingTimeout
+            innerSend key messages topicName requiredAcks brokerProcessingTimeout (retryCount + 1)
+        | ErrorCode.RequestTimedOut ->
+            retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
         | _ -> invalidOp (sprintf "Received broker error: %A" partitionResponse.ErrorCode)
 
     do
@@ -96,7 +98,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
         if disposed then invalidOp "Producer has been disposed"
-        innerSend key messages topicName requiredAcks brokerProcessingTimeout
+        innerSend key messages topicName requiredAcks brokerProcessingTimeout 0
     /// Get all available brokers
     member __.GetAllBrokers() =
         brokerRouter.GetAllBrokers()
