@@ -149,7 +149,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             | e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Could not connect to %s:%i due to (%s), retrying." head.Address head.Port e.Message)
                 innerConnect tail
-        | [] -> invalidOp "Could not connect to any of the broker seeds"
+        | [] -> raise(UnableToConnectToAnyBrokerException "Could not connect to any of the broker seeds")
     let connect brokerSeeds =
         if disposed then raise(ObjectDisposedException "Router has been disposed")
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
