@@ -12,7 +12,9 @@ type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
     member e.Partition = partition
     override e.Message = sprintf "Could not find broker for topic %s partition %i after several retries." e.Topic e.Partition
 
-exception UnableToConnectToAnyBrokerException of string
+type UnableToConnectToAnyBrokerException() =
+    inherit Exception()
+    override e.Message = "Could not connect to any of the broker seeds"
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
@@ -154,7 +156,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             | e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Could not connect to %s:%i due to (%s), retrying." head.Address head.Port e.Message)
                 innerConnect tail
-        | [] -> raise(UnableToConnectToAnyBrokerException "Could not connect to any of the broker seeds")
+        | [] -> raise(UnableToConnectToAnyBrokerException())
     let connect brokerSeeds =
         if disposed then raise(ObjectDisposedException "Router has been disposed")
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
@@ -218,7 +220,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i due to (%s), retrying." broker.NodeId e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
-                raise (UnableToConnectToAnyBrokerException "Could not get metadata as none of the brokers are available")
+                raise (UnableToConnectToAnyBrokerException())
 
     let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId =
         let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
