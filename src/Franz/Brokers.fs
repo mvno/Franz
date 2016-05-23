@@ -6,8 +6,13 @@ open System.Net.Sockets
 open System.IO
 open Franz.Stream
 
+type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
+    inherit Exception()
+    member e.Topic = topic
+    member e.Partition = partition
+    override e.Message = sprintf "Could not find broker for topic %s partition %i after several retries." e.Topic e.Partition
+
 exception UnableToConnectToAnyBrokerException of string
-exception NoBrokerFoundForTopicPartitionException of string
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
@@ -224,7 +229,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             System.Threading.Thread.Sleep(500)
             if attempt < 3 then findBroker brokers index (attempt + 1) topic partitionId
             else
-                Failure(NoBrokerFoundForTopicPartitionException(sprintf "Could not find broker for topic %s partition %i after several retries." topic partitionId))
+                Failure(NoBrokerFoundForTopicPartitionException(topic, partitionId))
         | _ ->
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
