@@ -4,13 +4,6 @@
 type Agent<'T> = MailboxProcessor<'T>
 
 [<AutoOpen>]
-module Debug =
-    open System.Diagnostics
-
-    /// Function to debug print using formatting
-    let dprintfn fmt = Printf.ksprintf Debug.WriteLine fmt
-
-[<AutoOpen>]
 module Seq =
     /// Function to handle round robin
     let roundRobin lastPos list =

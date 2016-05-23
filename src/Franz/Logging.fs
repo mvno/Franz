@@ -3,6 +3,13 @@
 open System
 open Franz.Internal
 
+[<AutoOpen>]
+module Debug =
+    open System.Diagnostics
+
+    /// Function to debug print using formatting
+    let dprintfn fmt = Printf.ksprintf Debug.WriteLine fmt
+
 /// Logger interface
 type ILogger =
     inherit IDisposable
