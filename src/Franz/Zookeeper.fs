@@ -662,6 +662,12 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
             self.GetData(sprintf "%s/%i" brokerIdsPath id)
             |> JsonHelper.fromJson<BrokerRegistrationInformation>
         { info with Id = id }
+    /// Get registration information about a single Kafka broker and subscribe to notifications
+    member self.GetBrokerRegistrationInfo(id, watcherCallback) =
+        let info =
+            self.GetData(sprintf "%s/%i" brokerIdsPath id, watcherCallback)
+            |> JsonHelper.fromJson<BrokerRegistrationInformation>
+        { info with Id = id }
     /// Get registration information about all brokers in the Kafka cluster
     member self.GetAllBrokerRegistrationInfo() =
         self.GetBrokerIds()
