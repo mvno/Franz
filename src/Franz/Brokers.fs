@@ -28,8 +28,6 @@ module ErrorCodeExtensions =
         member self.IsSuccess() =
             not <| self.IsError()
 
-/// A endpoint
-type EndPoint = { Address : string; Port : int32 }
 /// Type containing which nodes is leaders for which topic and partition
 type TopicPartitionLeader = { TopicName : string; PartitionIds : Id array }
 
