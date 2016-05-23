@@ -6,10 +6,13 @@ open Franz
 open System.Collections.Concurrent
 open Franz.Compression
 
-exception ClusterErrorException of string * int
+type ErrorCommittingOffsetException (errorCodes : seq<string>) =
+    inherit Exception()
+    member e.Codes = errorCodes
+    override e.Message = sprintf "One or more errors occoured while committing offsets: %A" e.Codes
+
 exception RequestTimedOutException of string * int
 exception BrokerReturnedErrorException of string * ErrorCode
-exception ErrorCommitingOffsetException of string * OffsetCommitResponse
 
 module Seq =
     /// Helper function to convert a sequence to a List<T>
@@ -249,14 +252,18 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
         LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Zookeeper: %A" offsets)
         offsets
 
+    let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (managerName : string) =
+        let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
+        match Seq.isEmpty errorCodes with
+        | false -> raise(ErrorCommittingOffsetException errorCodes)
+        | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed using %s offset manager: %A" managerName offsets)
+
     let innerCommit offsets consumerGroup =
         let broker = brokerRouter.GetAllBrokers() |> Seq.head
         let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = x.Metadata; Offset = x.Offset }) |> Seq.toArray
         let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
         let response = broker.Send(request)
-        if response.Topics |> Seq.exists (fun t -> t.Partitions |> Seq.exists (fun p -> p.ErrorCode.IsError())) then
-                raise(ErrorCommitingOffsetException("An error was returned when commiting offset.", response))
-        if not (Seq.isEmpty offsets) then LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Zookeeper: %A" offsets)
+        handleOffsetCommitResponseCodes response offsets "Zookeeper"
 
     do
         brokerRouter.Connect()
@@ -289,6 +296,7 @@ module internal ErrorHelper =
 
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
 type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
+
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
@@ -331,6 +339,12 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
             LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Kafka (using Kafka): %A" offsets)
             offsets
 
+    let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (managerName : string) =
+        let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
+        match Seq.isEmpty errorCodes with
+        | false -> LogConfiguration.Logger.Error.Invoke("An error was returned when committing offsets", ErrorCommittingOffsetException errorCodes)
+        | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed using %s offset manager: %A" managerName offsets)
+
     let rec innerCommit consumerGroup offsets =
         let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
         let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV1Partition.Id = x.PartitionId; Metadata = ""; Offset = x.Offset; TimeStamp = DefaultTimestamp }) |> Seq.toArray
@@ -348,10 +362,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerCommit consumerGroup offsets
         | _ ->
-            let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
-            match errorCode with
-            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, ClusterErrorException("Got error while commiting offset", int x.ErrorCode))
-            | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using Kafka): %A" offsets)
+            handleOffsetCommitResponseCodes response offsets "Kafka"
 
     do
         brokerRouter.Connect()
@@ -419,6 +430,12 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
             LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Kafka (using KafkaV2): %A" offsets)
             offsets
 
+    let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (managerName : string) =
+        let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
+        match Seq.isEmpty errorCodes with
+        | false -> LogConfiguration.Logger.Error.Invoke("An error was returned when committing offsets", ErrorCommittingOffsetException errorCodes)
+        | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed using %s offset manager: %A" managerName offsets)
+
     let rec innerCommit consumerGroup offsets =
         let coordinator = coordinatorDictionary.GetOrAdd(consumerGroup, getOffsetCoordinator)
         let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = ""; Offset = x.Offset }) |> Seq.toArray
@@ -436,10 +453,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
             coordinatorDictionary.TryUpdate(consumerGroup, getOffsetCoordinator consumerGroup, coordinator) |> ignore
             innerCommit consumerGroup offsets
         | _ ->
-            let errorCode = (partitions |> Seq.tryFind (fun x -> x.ErrorCode <> ErrorCode.NoError))
-            match errorCode with
-            | Some x -> LogConfiguration.Logger.Error.Invoke(sprintf "Got error '%A' while commiting offset" x.ErrorCode, ClusterErrorException("Got error while commiting offset", int x.ErrorCode))
-            | None -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to Kafka (using KafkaV2): %A" offsets)
+            handleOffsetCommitResponseCodes response offsets "KafkaV2"
 
     do
         brokerRouter.Connect()
