@@ -689,7 +689,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
-                    raiseWithLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
+                    raiseWithErrorLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
                     return Seq.empty<_>
             with
             | :? BufferOverflowException ->
