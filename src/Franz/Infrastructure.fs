@@ -27,6 +27,10 @@ module Retry =
 module ExceptionUtilities =
     open Franz
 
-    let raiseWithLog (someExceptionToRaise : exn) =
+    let raiseWithErrorLog (someExceptionToRaise : exn) =
         LogConfiguration.Logger.Error.Invoke(someExceptionToRaise.Message, someExceptionToRaise)
+        raise(someExceptionToRaise)
+
+    let raiseWithFatalLog (someExceptionToRaise : exn) =
+        LogConfiguration.Logger.Fatal.Invoke(someExceptionToRaise.Message, someExceptionToRaise)
         raise(someExceptionToRaise)
