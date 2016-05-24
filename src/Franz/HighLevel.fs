@@ -270,7 +270,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
         let topic = (offsetCommitResponse.Topics |> Seq.head).Name
         match Seq.isEmpty errorCodes with
-        | false -> raiseWithLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
+        | false -> raiseWithErrorLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed (%s): %s(%s) - %A" managerName topic consumerGroup offsets)
 
     let innerCommit offsets consumerGroup =
@@ -357,7 +357,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
         let topic = (offsetCommitResponse.Topics |> Seq.head).Name
         match Seq.isEmpty errorCodes with
-        | false -> raiseWithLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
+        | false -> raiseWithErrorLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed (%s): %s(%s) - %A" managerName topic consumerGroup offsets)
 
     let rec innerCommit consumerGroup offsets =
@@ -449,7 +449,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
         let topic = (offsetCommitResponse.Topics |> Seq.head).Name
         match Seq.isEmpty errorCodes with
-        | false -> raiseWithLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
+        | false -> raiseWithErrorLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed (%s): %s(%s) - %A" managerName topic consumerGroup offsets)
 
     let rec innerCommit consumerGroup offsets =
