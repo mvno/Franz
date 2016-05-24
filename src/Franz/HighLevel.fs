@@ -582,7 +582,6 @@ type ConsumerOptions() =
 
 [<AbstractClass>]
 type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
-
     let mutable disposed = false
 
     let offsetManager =
