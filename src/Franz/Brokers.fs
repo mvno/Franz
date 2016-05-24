@@ -9,13 +9,13 @@ open Franz.Zookeeper
 
 type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
     inherit Exception()
-    member e.Topic = topic
-    member e.Partition = partition
+    member __.Topic = topic
+    member __.Partition = partition
     override e.Message = sprintf "Could not find broker for topic %s partition %i after several retries." e.Topic e.Partition
 
 type UnableToConnectToAnyBrokerException() =
     inherit Exception()
-    override e.Message = "Could not connect to any of the broker seeds"
+    override __.Message = "Could not connect to any of the broker seeds"
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
