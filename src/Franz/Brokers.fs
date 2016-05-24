@@ -63,7 +63,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     member __.NodeId with get() = nodeId
     /// Connect the broker
     member __.Connect() =
-        if disposed then raise(ObjectDisposedException "Broker has been disposed" )
+        raiseIfDisposed(disposed)
         LogConfiguration.Logger.Info.Invoke("Creating new tcp connecting...")
         try
             client <- new TcpClient()
@@ -76,7 +76,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             reraise()
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
-        if disposed then raise(ObjectDisposedException "Broker has been disposed" )
+        raiseIfDisposed(disposed)
         let rawResponseStream = lock _sendLock (fun () -> 
             try
                 send self request
@@ -158,7 +158,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 innerConnect tail
         | [] -> raiseWithFatalLog(UnableToConnectToAnyBrokerException())
     let connect brokerSeeds =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
         if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
         innerConnect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
@@ -290,21 +290,25 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         findBroker brokers lastRoundRobinIndex 0 topic partitionId
     /// Add broker to the list of available brokers
     member __.AddBroker(broker : Broker) =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         router.Post(AddBroker(broker))
     /// Refresh cluster metadata
     member __.RefreshMetadata() =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         match router.PostAndReply(fun reply -> RefreshMetadata(reply)) with
         | Ok _ -> ()
         | Failure e -> raise e
     /// Get all available brokers
     member __.GetAllBrokers() =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         router.PostAndReply(fun reply -> GetAllBrokers(reply))
     /// Get broker by topic and partition id
     member __.GetBroker(topic, partitionId) =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         match router.PostAndReply(fun reply -> GetBroker(topic, partitionId, reply)) with
         | Ok x -> x
         | Failure e -> raise e
@@ -315,7 +319,8 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         let broker = self.GetBroker(topicName, partitionId)
         Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
     member __.GetAvailablePartitionIds(topicName) =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
         brokers
             |> Seq.map (fun x -> x.LeaderFor)

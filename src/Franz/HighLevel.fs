@@ -117,7 +117,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         self.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
-        if disposed then raise(ObjectDisposedException "Producer has been disposed")
+        raiseIfDisposed(disposed)
         innerSend key messages topicName requiredAcks brokerProcessingTimeout 0
     /// Get all available brokers
     member __.GetAllBrokers() =
@@ -289,11 +289,13 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
             disposed <- true
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         refreshMetadataOnException (fun () -> innerFetch consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         refreshMetadataOnException (fun () -> innerCommit offsets consumerGroup)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -388,11 +390,13 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
             disposed <- true
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         refreshMetadataOnException (fun () -> innerFetch consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -480,11 +484,13 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
             disposed <- true
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         refreshMetadataOnException (fun () -> innerFetch consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
@@ -501,11 +507,13 @@ type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : BrokerRouter) =
     new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         consumerOffsetManagerV0.Fetch(consumerGroup)
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) =
-        if disposed then raise(ObjectDisposedException "Offset manager has been disposed")
+        raiseIfDisposed(disposed)
+
         consumerOffsetManagerV0.Commit(consumerGroup, offsets)
         consumerOffsetManagerV1.Commit(consumerGroup, offsets)
     member __.Dispose() =
@@ -709,7 +717,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
             disposed <- true
 
     member __.CheckDisposedState() =
-        if disposed then raise(ObjectDisposedException "Consumer has been disposed")
+        raiseIfDisposed(disposed)
 
     interface IDisposable with
         member self.Dispose() = self.Dispose()
