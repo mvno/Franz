@@ -25,6 +25,7 @@ module Retry =
 
 [<AutoOpen>]
 module ExceptionUtilities =
+    open System
     open Franz
 
     let raiseWithErrorLog (someExceptionToRaise : exn) =
@@ -34,3 +35,6 @@ module ExceptionUtilities =
     let raiseWithFatalLog (someExceptionToRaise : exn) =
         LogConfiguration.Logger.Fatal.Invoke(someExceptionToRaise.Message, someExceptionToRaise)
         raise(someExceptionToRaise)
+
+    let raiseIfDisposed (disposed : bool) =
+        if disposed then raiseWithFatalLog(ObjectDisposedException "Illegal attempt made by calling af function on type which have been marked as disposed")
