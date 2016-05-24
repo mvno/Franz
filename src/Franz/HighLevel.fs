@@ -85,7 +85,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
 
     let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
         LogConfiguration.Logger.Warning.Invoke(sprintf "Producer received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException())
-        if retryCount > 1 then raise(RequestTimedOutRetryExceededException())
+        if retryCount > 1 then raiseWithFatalLog(RequestTimedOutRetryExceededException())
         retrySendFunction()
 
     let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount =
