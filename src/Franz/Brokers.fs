@@ -35,6 +35,7 @@ type TopicPartitionLeader = { TopicName : string; PartitionIds : Id array }
 type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array, tcpTimeout : int) =
     let _sendLock = new Object()
     let mutable disposed = false
+    let mutable leaderFor = leaderFor
     let mutable client : TcpClient = null
     let send (self : Broker) (request : Request<'TResponse>) =
         try
@@ -82,8 +83,8 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
     member __.EndPoint with get() = endPoint
     /// Is the TcpClient connected
     member __.IsConnected with get() = client |> isNull |> not && client.Connected
-    /// Gets or sets which topic partitions the broker is leader for
-    member val LeaderFor = leaderFor with get, set
+    /// Gets the  topic partitions the broker is leader for
+    member __.LeaderFor with get() = leaderFor and internal set(x) = leaderFor <- x
     /// Gets the node id
     member __.NodeId with get() = brokerId
     /// Connect the broker
