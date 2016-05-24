@@ -63,7 +63,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
             send key messages requiredAcks brokerProcessingTimeout
-        | _ -> raiseWithFatalLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
+        | _ -> raiseWithErrorLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -85,7 +85,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
 
     let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
         LogConfiguration.Logger.Warning.Invoke(sprintf "Producer received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException())
-        if retryCount > 1 then raiseWithFatalLog(RequestTimedOutRetryExceededException())
+        if retryCount > 1 then raiseWithErrorLog(RequestTimedOutRetryExceededException())
         retrySendFunction()
 
     let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount =
@@ -103,7 +103,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
         | ErrorCode.RequestTimedOut ->
             retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
-        | _ -> raiseWithFatalLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
+        | _ -> raiseWithErrorLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
