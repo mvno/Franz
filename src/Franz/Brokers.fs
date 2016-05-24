@@ -156,7 +156,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             | e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Could not connect to %s:%i due to (%s), retrying." head.Address head.Port e.Message)
                 innerConnect tail
-        | [] -> raiseWithLog(UnableToConnectToAnyBrokerException())
+        | [] -> raiseWithFatalLog(UnableToConnectToAnyBrokerException())
     let connect brokerSeeds =
         if disposed then raise(ObjectDisposedException "Router has been disposed")
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
@@ -220,7 +220,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i due to (%s), retrying." broker.NodeId e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
-                raiseWithLog (UnableToConnectToAnyBrokerException())
+                raiseWithFatalLog (UnableToConnectToAnyBrokerException())
 
     let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId =
         let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
