@@ -350,6 +350,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     member self.TrySendToBroker(topicName, partitionId, request) =
         let broker = self.GetBroker(topicName, partitionId)
         Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
+    /// Get all available partitions of the specified topic
     member __.GetAvailablePartitionIds(topicName) =
         raiseIfDisposed(disposed)
 
