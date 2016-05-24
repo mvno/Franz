@@ -353,7 +353,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (consumerGroup : string) (managerName : string) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
         match Seq.isEmpty errorCodes with
-        | false -> LogConfiguration.Logger.Error.Invoke("An error was returned when committing offsets", ErrorCommittingOffsetException errorCodes)
+        | false -> raiseWithLog(ErrorCommittingOffsetException errorCodes)
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed (%s): %s(%s) - %A" managerName ((offsetCommitResponse.Topics |> Seq.head).Name) consumerGroup offsets)
 
     let rec innerCommit consumerGroup offsets =
@@ -444,7 +444,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (consumerGroup : string) (managerName : string) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
         match Seq.isEmpty errorCodes with
-        | false -> LogConfiguration.Logger.Error.Invoke("An error was returned when committing offsets", ErrorCommittingOffsetException errorCodes)
+        | false -> raiseWithLog(ErrorCommittingOffsetException errorCodes)
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed (%s): %s(%s) - %A" managerName ((offsetCommitResponse.Topics |> Seq.head).Name) consumerGroup offsets)
 
     let rec innerCommit consumerGroup offsets =
