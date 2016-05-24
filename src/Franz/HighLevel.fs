@@ -63,7 +63,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
             send key messages requiredAcks brokerProcessingTimeout
-        | _ -> raiseWithLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
+        | _ -> raiseWithFatalLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
@@ -103,7 +103,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
         | ErrorCode.RequestTimedOut ->
             retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
-        | _ -> raiseWithLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
+        | _ -> raiseWithFatalLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
