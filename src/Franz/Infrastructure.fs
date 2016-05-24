@@ -4,13 +4,6 @@
 type Agent<'T> = MailboxProcessor<'T>
 
 [<AutoOpen>]
-module Debug =
-    open System.Diagnostics
-
-    /// Function to debug print using formatting
-    let dprintfn fmt = Printf.ksprintf Debug.WriteLine fmt
-
-[<AutoOpen>]
 module Seq =
     /// Function to handle round robin
     let roundRobin lastPos list =
@@ -29,3 +22,19 @@ module Retry =
         | e ->
             let newState = onException(e)
             f(newState)
+
+[<AutoOpen>]
+module ExceptionUtilities =
+    open System
+    open Franz
+
+    let raiseWithErrorLog (someExceptionToRaise : exn) =
+        LogConfiguration.Logger.Error.Invoke(someExceptionToRaise.Message, someExceptionToRaise)
+        raise(someExceptionToRaise)
+
+    let raiseWithFatalLog (someExceptionToRaise : exn) =
+        LogConfiguration.Logger.Fatal.Invoke(someExceptionToRaise.Message, someExceptionToRaise)
+        raise(someExceptionToRaise)
+
+    let raiseIfDisposed (disposed : bool) =
+        if disposed then raiseWithFatalLog(ObjectDisposedException "Illegal attempt made by calling af function on type which have been marked as disposed")

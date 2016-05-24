@@ -6,8 +6,15 @@ open System.Net.Sockets
 open System.IO
 open Franz.Stream
 
-exception UnableToConnectToAnyBrokerException of string
-exception NoBrokerFoundForTopicPartitionException of string
+type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
+    inherit Exception()
+    member e.Topic = topic
+    member e.Partition = partition
+    override e.Message = sprintf "Could not find broker for topic %s partition %i after several retries." e.Topic e.Partition
+
+type UnableToConnectToAnyBrokerException() =
+    inherit Exception()
+    override e.Message = "Could not connect to any of the broker seeds"
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
@@ -56,7 +63,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
     member __.NodeId with get() = nodeId
     /// Connect the broker
     member __.Connect() =
-        if disposed then raise(ObjectDisposedException "Broker has been disposed" )
+        raiseIfDisposed(disposed)
         LogConfiguration.Logger.Info.Invoke("Creating new tcp connecting...")
         try
             client <- new TcpClient()
@@ -69,7 +76,7 @@ type Broker(nodeId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader a
             reraise()
     /// Send a request to the broker
     member self.Send(request : Request<'TResponse>) =
-        if disposed then raise(ObjectDisposedException "Broker has been disposed" )
+        raiseIfDisposed(disposed)
         let rawResponseStream = lock _sendLock (fun () -> 
             try
                 send self request
@@ -149,9 +156,9 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             | e ->
                 LogConfiguration.Logger.Info.Invoke(sprintf "Could not connect to %s:%i due to (%s), retrying." head.Address head.Port e.Message)
                 innerConnect tail
-        | [] -> raise(UnableToConnectToAnyBrokerException "Could not connect to any of the broker seeds")
+        | [] -> raiseWithFatalLog(UnableToConnectToAnyBrokerException())
     let connect brokerSeeds =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
         if brokerSeeds |> isNull then invalidArg "brokerSeeds" "Brokerseeds cannot be null"
         if brokerSeeds |> Seq.isEmpty then invalidArg "brokerSeeds" "At least one broker seed must be supplied"
         innerConnect (brokerSeeds |> Seq.toList) |> Seq.iter (fun x -> self.AddBroker(x))
@@ -213,7 +220,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i due to (%s), retrying." broker.NodeId e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
-                raise (UnableToConnectToAnyBrokerException "Could not get metadata as none of the brokers are available")
+                raiseWithFatalLog (UnableToConnectToAnyBrokerException())
 
     let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId =
         let candidateBrokers = brokers |> Seq.filter (fun (x : Broker) -> x.LeaderFor |> Seq.exists (fun y -> y.TopicName = topic && y.PartitionIds |> Seq.exists (fun id -> id = partitionId)))
@@ -224,7 +231,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             System.Threading.Thread.Sleep(500)
             if attempt < 3 then findBroker brokers index (attempt + 1) topic partitionId
             else
-                Failure(NoBrokerFoundForTopicPartitionException(sprintf "Could not find broker for topic %s partition %i after several retries." topic partitionId))
+                Failure(NoBrokerFoundForTopicPartitionException(topic, partitionId))
         | _ ->
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
@@ -283,21 +290,25 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         findBroker brokers lastRoundRobinIndex 0 topic partitionId
     /// Add broker to the list of available brokers
     member __.AddBroker(broker : Broker) =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         router.Post(AddBroker(broker))
     /// Refresh cluster metadata
     member __.RefreshMetadata() =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         match router.PostAndReply(fun reply -> RefreshMetadata(reply)) with
         | Ok _ -> ()
         | Failure e -> raise e
     /// Get all available brokers
     member __.GetAllBrokers() =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         router.PostAndReply(fun reply -> GetAllBrokers(reply))
     /// Get broker by topic and partition id
     member __.GetBroker(topic, partitionId) =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         match router.PostAndReply(fun reply -> GetBroker(topic, partitionId, reply)) with
         | Ok x -> x
         | Failure e -> raise e
@@ -308,7 +319,8 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         let broker = self.GetBroker(topicName, partitionId)
         Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
     member __.GetAvailablePartitionIds(topicName) =
-        if disposed then raise(ObjectDisposedException "Router has been disposed")
+        raiseIfDisposed(disposed)
+
         let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
         brokers
             |> Seq.map (fun x -> x.LeaderFor)

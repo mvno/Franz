@@ -3,6 +3,13 @@
 open System
 open Franz.Internal
 
+[<AutoOpen>]
+module Debug =
+    open System.Diagnostics
+
+    /// Function to debug print using formatting
+    let dprintfn fmt = Printf.ksprintf Debug.WriteLine fmt
+
 /// Logger interface
 type ILogger =
     inherit IDisposable
@@ -27,8 +34,6 @@ type DefaultLogger() =
         member self.Warning with get() = self.Warning and set(x) = self.Warning <- x
         member self.Error with get() = self.Error and set(x) = self.Error <- x
         member self.Fatal with get() = self.Fatal and set(x) = self.Fatal <- x
-
-    interface IDisposable with
         member __.Dispose() = ()
 
 /// Log configuration
