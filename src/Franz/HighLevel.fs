@@ -263,7 +263,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
                         |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
                         |> Seq.map (fun x -> { PartitionId = x.Id; Metadata = x.Metadata; Offset = x.Offset })
                         |> Seq.toArray
-        LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Zookeeper: %A" offsets)
+        LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Zookeeper, topic '%s' group '%s': %A" topicName consumerGroup offsets)
         offsets
 
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (consumerGroup : string) (managerName : string) =
@@ -350,7 +350,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
                             |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
                             |> Seq.map (fun x -> { PartitionId = x.Id; Metadata = ""; Offset = x.Offset })
                             |> Seq.toArray
-            LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Kafka (using Kafka): %A" offsets)
+            LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Kafka, topic '%s' group '%s': %A" topicName consumerGroup offsets)
             offsets
 
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (consumerGroup : string) (managerName : string) =
@@ -442,7 +442,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
                             |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
                             |> Seq.map (fun x -> { PartitionId = x.Id; Metadata = ""; Offset = x.Offset })
                             |> Seq.toArray
-            LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from Kafka (using KafkaV2): %A" offsets)
+            LogConfiguration.Logger.Info.Invoke(sprintf "Offsets fetched from KafkaV2, topic '%s' group '%s': %A" topicName consumerGroup offsets)
             offsets
 
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (consumerGroup : string) (managerName : string) =
