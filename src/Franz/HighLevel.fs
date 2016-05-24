@@ -307,7 +307,6 @@ module internal ErrorHelper =
 
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
 type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
-
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
