@@ -72,3 +72,8 @@ module internal ErrorHandling =
         match result with
         | Success x -> fSuccess x
         | Failure x -> fFailure x
+
+[<AutoOpenAttribute>]
+module Map =
+    let getValues (x : Map<_,_>) = x |> Seq.map (fun x -> x.Value)
+    let getKeys (x : Map<_,_>) = x |> Seq.map (fun x -> x.Key)
