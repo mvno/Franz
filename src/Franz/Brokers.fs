@@ -133,6 +133,227 @@ type BrokerRouterReturnMessage<'T> =
     private | Ok of 'T
             | Failure of exn
 
+type IBrokerRouter =
+    /// Connect the the router
+    abstract member Connect : unit -> unit
+    /// Get all available brokers
+    abstract member GetAllBrokers : unit -> Broker seq
+    /// Get broker by topic and partition id
+    abstract member GetBroker : string * Id -> Broker
+    /// Try to send a request to broker handling the specified topic and partition
+    abstract member TryToSendToBroker : string * Id * Request<'a> -> 'a
+    /// Get all available partitions of the specified topic
+    abstract member GetAvailablePartitionIds : string -> Id array
+
+type ZookeeperBrokerRouterMessage =
+    private
+    | FetchInformation
+    | BrokerIdsChanged
+    | TopicPartitionStateUpdated of string * Id
+    | GetAllBrokers of AsyncReplyChannel<Broker seq>
+    | TopicsChanged
+    | TopicPartitionsChanged of string
+
+type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout : int) =
+    let mutable disposed = false
+
+    let agent = new Agent<_>(fun inbox ->
+        let getAndWatchBrokerIds() = zookeeperManager.GetBrokerIds(fun () -> inbox.Post(BrokerIdsChanged))
+        let getAndWatchTopics() = zookeeperManager.GetTopics(fun () -> inbox.Post(TopicsChanged))
+        let getAndWatchTopicPartitionStateInformation topic partitionId = zookeeperManager.GetTopicPartitionState(topic, partitionId, fun () -> inbox.Post(TopicPartitionStateUpdated(topic, partitionId)))
+
+        let getPartitions topics =
+            topics
+            |> Seq.map (fun x -> (x, zookeeperManager.GetTopicRegistrationInfo x))
+            |> Seq.map (fun (topic, pi) -> (topic, pi.Partitions.[topic]))
+            |> Map.ofSeq
+
+        let fetchInformation() =
+            let brokerIds = getAndWatchBrokerIds()
+            let bri = zookeeperManager.GetAllBrokerRegistrationInfo() |> Seq.map (fun x -> (x.Id, x)) |> dict
+            let topics = getAndWatchTopics()
+            let topicPartitions = topics |> getPartitions
+            let tps =
+                topicPartitions
+                |> Seq.map (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
+                |> Seq.concat
+                |> Seq.map (fun (topic, pid) -> (topic, pid, getAndWatchTopicPartitionStateInformation topic pid))
+                |> Seq.toArray
+            let brokers =
+                brokerIds
+                |> Seq.map (fun brokerId ->
+                    let endpoint = { Address = bri.[brokerId].Host; Port = bri.[brokerId].Port }
+                    let leaderFor =
+                        tps
+                        |> Seq.filter (fun (_, _, tps) -> tps.Leader = brokerId)
+                        |> Seq.map (fun (topic, pid, _) -> (topic, pid))
+                        |> Seq.groupBy (fun (topic, _) -> topic)
+                        |> Seq.map (fun (topic, x) -> { TopicName = topic; PartitionIds = x |> Seq.map (fun (_, pi) -> pi) |> Seq.toArray })
+                        |> Seq.toArray
+                    new Broker(brokerId, endpoint, leaderFor, brokerTcpTimeout))
+                |> Seq.map (fun x -> (x.NodeId, x))
+                |> Map.ofSeq
+            (brokers, topicPartitions)
+
+        let topicPartitionStateUpdated (topic, partitionId) (brokers : Map<Id, Broker>) =
+            let tps = zookeeperManager.GetTopicPartitionState(topic, partitionId)
+            let currentLeader = brokers |> Seq.tryFind (fun x -> x.Value.IsLeaderFor(topic, partitionId))
+            match currentLeader with
+            | Some x when x.Value.NodeId <> tps.Leader ->
+                x.Value.NoLongerLeaderFor(topic, partitionId)
+                let newLeader = brokers |> Map.tryFind tps.Leader
+                match newLeader with
+                | Some n -> n.SetAsLeaderFor(topic, partitionId)
+                | None -> ()
+            | _ -> ()
+            brokers
+
+        let idsChanged (topics : Map<string, int array>) (brokers : Map<Id, Broker>) =
+            let allBrokers = zookeeperManager.GetAllBrokerRegistrationInfo() |> Seq.map (fun x -> (x.Id, x)) |> Map.ofSeq
+            let allBrokerIds = allBrokers |> Map.getKeys |> Set.ofSeq
+            let currentBrokerIds = brokers |> Map.getKeys |> Set.ofSeq
+            
+            let newBrokerIds = Set.difference allBrokerIds currentBrokerIds
+            let newBrokers =
+                newBrokerIds
+                |> Seq.map (fun x -> (x, allBrokers.[x]))
+                |> Seq.map (fun (id, brokerInfo) -> (id, { Address = brokerInfo.Host; Port = brokerInfo.Port }))
+                |> Seq.map (fun (id, endpoint) -> new Broker(id, endpoint, [||], brokerTcpTimeout))
+
+            let removedBrokerIds = Set.difference currentBrokerIds allBrokerIds
+            removedBrokerIds |> Seq.iter (fun x -> brokers.[x].Dispose())
+
+            let brokers =
+                removedBrokerIds
+                |> Seq.fold (fun state item -> state |> Map.remove(item)) brokers
+                |> Seq.map (fun x -> x.Value)
+                |> Seq.append newBrokers
+                |> Seq.map (fun x -> (x.NodeId, x))
+                |> Map.ofSeq
+            (brokers, topics)
+
+        let joinBy f (x : 'a seq) (y : 'b seq) =
+            x
+            |> Seq.map (fun x -> (x, y |> Seq.tryFind (f x)))
+            |> Seq.filter (fun (_, y) -> y.IsSome)
+            |> Seq.map (fun (x, y) -> (x, y.Value))
+
+        let topicsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) =
+            let allTopics = zookeeperManager.GetTopics() |> Set.ofArray
+            let currentTopics = topicPartitions |> Map.getKeys |> Set.ofSeq
+            let newTopics = Set.difference allTopics currentTopics
+            let newTopicPartitions = newTopics |> getPartitions
+            newTopicPartitions
+            |> Seq.map (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
+            |> Seq.concat
+            |> Seq.map (fun (topic, pid) -> (topic, pid, getAndWatchTopicPartitionStateInformation topic pid))
+            |> Seq.map (fun (topic, pid, state) -> (brokers.[state.Leader], topic, pid))
+            |> Seq.iter (fun (broker, topic, pid) -> broker.SetAsLeaderFor(topic, pid))
+            
+            let removedTopics = Set.difference currentTopics allTopics
+            brokers
+            |> Map.getValues
+            |> joinBy (fun topic broker -> broker.IsLeaderForPartOfTopic(topic)) removedTopics
+            |> Seq.iter (fun (topic, broker) -> broker.LeaderFor <- broker.LeaderFor |> Array.filter (fun l -> l.TopicName = topic))
+
+            // TODO update partitions
+            (brokers, newTopicPartitions)
+
+        let partitionsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) topic =
+            let allPartitions = [ topic ] |> getPartitions |> Map.getValues |> Seq.concat |> Set.ofSeq
+            let currentPartitions = topicPartitions |> Map.getValues |> Seq.concat |> Set.ofSeq
+            
+            let newPartitions = Set.difference allPartitions currentPartitions
+            let newState =
+                newPartitions
+                |> Seq.map (fun pid -> (pid, getAndWatchTopicPartitionStateInformation topic pid))
+            newState
+            |> Seq.map (fun (pid, state) -> (brokers.[state.Leader], pid))
+            |> Seq.iter (fun (broker, pid) -> broker.SetAsLeaderFor(topic, pid))
+
+            let removedPartitions = Set.difference currentPartitions allPartitions
+            brokers
+            |> Map.getValues
+            |> joinBy (fun pid broker -> broker.IsLeaderFor(topic, pid)) removedPartitions
+            |> Seq.iter (fun (pid, broker) -> broker.SetAsLeaderFor(topic, pid))
+
+            let updatedPartitions =
+                topicPartitions
+                |> Map.find topic
+                |> Seq.except removedPartitions
+                |> Seq.append newPartitions
+                |> Seq.toArray
+            let topicPartitions =
+                topicPartitions
+                |> Map.remove topic
+                |> Map.add topic updatedPartitions
+            (brokers, topicPartitions)
+
+        let rec loop brokers topicPartitions = async {
+            let! msg = inbox.Receive()
+            let (brokers, topicPartitions) =
+                match msg with
+                | FetchInformation -> fetchInformation()
+                | TopicPartitionStateUpdated (topic, partition) -> (brokers |> topicPartitionStateUpdated (topic, partition), topicPartitions)
+                | BrokerIdsChanged -> brokers |> idsChanged topicPartitions
+                | GetAllBrokers reply -> reply.Reply(brokers |> Map.getValues); (brokers, topicPartitions)
+                | TopicsChanged -> topicsChanged brokers topicPartitions
+                | TopicPartitionsChanged topic -> topic |> partitionsChanged brokers topicPartitions
+            return! loop brokers topicPartitions
+        }
+        loop Map.empty Map.empty)
+
+    /// Dispose the router
+    member __.Dispose() =
+        if not disposed then
+            (zookeeperManager :> IDisposable).Dispose()
+            disposed <- false
+    /// Connect to the Zookeeper server.
+    member __.Connect() =
+        raiseIfDisposed disposed
+        zookeeperManager.Connect()
+        agent.Start()
+    /// Get all available brokers
+    member __.GetAllBrokers() =
+        raiseIfDisposed disposed
+        agent.PostAndReply(GetAllBrokers)
+    /// Get all available partitions of the specified topic
+    member __.GetAvailablePartitionIds(topic) =
+        raiseIfDisposed disposed
+        agent.PostAndReply(GetAllBrokers)
+        |> Seq.map (fun x -> x.LeaderFor)
+        |> Seq.concat
+        |> Seq.filter (fun x -> x.TopicName = topic)
+        |> Seq.map (fun x -> x.PartitionIds)
+        |> Seq.concat
+        |> Seq.toArray
+    /// Get broker by topic and partition id
+    member __.GetBroker(topic, partitionId) =
+        raiseIfDisposed disposed
+        let broker =
+            agent.PostAndReply(GetAllBrokers)
+            |> Seq.tryFind (fun x -> x.IsLeaderFor(topic, partitionId))
+        match broker with
+        | Some x -> x
+        | None ->
+            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to find broker of %s partition %i..." topic partitionId)
+            raise (NoBrokerFoundForTopicPartitionException(topic, partitionId))
+    /// Try to send a request to broker handling the specified topic and partition.
+    /// If this fails an exception is thrown and should be handled by the caller.
+    member self.TryToSendToBroker(topic, partitionId, request) =
+        raiseIfDisposed disposed
+        let broker = self.GetBroker(topic, partitionId)
+        broker.Send(request)
+    interface IBrokerRouter with
+        member self.Connect() = self.Connect()
+        member self.GetAllBrokers() = self.GetAllBrokers()
+        member self.GetAvailablePartitionIds(topic) = self.GetAvailablePartitionIds(topic)
+        member self.GetBroker(topic, partitionId) = self.GetBroker(topic, partitionId)
+        member self.TryToSendToBroker(topic, partitionId, request) = self.TryToSendToBroker(topic, partitionId, request)
+    interface IDisposable with
+        /// Dispose the router
+        member self.Dispose() = self.Dispose()
+
 /// Available messages for the broker router
 type BrokerRouterMessage =
     private
@@ -148,13 +369,6 @@ type BrokerRouterMessage =
     | Close
     /// Connect to the cluster
     | Connect of EndPoint seq * AsyncReplyChannel<unit>
-
-type IBrokerRouter =
-    abstract member Connect : unit -> unit
-    abstract member GetAllBrokers : unit -> Broker seq
-    abstract member GetBroker : string * Id -> Broker
-    abstract member TryToSendToBroker : string * Id * Request<'a> -> 'a
-    abstract member GetAvailablePartitionIds : string -> Id array
 
 /// The broker router. Handles all logic related to broker metadata and available brokers.
 type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
