@@ -311,6 +311,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         raiseIfDisposed disposed
         zookeeperManager.Connect()
         agent.Start()
+        agent.Post(FetchInformation)
     /// Get all available brokers
     member __.GetAllBrokers() =
         raiseIfDisposed disposed
