@@ -75,8 +75,6 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
             let leaderPartitions = topicLeader.PartitionIds |> Seq.filter (fun x -> x = partitionId) |> Seq.toArray
             self.LeaderFor.[x] <- { topicLeader with PartitionIds = leaderPartitions }
         | None -> ()
-    member internal self.IsLeaderForPartOfTopic(topic) =
-        self.LeaderFor |> Seq.exists (fun x -> x.TopicName = topic)
     /// Gets the broker TcpClient
     member __.Client with get() = client
     /// Gets the broker endpoint
@@ -253,7 +251,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             let removedTopics = Set.difference currentTopics allTopics
             brokers
             |> Map.getValues
-            |> joinBy (fun topic broker -> broker.IsLeaderForPartOfTopic(topic)) removedTopics
+            |> joinBy (fun topic broker -> broker.LeaderFor |> Seq.exists (fun x -> x.TopicName = topic)) removedTopics
             |> Seq.iter (fun (topic, broker) -> broker.LeaderFor <- broker.LeaderFor |> Array.filter (fun l -> l.TopicName = topic))
 
             // TODO update partitions
