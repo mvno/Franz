@@ -132,6 +132,7 @@ type BrokerRouterReturnMessage<'T> =
             | Failure of exn
 
 type IBrokerRouter =
+    inherit IDisposable
     /// Connect the the router
     abstract member Connect : unit -> unit
     /// Get all available brokers
@@ -139,9 +140,15 @@ type IBrokerRouter =
     /// Get broker by topic and partition id
     abstract member GetBroker : string * Id -> Broker
     /// Try to send a request to broker handling the specified topic and partition
-    abstract member TryToSendToBroker : string * Id * Request<'a> -> 'a
+    abstract member TrySendToBroker : string * Id * Request<'a> -> 'a
     /// Get all available partitions of the specified topic
     abstract member GetAvailablePartitionIds : string -> Id array
+    /// Event used in case of unhandled exception in internal agent
+    abstract member Error : IEvent<exn>
+    /// Event triggered when metadata is refreshed
+    abstract member MetadataRefreshed : IEvent<Broker list>
+    /// Refresh cluster metadata
+    abstract member RefreshMetadata : unit -> unit
 
 type ZookeeperBrokerRouterMessage =
     private
@@ -154,6 +161,8 @@ type ZookeeperBrokerRouterMessage =
 
 type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout : int) =
     let mutable disposed = false
+    let errorEvent = new Event<_>()
+    let metadataRefreshed = new Event<_>()
 
     let agent = new Agent<_>(fun inbox ->
         let getAndWatchBrokerIds() = zookeeperManager.GetBrokerIds(fun () -> inbox.Post(BrokerIdsChanged))
@@ -262,6 +271,8 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 topicPartitions
                 |> Seq.filter (fun x -> removedTopics |> Set.contains x.Key)
                 |> Seq.append newTopicPartitions
+                |> Seq.map (fun x -> (x.Key, x.Value))
+                |> Map.ofSeq
 
             (brokers, updatedPartitions)
 
@@ -309,6 +320,9 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         }
         loop Map.empty Map.empty)
 
+    do
+       agent.Error.Add(fun x -> errorEvent.Trigger(x))
+
     /// Dispose the router
     member __.Dispose() =
         if not disposed then
@@ -351,12 +365,21 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         raiseIfDisposed disposed
         let broker = self.GetBroker(topic, partitionId)
         broker.Send(request)
+    /// Refresh cluster metadata
+    member __.RefreshMetadata() = ()
+    /// Event triggered when metadata is refreshed
+    member __.MetadataRefreshed = metadataRefreshed.Publish
+    /// Event used in case of unhandled exception in internal agent
+    member __.Error = errorEvent.Publish
     interface IBrokerRouter with
         member self.Connect() = self.Connect()
         member self.GetAllBrokers() = self.GetAllBrokers()
         member self.GetAvailablePartitionIds(topic) = self.GetAvailablePartitionIds(topic)
         member self.GetBroker(topic, partitionId) = self.GetBroker(topic, partitionId)
-        member self.TryToSendToBroker(topic, partitionId, request) = self.TryToSendToBroker(topic, partitionId, request)
+        member self.TrySendToBroker(topic, partitionId, request) = self.TryToSendToBroker(topic, partitionId, request)
+        member self.Error = self.Error
+        member self.MetadataRefreshed = self.MetadataRefreshed
+        member self.RefreshMetadata() = self.RefreshMetadata()
     interface IDisposable with
         /// Dispose the router
         member self.Dispose() = self.Dispose()
@@ -490,13 +513,14 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
 
-    let refreshMetadataOnException (brokerRouter : BrokerRouter) topicName partitionId (e : exn) =
+    let refreshMetadataOnException (brokerRouter : IBrokerRouter) topicName partitionId (e : exn) =
         LogConfiguration.Logger.Info.Invoke(sprintf "Unable to send request to broker due to (%s), refreshing metadata." e.Message)
         brokerRouter.RefreshMetadata()
         brokerRouter.GetBroker(topicName, partitionId)
 
     do
         router.Error.Add(fun x -> errorEvent.Trigger(x))
+
     /// Event used in case of unhandled exception in internal agent
     [<CLIEvent>]
     member __.Error = errorEvent.Publish
@@ -596,5 +620,8 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         member self.Connect() = self.Connect()
         member self.GetAllBrokers() = self.GetAllBrokers()
         member self.GetAvailablePartitionIds(topicName) = self.GetAvailablePartitionIds(topicName)
-        member self.TryToSendToBroker(topicName, partitionId, request) = self.TrySendToBroker(topicName, partitionId, request)
+        member self.TrySendToBroker(topicName, partitionId, request) = self.TrySendToBroker(topicName, partitionId, request)
         member self.GetBroker(topic, partitionId) = self.GetBroker(topic, partitionId)
+        member self.Error = self.Error
+        member self.MetadataRefreshed = self.MetadataRefreshed
+        member self.RefreshMetadata() = self.RefreshMetadata()

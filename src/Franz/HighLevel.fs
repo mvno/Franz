@@ -49,7 +49,7 @@ type IProducer =
     abstract member SendMessages : string * string * string array * RequiredAcks * int -> unit
 
 [<AbstractClass>]
-type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
+type BaseProducer private(brokerRouter : IBrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
     let rec send key messages requiredAcks brokerProcessingTimeout =
         let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
@@ -80,7 +80,7 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
             send key messages requiredAcks brokerProcessingTimeout
 
 /// High level kafka producer
-type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
+type Producer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
     let mutable disposed = false
 
     let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
@@ -111,7 +111,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
     new (brokerSeeds, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
     new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), partitionSelector)
     new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, partitionSelector)
-    new (brokerRouter : BrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerRouter, CompressionCodec.None, partitionSelector)
+    new (brokerRouter : IBrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerRouter, CompressionCodec.None, partitionSelector)
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, key, message) =
         self.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
@@ -147,7 +147,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         member self.Dispose() = self.Dispose()
 
 /// Producer sending messages in a round-robin fashion
-type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
+type RoundRobinProducer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
     let mutable producer = None
     let topicPartitions = new TopicPartitions()
     let sortTopicPartitions() =
@@ -196,7 +196,7 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
     new (brokerSeeds, tcpTimeout : int) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout))
     new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, null)
     new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionWhiteList : Id array) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, partitionWhiteList)
-    new (brokerRouter : BrokerRouter) = new RoundRobinProducer(brokerRouter, CompressionCodec.None, null)
+    new (brokerRouter : IBrokerRouter) = new RoundRobinProducer(brokerRouter, CompressionCodec.None, null)
 
     /// Releases all connections and disposes the producer
     member __.Dispose() =
@@ -242,7 +242,7 @@ type IConsumerOffsetManager =
     abstract member Commit : string * PartitionOffset seq -> unit
 
 /// Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.
-type ConsumerOffsetManagerV0(topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
     let refreshMetadataOnException f =
         try
@@ -313,7 +313,7 @@ module internal ErrorHelper =
 
 
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
-type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
@@ -407,7 +407,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : BrokerRouter) =
         member self.Dispose() = self.Dispose()
 
 /// Offset manager for version 2. This commits and fetches offset to/from Kafka broker.
-type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
@@ -501,7 +501,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : BrokerRouter) =
         member self.Dispose() = self.Dispose()
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
-type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : BrokerRouter) =
+type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
     let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(topicName, brokerRouter) :> IConsumerOffsetManager
     let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(topicName, brokerRouter) :> IConsumerOffsetManager
@@ -598,7 +598,7 @@ type ConsumerOptions() =
                 partitionWhitelist <- x
 
 [<AbstractClass>]
-type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : ConsumerOptions) =
+type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) =
     let mutable disposed = false
 
     let offsetManager =
@@ -726,7 +726,7 @@ type BaseConsumer(topicName, brokerRouter : BrokerRouter, consumerOptions : Cons
         member self.Dispose() = self.Dispose()
 
 /// High level kafka consumer.
-type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
+type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
     inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
 
     new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new Consumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
@@ -765,7 +765,7 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : Broke
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
-type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : BrokerRouter) =
+type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
     inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
 
     new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new ChunkedConsumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
