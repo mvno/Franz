@@ -159,6 +159,7 @@ type ZookeeperBrokerRouterMessage =
     | TopicsChanged
     | TopicPartitionsChanged of string
 
+/// The broker router. Handles all logic related to broker metadata and available brokers, using the Zookeeper cluster as the source of information
 type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout : int) =
     let mutable disposed = false
     let errorEvent = new Event<_>()
@@ -400,7 +401,7 @@ type BrokerRouterMessage =
     /// Connect to the cluster
     | Connect of EndPoint seq * AsyncReplyChannel<unit>
 
-/// The broker router. Handles all logic related to broker metadata and available brokers.
+/// The broker router. Handles all logic related to broker metadata and available brokers, using the Kafka cluster as the source of information
 type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     let mutable disposed = false
     let cts = new System.Threading.CancellationTokenSource()
