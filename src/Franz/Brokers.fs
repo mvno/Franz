@@ -271,7 +271,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Seq.map (fun pid -> (pid, getAndWatchTopicPartitionStateInformation topic pid))
             newState
             |> Seq.map (fun (pid, state) -> (brokers.[state.Leader], pid))
-            |> Seq.iter (fun (broker, pid) -> broker.SetAsLeaderFor(topic, pid))
+            |> Seq.iter (fun (broker, pid) -> broker.NoLongerLeaderFor(topic, pid))
 
             let removedPartitions = Set.difference currentPartitions allPartitions
             brokers
