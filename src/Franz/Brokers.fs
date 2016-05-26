@@ -258,8 +258,12 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             |> joinBy (fun topic broker -> broker.LeaderFor |> Seq.exists (fun x -> x.TopicName = topic)) removedTopics
             |> Seq.iter (fun (topic, broker) -> broker.LeaderFor <- broker.LeaderFor |> Array.filter (fun l -> l.TopicName = topic))
 
-            // TODO update partitions
-            (brokers, newTopicPartitions)
+            let updatedPartitions =
+                topicPartitions
+                |> Seq.filter (fun x -> removedTopics |> Set.contains x.Key)
+                |> Seq.append newTopicPartitions
+
+            (brokers, updatedPartitions)
 
         let partitionsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) topic =
             let allPartitions = [ topic ] |> getPartitions |> Map.getValues |> Seq.concat |> Set.ofSeq
