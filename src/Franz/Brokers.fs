@@ -203,7 +203,11 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 match newLeader with
                 | Some n -> n.SetAsLeaderFor(topic, partitionId)
                 | None -> ()
-            | _ -> ()
+            | _ ->
+                let newLeader = brokers |> Map.tryFind tps.Leader
+                match newLeader with
+                | Some n -> n.SetAsLeaderFor(topic, partitionId)
+                | None -> ()
             brokers
 
         let idsChanged (topics : Map<string, int array>) (brokers : Map<Id, Broker>) =
