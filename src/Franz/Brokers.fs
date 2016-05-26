@@ -263,7 +263,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
 
         let partitionsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) topic =
             let allPartitions = [ topic ] |> getPartitions |> Map.getValues |> Seq.concat |> Set.ofSeq
-            let currentPartitions = topicPartitions |> Map.getValues |> Seq.concat |> Set.ofSeq
+            let currentPartitions = topicPartitions.[topic] |> Set.ofSeq
             
             let newPartitions = Set.difference allPartitions currentPartitions
             let newState =
