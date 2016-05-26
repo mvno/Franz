@@ -145,7 +145,7 @@ type IBrokerRouter =
 
 type ZookeeperBrokerRouterMessage =
     private
-    | FetchInformation
+    | FetchInitialInformation
     | BrokerIdsChanged
     | TopicPartitionStateUpdated of string * Id
     | GetAllBrokers of AsyncReplyChannel<Broker seq>
@@ -166,7 +166,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             |> Seq.map (fun (topic, pi) -> (topic, pi.Partitions.[topic]))
             |> Map.ofSeq
 
-        let fetchInformation() =
+        let fetchInitialInformation() =
             let brokerIds = getAndWatchBrokerIds()
             let bri = zookeeperManager.GetAllBrokerRegistrationInfo() |> Seq.map (fun x -> (x.Id, x)) |> dict
             let topics = getAndWatchTopics()
@@ -291,7 +291,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             let! msg = inbox.Receive()
             let (brokers, topicPartitions) =
                 match msg with
-                | FetchInformation -> fetchInformation()
+                | FetchInitialInformation -> fetchInitialInformation()
                 | TopicPartitionStateUpdated (topic, partition) -> (brokers |> topicPartitionStateUpdated (topic, partition), topicPartitions)
                 | BrokerIdsChanged -> brokers |> idsChanged topicPartitions
                 | GetAllBrokers reply -> reply.Reply(brokers |> Map.getValues); (brokers, topicPartitions)
@@ -311,7 +311,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         raiseIfDisposed disposed
         zookeeperManager.Connect()
         agent.Start()
-        agent.Post(FetchInformation)
+        agent.Post(FetchInitialInformation)
     /// Get all available brokers
     member __.GetAllBrokers() =
         raiseIfDisposed disposed
