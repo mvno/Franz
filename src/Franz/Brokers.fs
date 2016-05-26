@@ -122,6 +122,9 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
             | _ -> ()
             disposed <- true
 
+    override __.ToString() =
+        sprintf "{Id: %i, EndPoint: %A, LeaderFor: %A, TcpTimeout: %i}" brokerId endPoint leaderFor tcpTimeout
+
     interface IDisposable with
         /// Dispose the broker
         member self.Dispose() = self.Dispose()
@@ -201,9 +204,11 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                     new Broker(brokerId, endpoint, leaderFor, brokerTcpTimeout))
                 |> Seq.map (fun x -> (x.NodeId, x))
                 |> Map.ofSeq
+            LogConfiguration.Logger.Info.Invoke(sprintf "Initial brokers is %O, initial topic and partitions is %A" brokers topicPartitions)
             (brokers, topicPartitions)
 
         let topicPartitionStateUpdated (topic, partitionId) (brokers : Map<Id, Broker>) =
+            LogConfiguration.Logger.Info.Invoke(sprintf "Partition state for topic '%s' partition '%i' changed" topic partitionId)
             let tps = zookeeperManager.GetTopicPartitionState(topic, partitionId)
             let currentLeader = brokers |> Seq.tryFind (fun x -> x.Value.IsLeaderFor(topic, partitionId))
             match currentLeader with
@@ -218,9 +223,11 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 match newLeader with
                 | Some n -> n.SetAsLeaderFor(topic, partitionId)
                 | None -> ()
+            LogConfiguration.Logger.Info.Invoke(sprintf "Updated brokers is: %O" brokers)
             brokers
 
         let idsChanged (topics : Map<string, int array>) (brokers : Map<Id, Broker>) =
+            LogConfiguration.Logger.Info.Invoke("Brokers changed")
             let allBrokers = zookeeperManager.GetAllBrokerRegistrationInfo() |> Seq.map (fun x -> (x.Id, x)) |> Map.ofSeq
             let allBrokerIds = allBrokers |> Map.getKeys |> Set.ofSeq
             let currentBrokerIds = brokers |> Map.getKeys |> Set.ofSeq
@@ -242,6 +249,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Seq.append newBrokers
                 |> Seq.map (fun x -> (x.NodeId, x))
                 |> Map.ofSeq
+            LogConfiguration.Logger.Info.Invoke(sprintf "Updated broker list is: %O" brokers)
             (brokers, topics)
 
         let joinBy f (x : 'a seq) (y : 'b seq) =
@@ -251,6 +259,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             |> Seq.map (fun (x, y) -> (x, y.Value))
 
         let topicsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) =
+            LogConfiguration.Logger.Info.Invoke("Topics changed")
             let allTopics = zookeeperManager.GetTopics() |> Set.ofArray
             let currentTopics = topicPartitions |> Map.getKeys |> Set.ofSeq
             let newTopics = Set.difference allTopics currentTopics
@@ -275,9 +284,11 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Seq.map (fun x -> (x.Key, x.Value))
                 |> Map.ofSeq
 
+            LogConfiguration.Logger.Info.Invoke(sprintf "Updated topic and partitions is: %A" updatedPartitions)
             (brokers, updatedPartitions)
 
         let partitionsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) topic =
+            LogConfiguration.Logger.Info.Invoke(sprintf "Topic '%s' partitions changed" topic)
             let allPartitions = [ topic ] |> getPartitions |> Map.getValues |> Seq.concat |> Set.ofSeq
             let currentPartitions = topicPartitions.[topic] |> Set.ofSeq
             
@@ -305,6 +316,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 topicPartitions
                 |> Map.remove topic
                 |> Map.add topic updatedPartitions
+            LogConfiguration.Logger.Info.Invoke(sprintf "Updated partitions for '%s' is %A" topic updatedPartitions)
             (brokers, topicPartitions)
 
         let rec loop brokers topicPartitions = async {
