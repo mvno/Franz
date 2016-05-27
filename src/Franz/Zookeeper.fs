@@ -1,5 +1,7 @@
 ﻿namespace Franz.Zookeeper
 
+#nowarn "40"
+
 open Franz.Stream
 open Franz.Internal
 open System.IO
