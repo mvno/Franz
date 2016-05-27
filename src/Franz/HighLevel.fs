@@ -72,12 +72,13 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
     abstract member Send : string * string array * RequiredAcks * int -> unit
 
     default __.Send(key, messages, requiredAcks, brokerProcessingTimeout) =
+        let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, System.Text.Encoding.UTF8.GetBytes(key), System.Text.Encoding.UTF8.GetBytes(x)))
         try
-            send key messages requiredAcks brokerProcessingTimeout
+            send key messageSets requiredAcks brokerProcessingTimeout
         with
         | _ ->
             brokerRouter.RefreshMetadata()
-            send key messages requiredAcks brokerProcessingTimeout
+            send key messageSets requiredAcks brokerProcessingTimeout
 
 /// High level kafka producer
 type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
@@ -88,8 +89,9 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
         if retryCount > 1 then raiseWithErrorLog(RequestTimedOutRetryExceededException())
         retrySendFunction()
 
-    let rec innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount =
-        let messageSets = Compression.CompressMessages(compressionCodec, messages)
+    let rec innerSend (key : string) (messages : string array) topicName requiredAcks brokerProcessingTimeout retryCount =
+        let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, System.Text.Encoding.UTF8.GetBytes(key), System.Text.Encoding.UTF8.GetBytes(x)))
+        let messageSets = Compression.CompressMessages(compressionCodec, messageSets)
         let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
         let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
