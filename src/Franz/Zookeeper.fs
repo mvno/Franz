@@ -609,8 +609,6 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
             connectionLostEvent.Trigger()
             null
         else
-            printfn "Sleeping for 10 seconds..."
-            Thread.Sleep(10000)
             let endpoint = endpointSeq |> Seq.head
             let newClient = new ZookeeperClient(new Action(fun () -> connectionLost connectToZookeeper))
             try
