@@ -328,7 +328,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
         let broker = allBrokers |> Seq.head
         let request = new ConsumerMetadataRequest(consumerGroup)
         let response = broker.Send(request)
-        allBrokers |> Seq.filter (fun x -> x.NodeId = response.CoordinatorId) |> Seq.exactlyOne
+        allBrokers |> Seq.filter (fun x -> x.Id = response.CoordinatorId) |> Seq.exactlyOne
     let getOffsetCoordinator consumerGroup =
         refreshMetadataOnException (fun () -> send consumerGroup)
 
@@ -422,7 +422,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
         let broker = allBrokers |> Seq.head
         let request = new ConsumerMetadataRequest(consumerGroup)
         let response = broker.Send(request)
-        allBrokers |> Seq.filter (fun x -> x.NodeId = response.CoordinatorId) |> Seq.exactlyOne
+        allBrokers |> Seq.filter (fun x -> x.Id = response.CoordinatorId) |> Seq.exactlyOne
     let getOffsetCoordinator consumerGroup =
         refreshMetadataOnException (fun () -> send consumerGroup)
 

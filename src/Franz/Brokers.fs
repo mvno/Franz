@@ -84,7 +84,7 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
     /// Gets the  topic partitions the broker is leader for
     member __.LeaderFor with get() = leaderFor and internal set(x) = leaderFor <- x
     /// Gets the node id
-    member __.NodeId with get() = brokerId
+    member __.Id with get() = brokerId
     /// Connect the broker
     member __.Connect() =
         raiseIfDisposed(disposed)
@@ -202,7 +202,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                         |> Seq.map (fun (topic, x) -> { TopicName = topic; PartitionIds = x |> Seq.map (fun (_, pi) -> pi) |> Seq.toArray })
                         |> Seq.toArray
                     new Broker(brokerId, endpoint, leaderFor, brokerTcpTimeout))
-                |> Seq.map (fun x -> (x.NodeId, x))
+                |> Seq.map (fun x -> (x.Id, x))
                 |> Map.ofSeq
             LogConfiguration.Logger.Info.Invoke(sprintf "Initial brokers is %O, initial topic and partitions is %A" brokers topicPartitions)
             (brokers, topicPartitions)
@@ -212,7 +212,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             let tps = zookeeperManager.GetTopicPartitionState(topic, partitionId)
             let currentLeader = brokers |> Seq.tryFind (fun x -> x.Value.IsLeaderFor(topic, partitionId))
             match currentLeader with
-            | Some x when x.Value.NodeId <> tps.Leader ->
+            | Some x when x.Value.Id <> tps.Leader ->
                 x.Value.NoLongerLeaderFor(topic, partitionId)
                 let newLeader = brokers |> Map.tryFind tps.Leader
                 match newLeader with
@@ -247,7 +247,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Seq.fold (fun state item -> state |> Map.remove(item)) brokers
                 |> Seq.map (fun x -> x.Value)
                 |> Seq.append newBrokers
-                |> Seq.map (fun x -> (x.NodeId, x))
+                |> Seq.map (fun x -> (x.Id, x))
                 |> Map.ofSeq
             LogConfiguration.Logger.Info.Invoke(sprintf "Updated broker list is: %O" brokers)
             (brokers, topics)
@@ -430,7 +430,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 |> Seq.filter (fun (x, _) -> brokers |> Seq.exists(fun (b : Broker) -> b.EndPoint = x) |> not)
                 |> Seq.map (fun (endPoint, nodeId) -> new Broker(nodeId, endPoint, getPartitions nodeId response, tcpTimeout))
                 |> Seq.toList
-        brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId response)
+        brokers |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.Id response)
         if brokers |> Seq.isEmpty && newBrokers |> Seq.isEmpty then
             brokerSeeds |> Seq.map (fun x -> new Broker(-1, x, [||], tcpTimeout) ) |> Seq.toList
         else [ brokers; newBrokers ] |> Seq.concat |> Seq.toList
@@ -457,7 +457,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             let! msg = inbox.Receive()
             match msg with
             | AddBroker broker ->
-                LogConfiguration.Logger.Info.Invoke(sprintf "Adding broker %i with endpoint %A" broker.NodeId broker.EndPoint)
+                LogConfiguration.Logger.Info.Invoke(sprintf "Adding broker %i with endpoint %A" broker.Id broker.EndPoint)
                 if not broker.IsConnected then broker.Connect()
                 let existingBrokers = (brokers |> Seq.filter (fun (x : Broker) -> x.EndPoint <> broker.EndPoint) |> Seq.toList)
                 return! loop (broker :: existingBrokers) lastRoundRobinIndex connected
@@ -507,7 +507,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
                 (index, response)
         with
         | e ->
-            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i due to (%s), retrying." broker.NodeId e.Message)
+            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to get metadata from broker %i due to (%s), retrying." broker.Id e.Message)
             if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
             else
                 raiseWithFatalLog (UnableToConnectToAnyBrokerException())
@@ -571,8 +571,8 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             |> Seq.filter (fun x -> x.IsConnected)
             |> Seq.toList
         brokers
-            |> Seq.filter (fun x -> response.Brokers |> Seq.exists (fun b -> b.NodeId = x.NodeId))
-            |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.NodeId)
+            |> Seq.filter (fun x -> response.Brokers |> Seq.exists (fun b -> b.NodeId = x.Id))
+            |> Seq.iter (fun x -> x.LeaderFor <- getPartitions x.Id)
         let updatedBrokers = [ brokers; nonExistingBrokers ] |> Seq.concat |> Seq.toList
         metadataRefreshed.Trigger(updatedBrokers)
         (index, updatedBrokers)
