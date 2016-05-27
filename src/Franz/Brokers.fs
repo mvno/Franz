@@ -176,7 +176,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         let getPartitions topics =
             topics
             |> Seq.map (fun x -> (x, zookeeperManager.GetTopicRegistrationInfo x))
-            |> Seq.map (fun (topic, pi) -> (topic, pi.Partitions.[topic]))
+            |> Seq.map (fun (topic, pi) -> (topic, pi.Partitions |> Seq.map (fun x -> int32 x.Key) |> Seq.toArray))
             |> Map.ofSeq
 
         let fetchInitialInformation() =
