@@ -293,7 +293,7 @@ type Watcher =
         Type : WatcherType
     }
     /// Reregister the watcher
-    member self.Reregister(agent : Agent<ZookeeperMessages>) =
+    member internal self.Reregister(agent : Agent<ZookeeperMessages>) =
         match self.Type with
         | Child -> agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self, reply))
         | Data -> agent.PostAndReply(fun reply -> GetDataWithWatcher(self, reply))
