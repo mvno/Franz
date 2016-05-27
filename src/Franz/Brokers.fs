@@ -263,14 +263,6 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             LogConfiguration.Logger.Info.Invoke("Topics changed")
             let allTopics = zookeeperManager.GetTopics() |> Set.ofArray
             let currentTopics = topicPartitions |> Map.getKeys |> Set.ofSeq
-            let newTopics = Set.difference allTopics currentTopics
-            let newTopicPartitions = newTopics |> getPartitions
-            newTopicPartitions
-            |> Seq.map (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
-            |> Seq.concat
-            |> Seq.map (fun (topic, pid) -> (topic, pid, getAndWatchTopicPartitionStateInformation topic pid))
-            |> Seq.map (fun (topic, pid, state) -> (brokers.[state.Leader], topic, pid))
-            |> Seq.iter (fun (broker, topic, pid) -> broker.SetAsLeaderFor(topic, pid))
             
             let removedTopics = Set.difference currentTopics allTopics
             brokers
@@ -281,7 +273,6 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             let updatedPartitions =
                 topicPartitions
                 |> Seq.filter (fun x -> removedTopics |> Set.contains x.Key)
-                |> Seq.append newTopicPartitions
                 |> Seq.map (fun x -> (x.Key, x.Value))
                 |> Map.ofSeq
 
