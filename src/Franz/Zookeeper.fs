@@ -620,6 +620,8 @@ type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
             let newClient = new ZookeeperClient(new Action(fun () -> connectionLost connectToZookeeper))
             try
                 newClient.Connect(endpoint, sessionTimeout)
+                client.ChildWatchers |> Seq.iter (fun x -> newClient.GetChildren(x.Path, x.Callback) |> ignore)
+                client.DataWatchers |> Seq.iter (fun x -> newClient.GetData(x.Path, x.Callback) |> ignore)
                 newClient
             with
             | e ->
