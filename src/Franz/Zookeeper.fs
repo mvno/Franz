@@ -350,11 +350,12 @@ type ZookeeperClient(connectionLossCallback : Action) =
         body |> Async.Start
         { Body = body; CancellationTokenSource = cts }
 
+    let childWatchers = new ConcurrentDictionary<string, Watcher>()
+    let dataWatchers = new ConcurrentDictionary<string, Watcher>()
+
     let agent = Agent.Start(fun inbox ->
         let lastZxid = ref 0L
         let pendingRequests = new ConcurrentQueue<RequestPacket>()
-        let childWatchers = new ConcurrentDictionary<string, Watcher>()
-        let dataWatchers = new ConcurrentDictionary<string, Watcher>()
 
         let sendNewRequest (request : IRequest) state =
             let xid = state.LastXid + 1
@@ -519,6 +520,10 @@ type ZookeeperClient(connectionLossCallback : Action) =
         let watcher = { Path = path; Callback = watcherCallback; Type = Data }
         agent.PostAndReply(fun reply -> GetDataWithWatcher(watcher, reply))
         |> handleAsyncReply (deserialize GetDataResponse.Deserialize)
+    /// Gets the child watchers
+    member __.ChildWatchers with get() = childWatchers.Values |> Seq.map id
+    /// Gets the data watchers
+    member __.DataWatchers with get() = dataWatchers.Values |> Seq.map id
     interface IDisposable with
         member __.Dispose() =
             if not disposed then
