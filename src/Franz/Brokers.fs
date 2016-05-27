@@ -16,6 +16,10 @@ type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
 type UnableToConnectToAnyBrokerException() =
     inherit Exception()
     override __.Message = "Could not connect to any of the broker seeds"
+    
+type UnableToConnectToAnyZookeeperException() =
+    inherit Exception()
+    override __.Message = "Could not connect to any of zookeeper servers"
 
 /// Extensions to help determine outcome of error codes
 [<AutoOpen>]
@@ -326,7 +330,8 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         loop Map.empty Map.empty)
 
     do
-       agent.Error.Add(fun x -> errorEvent.Trigger(x))
+       agent.Error.Add(fun x -> errorEvent.Trigger(raiseWithFatalLog(x)))
+       zookeeperManager.ConnectionLost.Add(fun () -> errorEvent.Trigger(raiseWithFatalLog(UnableToConnectToAnyZookeeperException())))
 
     /// Dispose the router
     member __.Dispose() =
