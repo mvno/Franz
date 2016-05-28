@@ -103,53 +103,16 @@ type BaseProducer (brokerRouter : BrokerRouter, compressionCodec, partitionSelec
 
 /// High level kafka producer
 type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
-    let mutable disposed = false
+    inherit BaseProducer(brokerRouter, compressionCodec, partitionSelector)
 
-    let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
-        LogConfiguration.Logger.Warning.Invoke(sprintf "Producer received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException())
-        if retryCount > 1 then raiseWithErrorLog(RequestTimedOutRetryExceededException())
-        retrySendFunction()
-
-    let rec innerSend (key : string) (messages : string array) topicName requiredAcks brokerProcessingTimeout retryCount =
-        let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, System.Text.Encoding.UTF8.GetBytes(key), System.Text.Encoding.UTF8.GetBytes(x)))
-        let messageSets = Compression.CompressMessages(compressionCodec, messageSets)
-        let partitionId = partitionSelector.Invoke(topicName, key)
-        let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
-        let topic = { TopicProduceRequest.Name = topicName; Partitions = [| partitions |] }
-        let request = new ProduceRequest(requiredAcks, brokerProcessingTimeout, [| topic |])
-        let response = brokerRouter.TrySendToBroker(topicName, partitionId, request)
-        let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
-        match partitionResponse.ErrorCode with
-        | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
-        | ErrorCode.NotLeaderForPartition ->
-            brokerRouter.RefreshMetadata()
-            innerSend key messages topicName requiredAcks brokerProcessingTimeout retryCount
-        | ErrorCode.RequestTimedOut ->
-            retryOnRequestTimedOut (fun x -> innerSend key messages topicName requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
-        | _ -> raiseWithErrorLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
-
-    do
-        brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
-        brokerRouter.Connect()
     new (brokerSeeds, partitionSelector : Func<string, string, Id>) = new Producer(brokerSeeds, 10000, partitionSelector)
     new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), partitionSelector)
     new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, partitionSelector)
     new (brokerRouter : BrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerRouter, CompressionCodec.None, partitionSelector)
+    
     /// Sends a message to the specified topic
     member self.SendMessages(topicName, key, message) =
         self.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
-    /// Sends a message to the specified topic
-    member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
-        raiseIfDisposed(disposed)
-        innerSend key messages topicName requiredAcks brokerProcessingTimeout 0
-    /// Get all available brokers
-    member __.GetAllBrokers() =
-        brokerRouter.GetAllBrokers()
-    /// Releases all connections and disposes the producer
-    member __.Dispose() =
-        if not disposed then
-            brokerRouter.Dispose()
-            disposed <- true
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
             self.SendMessages(topicName, null, [| message |], requiredAcks, brokerProcessingTimeout)
@@ -167,7 +130,7 @@ type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, 
             self.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, key, messages) = 
             self.SendMessages(topicName, key, messages)
-        member self.Dispose() = self.Dispose()
+        member self.Dispose() = (self :> IDisposable).Dispose()
 
 type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
     let mutable producer = None
@@ -222,7 +185,7 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
 
     /// Releases all connections and disposes the producer
     member __.Dispose() =
-        producer.Value.Dispose()
+        (producer.Value :> IDisposable).Dispose()
         brokerRouter.Dispose()
 
     /// Sends a message to the specified topic
