@@ -172,10 +172,9 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
             nextId
 
     do
-        brokerRouter.Connect()
+        producer <- Some <| new Producer(brokerRouter, compressionCodec, new Func<string, string, Id>(getNextPartitionId))
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
-        producer <- Some <| new Producer(brokerRouter, compressionCodec, new Func<string, string, Id>(getNextPartitionId))
 
     new (brokerSeeds) = new RoundRobinProducer(brokerSeeds, 10000)
     new (brokerSeeds, tcpTimeout : int) = new RoundRobinProducer(new BrokerRouter(brokerSeeds, tcpTimeout))
@@ -186,11 +185,11 @@ type RoundRobinProducer(brokerRouter : BrokerRouter, compressionCodec : Compress
     /// Releases all connections and disposes the producer
     member __.Dispose() =
         (producer.Value :> IDisposable).Dispose()
-        brokerRouter.Dispose()
 
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, key, message) =
         producer.Value.SendMessages(topicName, key, message, RequiredAcks.LocalLog, 500)
+    
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, key, messages : string array, requiredAcks, brokerProcessingTimeout) =
         producer.Value.SendMessages(topicName, key, messages, requiredAcks, brokerProcessingTimeout)
