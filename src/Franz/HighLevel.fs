@@ -37,6 +37,8 @@ type PartiontionIds = List<Id>
 type NextPartitionId = Id
 type TopicPartitions = Dictionary<string, (PartiontionIds * NextPartitionId)>
 
+type Message = { Value : string; Key : string }
+
 type IProducer =
     inherit IDisposable
     abstract member SendMessage : string * string * RequiredAcks * int -> unit
@@ -526,7 +528,7 @@ type DisabledConsumerOffsetManager() =
 type MessageWithMetadata =
     {
         Offset : Offset;
-        Message : Message;
+        Message : Messages.Message;
         PartitionId : Id;
     }
 
