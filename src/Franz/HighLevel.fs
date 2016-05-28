@@ -49,8 +49,15 @@ type IProducer =
     abstract member SendMessages : string * string * string array * RequiredAcks * int -> unit
 
 [<AbstractClass>]
-type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCodec, partitionSelector : Func<string, string, Id>) =
-    let rec send key messages requiredAcks brokerProcessingTimeout =
+type BaseProducer (brokerRouter : BrokerRouter, compressionCodec, partitionSelector : Func<string, string, Id>) =
+    let mutable disposed = false
+
+    let retryOnRequestTimedOut retrySendFunction (retryCount : int) =
+        LogConfiguration.Logger.Warning.Invoke(sprintf "Producer received RequestTimedOut on Ack from Brokers, retrying (%i) with increased timeout" retryCount, RequestTimedOutException())
+        if retryCount > 1 then raiseWithErrorLog(RequestTimedOutRetryExceededException())
+        retrySendFunction()
+    
+    let rec send topicName key messages requiredAcks brokerProcessingTimeout retryCount =
         let messageSets = Compression.CompressMessages(compressionCodec, messages)
         let partitionId = partitionSelector.Invoke(topicName, key)
         let partitions = { PartitionProduceRequest.Id = partitionId; MessageSets = messageSets; TotalMessageSetsSize = messageSets |> Seq.sumBy (fun x -> x.MessageSetSize) }
@@ -62,23 +69,37 @@ type BaseProducer private(brokerRouter : BrokerRouter, topicName, compressionCod
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
         | ErrorCode.NotLeaderForPartition ->
             brokerRouter.RefreshMetadata()
-            send key messages requiredAcks brokerProcessingTimeout
+            send topicName key messages requiredAcks brokerProcessingTimeout 0
+        | ErrorCode.RequestTimedOut ->
+            retryOnRequestTimedOut (fun () -> send topicName key messages requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
         | _ -> raiseWithErrorLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     do
         brokerRouter.Error.Add(fun x -> LogConfiguration.Logger.Fatal.Invoke(sprintf "Unhandled exception in BrokerRouter", x))
         brokerRouter.Connect()
 
-    abstract member Send : string * string array * RequiredAcks * int -> unit
+    /// Sends a message to the specified topic
+    abstract member SendMessages : string * string * string array * RequiredAcks * int -> unit
 
-    default __.Send(key, messages, requiredAcks, brokerProcessingTimeout) =
+    /// Sends a message to the specified topic
+    default __.SendMessages(topic, key, messages, requiredAcks, brokerProcessingTimeout) =
         let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, System.Text.Encoding.UTF8.GetBytes(key), System.Text.Encoding.UTF8.GetBytes(x)))
         try
-            send key messageSets requiredAcks brokerProcessingTimeout
+            send topic key messageSets requiredAcks brokerProcessingTimeout 0
         with
         | _ ->
             brokerRouter.RefreshMetadata()
-            send key messageSets requiredAcks brokerProcessingTimeout
+            send topic key messageSets requiredAcks brokerProcessingTimeout 0
+
+    /// Get all available brokers
+    member __.GetAllBrokers() = brokerRouter.GetAllBrokers()
+
+    /// Releases all connections and disposes the producer
+    interface IDisposable with
+        member __.Dispose() =
+            if not disposed then
+                brokerRouter.Dispose()
+                disposed <- true
 
 /// High level kafka producer
 type Producer(brokerRouter : BrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
