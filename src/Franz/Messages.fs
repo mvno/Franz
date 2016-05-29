@@ -140,10 +140,11 @@ module Messages =
     /// The set subset of the replicas that are "caught up" to the leader. 
     type Isr = Id array
 
+    let correlationId = ref 0
+
     /// Request base class
     [<AbstractClass>]
     type Request<'TResponse>() =
-        static let correlationId = ref 0
         /// The API key.
         abstract member ApiKey : ApiKey with get
         /// The API version.
