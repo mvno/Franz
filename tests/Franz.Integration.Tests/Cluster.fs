@@ -66,7 +66,10 @@
         ()
 
     let performSSHCommand (command : string) =
-        executeCommandOutsideShell "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe" ("ssh -- " + command) |> failIfError command
+        if Environment.GetEnvironmentVariable("APPVEYOR") = null then
+            executeCommandInShell "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe" ("ssh -- " + command) |> failIfError command
+        else
+            executeCommandOutsideShell "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe" ("ssh -- " + command) |> failIfError command
 
     let reset() =
         performSSHCommand "sudo ./reset_cluster.sh"
