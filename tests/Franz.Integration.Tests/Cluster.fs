@@ -5,6 +5,10 @@
     open System.Threading
     open System.Text
 
+    let sshPath = "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
+    let virtualBoxPath = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
+    let vagrantPath = "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe"
+
     let getNewPath =
         let currentPath = System.Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)
         currentPath + ""//;C:\Program Files\OpenSSH-Win64;C:\HashiCorp\Vagrant\bin;C:\Program Files\Oracle\VirtualBox"
@@ -62,14 +66,14 @@
         | _ -> failwith(sprintf "'%s' - failed" command)
 
     let performVagrantCommand (command : string) =
-        executeCommandOutsideShell "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe" command |> ignore
+        executeCommandOutsideShell vagrantPath command |> ignore
         ()
 
     let performSSHCommand (command : string) =
         if Environment.GetEnvironmentVariable("APPVEYOR") = null then
-            executeCommandInShell "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe" ("ssh -- " + command) |> failIfError command
+            executeCommandInShell vagrantPath ("ssh -- " + command) |> failIfError command
         else
-            executeCommandOutsideShell "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe" ("ssh -- " + command) |> failIfError command
+            executeCommandOutsideShell vagrantPath ("ssh -- " + command) |> failIfError command
 
     let reset() =
         performSSHCommand "sudo ./reset_cluster.sh"
@@ -116,12 +120,12 @@
     let ensureClusterIsRunning =
         System.AppDomain.CurrentDomain.DomainUnload.Add(fun x -> performVagrantCommand "destroy -f")
 
-        installPrerequest "win32-openssh" "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
-        installPrerequest "virtualbox" "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
-        installPrerequest "vagrant" "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe"
+        installPrerequest "win32-openssh" sshPath
+        installPrerequest "virtualbox" virtualBoxPath
+        installPrerequest "vagrant" vagrantPath
 
-        if (executeCommandOutsideShell "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" "showvminfo kafka_cluster") = 1 then
-            executeCommandOutsideShell "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" "unregistervm kafka_cluster --delete" |> ignore
+        if (executeCommandOutsideShell virtualBoxPath "showvminfo kafka_cluster") = 1 then
+            executeCommandOutsideShell virtualBoxPath "unregistervm kafka_cluster --delete" |> ignore
 
         performVagrantCommand "destroy -f"
         if File.Exists("Vagrantfile") then File.Delete("Vagrantfile")
