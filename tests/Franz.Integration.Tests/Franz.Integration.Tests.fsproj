@@ -45,8 +45,8 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Cluster.fs" />
-    <Compile Include="ClusterControlTest.fs" />
     <None Include="paket.references" />
+    <Compile Include="ClusterControlTest.fs" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>

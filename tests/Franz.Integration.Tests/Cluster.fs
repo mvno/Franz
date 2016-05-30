@@ -4,6 +4,7 @@
     open System.IO
     open System.Threading
     open System.Text
+    open Xunit
 
     let sshPath = "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
     let virtualBoxPath = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
@@ -132,3 +133,8 @@
         performVagrantCommand "init ChristianTrolleMikkelsen/kafkacluster"
         performVagrantCommand "box update"
         performVagrantCommand "up"
+
+    [<System.AttributeUsageAttribute(AttributeTargets.Method, AllowMultiple = false)>]
+    type FranzFactAttribute()=
+        inherit Xunit.FactAttribute()
+        let cluster = ensureClusterIsRunning

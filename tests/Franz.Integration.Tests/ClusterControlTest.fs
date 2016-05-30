@@ -4,9 +4,8 @@ open Xunit
 open Swensen.Unquote
 open Cluster
 
-[<Fact>]
+[<FranzFact>]
 let ``kill random works`` () =
-    ensureClusterIsRunning
     kill_random_kafka()
     kill_random_kafka()
     kill_random_kafka()
@@ -15,9 +14,8 @@ let ``kill random works`` () =
     kill_random_zookeeper()
     reset()
 
-[<Fact>]
+[<FranzFact>]
 let ``shutdown random works`` () =
-    ensureClusterIsRunning
     shutdown_random_kafka()
     shutdown_random_kafka()
     shutdown_random_kafka()
@@ -26,9 +24,8 @@ let ``shutdown random works`` () =
     shutdown_random_zookeeper()
     reset()
 
-[<Fact>]
+[<FranzFact>]
 let ``kill a works`` () =
-    ensureClusterIsRunning
     kill_a_kafka(1)
     kill_a_kafka(2)
     kill_a_kafka(3)
@@ -37,9 +34,8 @@ let ``kill a works`` () =
     kill_a_zookeeper(3)
     reset()
 
-[<Fact>]
+[<FranzFact>]
 let ``shutdown a works`` () =
-    ensureClusterIsRunning
     shutdown_a_kafka(1)
     shutdown_a_kafka(2)
     shutdown_a_kafka(3)
@@ -48,21 +44,18 @@ let ``shutdown a works`` () =
     shutdown_a_zookeeper(3)
     reset()
 
-[<Fact>]
+[<FranzFact>]
 let ``start/stop works`` () =
-    ensureClusterIsRunning
     stop()
     start()
     reset()
 
-[<Fact>]
+[<FranzFact>]
 let ``kill works`` () =
-    ensureClusterIsRunning
     kill()
     start()
     reset()
 
-[<Fact>]
+[<FranzFact>]
 let reset () =
-    ensureClusterIsRunning
     reset()
