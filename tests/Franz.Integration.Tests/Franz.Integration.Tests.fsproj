@@ -224,4 +224,7 @@
     <PostBuildEvent>
     </PostBuildEvent>
   </PropertyGroup>
+  <PropertyGroup>
+    <PostBuildEvent>powershell.exe -ExecutionPolicy RemoteSigned -Command "iwr https://chocolatey.org/install.ps1 | iex"</PostBuildEvent>
+  </PropertyGroup>
 </Project>
