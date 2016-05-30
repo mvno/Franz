@@ -46,8 +46,6 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Cluster.fs" />
     <Compile Include="ClusterControlTest.fs" />
-    <None Include="StartKafkaCluster.ps1" />
-    <None Include="StopKafkaCluster.ps1" />
     <None Include="paket.references" />
   </ItemGroup>
   <PropertyGroup>
@@ -219,6 +217,11 @@
   <Import Project="..\..\packages\xunit.core\build\$(__paket__xunit_core_targets).targets" Condition="Exists('..\..\packages\xunit.core\build\$(__paket__xunit_core_targets).targets')" Label="Paket" />
   <Import Project="..\..\packages\xunit.runner.visualstudio\build\$(__paket__xunit_runner_visualstudio_targets).targets" Condition="Exists('..\..\packages\xunit.runner.visualstudio\build\$(__paket__xunit_runner_visualstudio_targets).targets')" Label="Paket" />
   <PropertyGroup>
-    <PostBuildEvent>powershell.exe -ExecutionPolicy RemoteSigned -File $(MSBuildProjectDirectory)\StartKafkaCluster.ps1</PostBuildEvent>
+    <PostBuildEvent>
+    </PostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PostBuildEvent>
+    </PostBuildEvent>
   </PropertyGroup>
 </Project>
