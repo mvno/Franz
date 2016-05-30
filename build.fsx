@@ -137,7 +137,7 @@ Target "Build" (fun _ ->
 
 Target "RunTests" (fun _ ->
     !! testAssemblies
-    |> xUnit2 (fun p -> p)
+    |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
 )
 
 #if MONO
