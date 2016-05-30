@@ -44,7 +44,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="ClusterControl.fs" />
+    <Compile Include="Cluster.fs" />
     <Compile Include="ClusterControlTest.fs" />
     <None Include="StartKafkaCluster.ps1" />
     <None Include="StopKafkaCluster.ps1" />
