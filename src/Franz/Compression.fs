@@ -89,8 +89,7 @@ type Compression private() =
         |> Seq.concat
 
     /// Compress messages, using the specified compression codec
-    static member CompressMessages (compressionCodec, messages : string array) =
-        let messageSets = messages |> Array.map (fun x -> MessageSet.Create(int64 -1, int8 0, null, System.Text.Encoding.UTF8.GetBytes(x)))
+    static member CompressMessages (compressionCodec, messageSets : MessageSet array) =
         match compressionCodec with
         | CompressionCodec.None -> messageSets
         | CompressionCodec.Gzip -> GzipCompression.Encode(messageSets)

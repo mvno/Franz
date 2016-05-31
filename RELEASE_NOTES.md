@@ -1,6 +1,6 @@
 ### 3.0.0
 * Fix bug which would throw exception when consumer got exceptions while communicating with broker. This is done by trying to reconnect when consuming fails. The retry interval is defined using the ConnectionRetryInterval property in the consumer options.
-* Allow selecting specific partitions when producing messages, using a specified key. To use round robin as previously, please use the RoundRobinProducer.
+* Allow selecting specific partitions when producing messages, using a specified key. To use round robin as previously, please use the RoundRobinProducer. When key is passed this key is passed along to Kafak message
 * Consuming messages with metadata no also includes the partition for which the message is consumed
 * Do not allow setting offset not in partition whitelist
 * New consumer, ChunkedConsumer, which consume messages in chunks, and won't use as much memory
