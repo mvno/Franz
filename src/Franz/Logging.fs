@@ -1,7 +1,6 @@
 ﻿namespace Franz
 
 open System
-open Franz.Internal
 
 [<AutoOpen>]
 module Debug =
