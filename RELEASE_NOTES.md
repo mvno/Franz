@@ -13,6 +13,7 @@
 * Move partition whitelist into ConsumerOptions
 * Fix bug in producer where an unavailable broker would result in not refreshing the metadata
 * Fix bug where consuming data from a broker going down would result in a infinite loop
+* Support for connecting to the cluster through the Zookeeper cluster. There is currently no support for handling new topics created while the consumer is running.
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
