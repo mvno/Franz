@@ -209,6 +209,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Seq.map (fun x -> (x.Id, x))
                 |> Map.ofSeq
             LogConfiguration.Logger.Info.Invoke(sprintf "Initial brokers is %O, initial topic and partitions is %A" brokers topicPartitions)
+            metadataRefreshed.Trigger(brokers |> Map.getValues |> Seq.toList)
             (brokers, topicPartitions)
 
         let topicPartitionStateUpdated (topic, partitionId) (brokers : Map<Id, Broker>) =
@@ -229,6 +230,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 | Some n -> n.SetAsLeaderFor(topic, partitionId)
                 | None -> ()
             LogConfiguration.Logger.Info.Invoke(sprintf "Updated brokers is: %O" brokers)
+            metadataRefreshed.Trigger(brokers |> Map.getValues |> Seq.toList)
             brokers
 
         let idsChanged (topics : Map<string, int array>) (brokers : Map<Id, Broker>) =
@@ -255,6 +257,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Seq.map (fun x -> (x.Id, x))
                 |> Map.ofSeq
             LogConfiguration.Logger.Info.Invoke(sprintf "Updated broker list is: %O" brokers)
+            metadataRefreshed.Trigger(brokers |> Map.getValues |> Seq.toList)
             (brokers, topics)
 
         let joinBy f (x : 'a seq) (y : 'b seq) =
@@ -281,6 +284,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Map.ofSeq
 
             LogConfiguration.Logger.Info.Invoke(sprintf "Updated topic and partitions is: %A" updatedPartitions)
+            metadataRefreshed.Trigger(brokers |> Map.getValues |> Seq.toList)
             (brokers, updatedPartitions)
 
         let partitionsChanged (brokers : Map<Id, Broker>) (topicPartitions : Map<string, int array>) topic =
@@ -313,6 +317,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 |> Map.remove topic
                 |> Map.add topic updatedPartitions
             LogConfiguration.Logger.Info.Invoke(sprintf "Updated partitions for '%s' is %A" topic updatedPartitions)
+            metadataRefreshed.Trigger(brokers |> Map.getValues |> Seq.toList)
             (brokers, topicPartitions)
 
         let rec loop brokers topicPartitions = async {
