@@ -1,3 +1,6 @@
+### 3.1.0
+* Implemented ObservableConsumer, to allow consuming messages using push based frameworks like [Reactive Extensions](http://reactivex.io/).
+
 ### 3.0.1
 * Fixed a bug where sending messages without null key, would result in an exception
 
