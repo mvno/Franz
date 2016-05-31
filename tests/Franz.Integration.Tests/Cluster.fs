@@ -10,9 +10,7 @@
     let virtualBoxPath = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
     let vagrantPath = "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe"
 
-    let getNewPath =
-        let currentPath = System.Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)
-        currentPath + ""//;C:\Program Files\OpenSSH-Win64;C:\HashiCorp\Vagrant\bin;C:\Program Files\Oracle\VirtualBox"
+    let getNewPath = System.Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)
 
     let executeCommandInShell (command : string) (arguments : string) =
         let startInfo = new ProcessStartInfo()
