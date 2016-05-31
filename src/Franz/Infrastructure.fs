@@ -3,6 +3,9 @@
 /// Type alias for MailBoxProcessor
 type Agent<'T> = MailboxProcessor<'T>
 
+/// A endpoint
+type EndPoint = { Address : string; Port : int32 }
+
 [<AutoOpen>]
 module Seq =
     /// Function to handle round robin
@@ -13,6 +16,19 @@ module Seq =
             (pos, list |> Seq.item pos)
         else
             (0, list |> Seq.head)
+
+[<AutoOpen>]
+module Array =
+    let rand = new System.Random()
+
+    let swap (a: _[]) x y =
+        let tmp = a.[x]
+        a.[x] <- a.[y]
+        a.[y] <- tmp
+
+    // shuffle an array (in-place)
+    let shuffle a =
+        Array.iteri (fun i _ -> swap a i (rand.Next(i, Array.length a))) a
 
 module Retry =
     let retryOnException (state : 'a) (onException : exn -> 'a) (f : 'a -> 'b) : 'b =
@@ -38,3 +54,26 @@ module ExceptionUtilities =
 
     let raiseIfDisposed (disposed : bool) =
         if disposed then raiseWithFatalLog(ObjectDisposedException "Illegal attempt made by calling af function on type which have been marked as disposed")
+
+module internal ErrorHandling =
+    type Result<'a, 'b> =
+    | Success of 'a
+    | Failure of 'b
+
+    let catch f x =
+        try
+            f x |> Success
+        with
+        | e -> e |> Failure
+
+    let fail x = x |> Failure
+    let succeed x = x |> Success
+    let either fSuccess fFailure result =
+        match result with
+        | Success x -> fSuccess x
+        | Failure x -> fFailure x
+
+[<AutoOpenAttribute>]
+module Map =
+    let getValues (x : Map<_,_>) = x |> Seq.map (fun x -> x.Value)
+    let getKeys (x : Map<_,_>) = x |> Seq.map (fun x -> x.Key)
