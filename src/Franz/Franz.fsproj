@@ -70,8 +70,10 @@
     <Compile Include="Zookeeper.fs" />
     <Compile Include="Brokers.fs" />
     <Compile Include="HighLevel.fs" />
+    <Compile Include="Observable.fs" />
     <None Include="paket.references" />
     <None Include="paket.template" />
+    <None Include="Script.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
