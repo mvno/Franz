@@ -47,11 +47,13 @@ and ObservableConsumer(consumer : ChunkedConsumer) =
     new (brokerRouter, topicName) = new ObservableConsumer(new ChunkedConsumer(topicName, new ConsumerOptions(), brokerRouter))
 
     member __.Subscribe(observer : IObserver<MessageWithMetadata>) =
+        consumer.CheckDisposedState()
         if observer |> isNull then nullArg "observer"
         agent.Post(Add(observer))
         { new IDisposable with member __.Dispose() = agent.Post(Remove(observer)) }
 
     member __.Consume(cancellationToken : CancellationToken) =
+        consumer.CheckDisposedState()
         let rec loop() =
             if cancellationToken.IsCancellationRequested then ()
             else
