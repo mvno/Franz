@@ -140,10 +140,11 @@ module Messages =
     /// The set subset of the replicas that are "caught up" to the leader. 
     type Isr = Id array
 
+    let correlationId = ref 0
+
     /// Request base class
     [<AbstractClass>]
     type Request<'TResponse>() =
-        static let correlationId = ref 0
         /// The API key.
         abstract member ApiKey : ApiKey with get
         /// The API version.
@@ -880,6 +881,7 @@ module Messages =
                     }
                 MemberAssignment.readAssignments (assignment :: list) (count - 1) stream
         static member Deserialize(stream) =
+            stream |> BigEndianReader.ReadInt32 |> ignore // Ignore length of array
             {
                 Version = stream |> BigEndianReader.ReadInt16;
                 PartitionAssignment = stream |> MemberAssignment.readAssignments [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
@@ -986,8 +988,10 @@ module Messages =
     [<NoEquality;NoComparison>]
     type DescribeGroupMember = { MemberId : string; ClientId : string; ClientHost : string; MemberMetadata : byte array; MemberAssignment : MemberAssignment }
     [<NoEquality;NoComparison>]
+    type ConsumerGroup = { ErrorCode : ErrorCode; GroupId : string; State : string; ProtocolType : string; Protocol : string; Members : DescribeGroupMember array }
+    [<NoEquality;NoComparison>]
     type DescribeGroupResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; GroupId : string; State : string; ProtocolType : string; Protocol : string; Members : DescribeGroupMember array }
+        { CorrelationId : CorrelationId; Groups : ConsumerGroup array }
         static member private readMembers list count stream =
             match count with
             | 0 -> list
@@ -1001,17 +1005,27 @@ module Messages =
                         MemberAssignment = stream |> MemberAssignment.Deserialize;
                     }
                 DescribeGroupResponse.readMembers (m :: list) (count - 1) stream
+        static member private readGroups list count stream =
+            match count with
+            | 0 -> list
+            | _ ->
+                let g =
+                    {
+                        ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                        GroupId = stream |> BigEndianReader.ReadString;
+                        State = stream |> BigEndianReader.ReadString;
+                        ProtocolType = stream |> BigEndianReader.ReadString;
+                        Protocol = stream |> BigEndianReader.ReadString;
+                        Members = stream |> DescribeGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
+                    }
+                DescribeGroupResponse.readGroups (g :: list) (count - 1) stream
         /// Deserialize the response
         static member Deserialize(stream) =
             {
                 CorrelationId = stream |> BigEndianReader.ReadInt32;
-                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                GroupId = stream |> BigEndianReader.ReadString;
-                State = stream |> BigEndianReader.ReadString;
-                ProtocolType = stream |> BigEndianReader.ReadString;
-                Protocol = stream |> BigEndianReader.ReadString;
-                Members = stream |> DescribeGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray
+                Groups = stream |> DescribeGroupResponse.readGroups [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
             }
+
     type DescribeGroupRequest(groupIds) =
         inherit Request<DescribeGroupResponse>()
         /// The group ids
