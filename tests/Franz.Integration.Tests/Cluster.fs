@@ -5,9 +5,18 @@
     open System.Threading
     open System.Text
     open Xunit
+    open Franz
+    open Franz.HighLevel
 
-    let kafka_brokers = "http://192.168.100.100:9091;http://192.168.100.100:9092;http://192.168.100.100:9093"
-    let zookeepers = "http://192.168.100.100:2181;http://192.168.100.100:2182;http://192.168.100.100:2183"
+    let kafka_brokers = [|
+        { Address = "http://192.168.100.100"; Port = 9091 };
+        { Address = "http://192.168.100.100"; Port = 9092 };
+        { Address = "http://192.168.100.100"; Port = 9093 };|]
+
+    let zookeepers = [|
+        { Address = "http://192.168.100.100"; Port = 2181 };
+        { Address = "http://192.168.100.100"; Port = 2182 };
+        { Address = "http://192.168.100.100"; Port = 2183 };|]
 
     let sshPath = "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
     let virtualBoxPath = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
