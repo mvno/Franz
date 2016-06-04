@@ -100,11 +100,14 @@ type BaseProducer (brokerRouter : IBrokerRouter, compressionCodec, partitionSele
     member __.GetAllBrokers() = brokerRouter.GetAllBrokers()
 
     /// Releases all connections and disposes the producer
+    member __.Dispose() =
+        if not disposed then
+            brokerRouter.Dispose()
+            disposed <- true
+
+    /// Releases all connections and disposes the producer
     interface IDisposable with
-        member __.Dispose() =
-            if not disposed then
-                brokerRouter.Dispose()
-                disposed <- true
+        member self.Dispose() = self.Dispose()
 
 /// High level kafka producer
 type Producer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) =
@@ -114,9 +117,22 @@ type Producer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec,
     new (brokerSeeds, tcpTimeout : int, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), partitionSelector)
     new (brokerSeeds, tcpTimeout : int, compressionCodec : CompressionCodec, partitionSelector : Func<string, string, Id>) = new Producer(new BrokerRouter(brokerSeeds, tcpTimeout), compressionCodec, partitionSelector)
     new (brokerRouter : IBrokerRouter, partitionSelector : Func<string, string, Id>) = new Producer(brokerRouter, CompressionCodec.None, partitionSelector)
+    
     /// Sends a message to the specified topic
-    member self.SendMessages(topicName, message) =
+    member self.SendMessages(topicName : string, message : Message array) =
         self.SendMessages(topicName, message, RequiredAcks.LocalLog, 500)
+    
+    /// Sends a message to the specified topic
+    member self.SendMessage(topicName : string, message : Message) =
+        self.SendMessages(topicName, [| message |])
+
+    /// Sends a message to the specified topic
+    member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
+        self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout)
+    
+    /// Releases all connections and disposes the producer
+    member self.Dispose() = (self :> IDisposable).Dispose()
+    
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
             self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout)
@@ -126,7 +142,7 @@ type Producer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec,
             self.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
         member self.SendMessages(topicName, messages) = 
             self.SendMessages(topicName, messages)
-        member self.Dispose() = (self :> IDisposable).Dispose()
+        member self.Dispose() = self.Dispose()
 
 /// Producer sending messages in a round-robin fashion
 type RoundRobinProducer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec, partitionWhiteList : Id array) =
@@ -190,6 +206,10 @@ type RoundRobinProducer(brokerRouter : IBrokerRouter, compressionCodec : Compres
     /// Sends a message to the specified topic
     member __.SendMessages(topicName, messages : Message array, requiredAcks, brokerProcessingTimeout) =
         producer.Value.SendMessages(topicName, messages, requiredAcks, brokerProcessingTimeout)
+    
+    /// Sends a message to the specified topic
+    member self.SendMessage(topicName : string, message : Message) =
+        self.SendMessages(topicName, [| message |])
 
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
@@ -692,7 +712,7 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
             brokerRouter.Dispose()
             disposed <- true
 
-    member __.CheckDisposedState() =
+    member internal __.CheckDisposedState() =
         raiseIfDisposed(disposed)
 
     interface IDisposable with
@@ -721,9 +741,7 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrok
             }
         Async.Start(consume(), cancellationToken)
         blockingCollection.GetConsumingEnumerable(cancellationToken)
-    /// Releases all connections and disposes the consumer
-    member __.Dispose() =
-        base.Dispose()
+
     interface IConsumer with
         /// Get the current consumer position
         member self.GetPosition() =
@@ -752,9 +770,11 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
         |> Async.Parallel
         |> Async.RunSynchronously
         |> Seq.concat
+    
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
         base.Dispose()
+    
     interface IConsumer with
         /// Get the current consumer position
         member self.GetPosition() =
