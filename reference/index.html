@@ -49,15 +49,13 @@
           </td>
           <td class="xmldoc"><p>Broker information and actions</p>
 
-
 </td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-brokerrouter.html">BrokerRouter</a>
           </td>
-          <td class="xmldoc"><p>The broker router. Handles all logic related to broker metadata and available brokers.</p>
-
+          <td class="xmldoc"><p>The broker router. Handles all logic related to broker metadata and available brokers, using the Kafka cluster as the source of information</p>
 
 </td>
         </tr>
@@ -67,7 +65,6 @@
           </td>
           <td class="xmldoc"><p>Available messages for the broker router</p>
 
-
 </td>
         </tr>
         <tr>
@@ -76,24 +73,49 @@
           </td>
           <td class="xmldoc"><p>Indicates ok or failure message</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-defaultlogger.html">DefaultLogger</a>
+          </td>
+          <td class="xmldoc"><p>The default logger. This logger writes to debug, standard and error output.</p>
 
 </td>
         </tr>
         <tr>
           <td class="type-name">
-            <a href="franz-endpoint.html">EndPoint</a>
+            <a href="franz-ibrokerrouter.html">IBrokerRouter</a>
           </td>
-          <td class="xmldoc"><p>A endpoint</p>
-
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-ilogger.html">ILogger</a>
+          </td>
+          <td class="xmldoc"><p>Logger interface</p>
 
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-logconfiguration.html">LogConfiguration</a>
+          </td>
+          <td class="xmldoc"><p>Log configuration</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-nobrokerfoundfortopicpartitionexception.html">NoBrokerFoundForTopicPartitionException</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-requiredacks.html">RequiredAcks</a>
           </td>
           <td class="xmldoc"><p>The valid requiredAcks values</p>
-
 
 </td>
         </tr>
@@ -103,8 +125,33 @@
           </td>
           <td class="xmldoc"><p>Type containing which nodes is leaders for which topic and partition</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-unabletoconnecttoanybrokerexception.html">UnableToConnectToAnyBrokerException</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-unabletoconnecttoanyzookeeperexception.html">UnableToConnectToAnyZookeeperException</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeperbrokerrouter.html">ZookeeperBrokerRouter</a>
+          </td>
+          <td class="xmldoc"><p>The broker router. Handles all logic related to broker metadata and available brokers, using the Zookeeper cluster as the source of information</p>
 
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeperbrokerroutermessage.html">ZookeeperBrokerRouterMessage</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
     </tbody>
   </table>
@@ -115,10 +162,15 @@
     <tbody>
         <tr>
           <td class="module-name">
+            <a href="franz-debug.html">Debug</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="module-name">
             <a href="franz-errorcodeextensions.html">ErrorCodeExtensions</a>
           </td>
           <td class="xmldoc"><p>Extensions to help determine outcome of error codes</p>
-
 
 </td>
         </tr>
@@ -141,10 +193,17 @@
     <tbody>
         <tr>
           <td class="type-name">
+            <a href="franz-compression-compression.html">Compression</a>
+          </td>
+          <td class="xmldoc"><p>Helper methods related to compression</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
             <a href="franz-compression-gzipcompression.html">GzipCompression</a>
           </td>
           <td class="xmldoc"><p>Handles GZip compression and decompression</p>
-
 
 </td>
         </tr>
@@ -153,7 +212,6 @@
             <a href="franz-compression-snappycompression.html">SnappyCompression</a>
           </td>
           <td class="xmldoc"><p>Handles Snappy compression and decompression</p>
-
 
 </td>
         </tr>
@@ -170,10 +228,36 @@
     <tbody>
         <tr>
           <td class="type-name">
+            <a href="franz-highlevel-baseconsumer.html">BaseConsumer</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-baseproducer.html">BaseProducer</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-brokerreturnederrorexception.html">BrokerReturnedErrorException</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-chunkedconsumer.html">ChunkedConsumer</a>
+          </td>
+          <td class="xmldoc"><p>High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
+will provide a new chunk of messages. If no messages are available an empty sequence will be returned.</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
             <a href="franz-highlevel-consumer.html">Consumer</a>
           </td>
           <td class="xmldoc"><p>High level kafka consumer.</p>
-
 
 </td>
         </tr>
@@ -183,7 +267,6 @@
           </td>
           <td class="xmldoc"><p>Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.</p>
 
-
 </td>
         </tr>
         <tr>
@@ -191,7 +274,6 @@
             <a href="franz-highlevel-consumeroffsetmanagerv0.html">ConsumerOffsetManagerV0</a>
           </td>
           <td class="xmldoc"><p>Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.</p>
-
 
 </td>
         </tr>
@@ -201,6 +283,13 @@
           </td>
           <td class="xmldoc"><p>Offset manager for version 1. This commits and fetches offset to/from Kafka broker.</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-consumeroffsetmanagerv2.html">ConsumerOffsetManagerV2</a>
+          </td>
+          <td class="xmldoc"><p>Offset manager for version 2. This commits and fetches offset to/from Kafka broker.</p>
 
 </td>
         </tr>
@@ -210,17 +299,21 @@
           </td>
           <td class="xmldoc"><p>Consumer options</p>
 
-
 </td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-highlevel-disabledconsumeroffsetmanager.html">DisabledConsumerOffsetManager</a>
           </td>
-          <td class="xmldoc"><p>Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.</p>
-
+          <td class="xmldoc"><p>Noop offsetmanager, used when no offset should be commit</p>
 
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-errorcommittingoffsetexception.html">ErrorCommittingOffsetException</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
@@ -234,7 +327,6 @@
           </td>
           <td class="xmldoc"><p>Interface for offset managers</p>
 
-
 </td>
         </tr>
         <tr>
@@ -245,7 +337,13 @@
         </tr>
         <tr>
           <td class="type-name">
-            <a href="franz-highlevel-messagewithoffset.html">MessageWithOffset</a>
+            <a href="franz-highlevel-message.html">Message</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-messagewithmetadata.html">MessageWithMetadata</a>
           </td>
           <td class="xmldoc"></td>
         </tr>
@@ -261,7 +359,6 @@
           </td>
           <td class="xmldoc"><p>Offset storage type</p>
 
-
 </td>
         </tr>
         <tr>
@@ -276,7 +373,6 @@
           </td>
           <td class="xmldoc"><p>Information about offsets</p>
 
-
 </td>
         </tr>
         <tr>
@@ -285,6 +381,25 @@
           </td>
           <td class="xmldoc"><p>High level kafka producer</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-requesttimedoutexception.html">RequestTimedOutException</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-requesttimedoutretryexceededexception.html">RequestTimedOutRetryExceededException</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-highlevel-roundrobinproducer.html">RoundRobinProducer</a>
+          </td>
+          <td class="xmldoc"><p>Producer sending messages in a round-robin fashion</p>
 
 </td>
         </tr>
@@ -324,6 +439,13 @@
           </td>
           <td class="xmldoc"><p>Type alias for MailBoxProcessor</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-internal-endpoint.html">EndPoint</a>
+          </td>
+          <td class="xmldoc"><p>A endpoint</p>
 
 </td>
         </tr>
@@ -336,19 +458,43 @@
     <tbody>
         <tr>
           <td class="module-name">
+            <a href="franz-internal-array.html">Array</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="module-name">
             <a href="franz-internal-crc32.html">Crc32</a>
           </td>
           <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="module-name">
-            <a href="franz-internal-debug.html">Debug</a>
+            <a href="franz-internal-exceptionutilities.html">ExceptionUtilities</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="module-name">
+            <a href="franz-internal-map.html">Map</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="module-name">
+            <a href="franz-internal-retry.html">Retry</a>
           </td>
           <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="module-name">
             <a href="franz-internal-seq.html">Seq</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="module-name">
+            <a href="franz-internal-tcpclient.html">TcpClient</a>
           </td>
           <td class="xmldoc"></td>
         </tr>
@@ -369,7 +515,6 @@
           </td>
           <td class="xmldoc"><p>Reads from a stream conforming to the Kafka protocol</p>
 
-
 </td>
         </tr>
         <tr>
@@ -378,6 +523,272 @@
           </td>
           <td class="xmldoc"><p>Writes to a stream conforming to the Kafka protocol</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-stream-underlyingconnectionclosedexception.html">UnderlyingConnectionClosedException</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+    </tbody>
+  </table>
+
+    </div>
+  <h2>Franz.Zookeeper Namespace</h2>
+    <div>
+      <table class="table table-bordered type-list">
+    <thead>
+      <tr><td>Type</td><td>Description</td></tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-brokerregistrationinformation.html">BrokerRegistrationInformation</a>
+          </td>
+          <td class="xmldoc"><p>Kafka broker registration information</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-connectrequest.html">ConnectRequest</a>
+          </td>
+          <td class="xmldoc"><p>Connect request</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-connectresponse.html">ConnectResponse</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-errorcode.html">ErrorCode</a>
+          </td>
+          <td class="xmldoc"><p>Zookeeper error codes</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-eventtype.html">EventType</a>
+          </td>
+          <td class="xmldoc"><p>The notification event type</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-getchildrenrequest.html">GetChildrenRequest</a>
+          </td>
+          <td class="xmldoc"><p>Get children request</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-getchildrenresponse.html">GetChildrenResponse</a>
+          </td>
+          <td class="xmldoc"><p>The get children response</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-getdatarequest.html">GetDataRequest</a>
+          </td>
+          <td class="xmldoc"><p>Get data request</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-getdataresponse.html">GetDataResponse</a>
+          </td>
+          <td class="xmldoc"><p>The get data response</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-irequest.html">IRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-pingrequest.html">PingRequest</a>
+          </td>
+          <td class="xmldoc"><p>Ping request</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-pingresponse.html">PingResponse</a>
+          </td>
+          <td class="xmldoc"><p>The ping response</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-replyheader.html">ReplyHeader</a>
+          </td>
+          <td class="xmldoc"><p>The reply header available in all responses except the connect response</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-requestheader.html">RequestHeader</a>
+          </td>
+          <td class="xmldoc"><p>Header available in all requests</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-requestpacket.html">RequestPacket</a>
+          </td>
+          <td class="xmldoc"><p>Intermediate request type</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-requesttype.html">RequestType</a>
+          </td>
+          <td class="xmldoc"><p>The type of the Zookeeper request</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-responsepacket.html">ResponsePacket</a>
+          </td>
+          <td class="xmldoc"><p>Intermediate type containing a response's header and content</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-stat.html">Stat</a>
+          </td>
+          <td class="xmldoc"><p>Node statistics</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-time.html">Time</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-topicpartitionstate.html">TopicPartitionState</a>
+          </td>
+          <td class="xmldoc"><p>Topic partition state information</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-topicregistrationinformation.html">TopicRegistrationInformation</a>
+          </td>
+          <td class="xmldoc"><p>Topic registration information</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-watcher.html">Watcher</a>
+          </td>
+          <td class="xmldoc"><p>Contains information about a watcher</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-watcherevent.html">WatcherEvent</a>
+          </td>
+          <td class="xmldoc"><p>Response received when a notification is triggered</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-watchertype.html">WatcherType</a>
+          </td>
+          <td class="xmldoc"><p>Wathcer type</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-xid.html">Xid</a>
+          </td>
+          <td class="xmldoc"><p>Transaction id</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-zookeeperclient.html">ZookeeperClient</a>
+          </td>
+          <td class="xmldoc"><p>Zookeeper client. Handle the communication with a single Zookeeper instance</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-zookeeperexception.html">ZookeeperException</a>
+          </td>
+          <td class="xmldoc"><p>Zookeeper exception</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-zookeepermanager.html">ZookeeperManager</a>
+          </td>
+          <td class="xmldoc"><p>Zookeeper manager</p>
+<p>Connect to the Zookeeper cluster defined by the provided Zookeeper instances. If a connection to an instance is lost
+a connection to one of the other instances is made. If unable to connect to any of the instances in the cluster,
+the ConnectionLost event is raised and should be handle by the user.</p>
+
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-zookeepermessages.html">ZookeeperMessages</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-zookeeper-zxid.html">Zxid</a>
+          </td>
+          <td class="xmldoc"><p>Zookeeper transaction id</p>
+
+</td>
+        </tr>
+    </tbody>
+  </table>
+  <table class="table table-bordered module-list">
+    <thead>
+      <tr><td>Module</td><td>Description</td></tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td class="module-name">
+            <a href="franz-zookeeper-xidconstants.html">XidConstants</a>
+          </td>
+          <td class="xmldoc"><p>Transaction id constants</p>
 
 </td>
         </tr>

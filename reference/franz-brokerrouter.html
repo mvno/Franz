@@ -40,8 +40,7 @@
   <span>Namespace: Franz</span><br />
 </p>
 <div class="xmldoc">
-<p>The broker router. Handles all logic related to broker metadata and available brokers.</p>
-
+<p>The broker router. Handles all logic related to broker metadata and available brokers, using the Kafka cluster as the source of information</p>
 
 </div>
   <h3>Constructors</h3>
@@ -53,19 +52,20 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '192', 192)" onmouseover="showTip(event, '192', 192)">
-            new(tcpTimeout)
+          <code onmouseout="hideTip(event, '323', 323)" onmouseover="showTip(event, '323', 323)">
+            new(brokerSeeds, tcpTimeout)
           </code>
-          <div class="tip" id="192">
-            <strong>Signature:</strong> tcpTimeout:int -&gt; BrokerRouter<br />
+          <div class="tip" id="323">
+            <strong>Signature:</strong> (brokerSeeds:EndPoint array * tcpTimeout:int) -&gt; BrokerRouter<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L109-109" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L419-419" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           
+              <p>CompiledName: <code>.ctor</code></p>
         </td>
       </tr>
     </tbody>
@@ -79,251 +79,283 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '193', 193)" onmouseover="showTip(event, '193', 193)">
+          <code onmouseout="hideTip(event, '324', 324)" onmouseover="showTip(event, '324', 324)">
             add_Error(arg1)
           </code>
-          <div class="tip" id="193">
+          <div class="tip" id="324">
             <strong>Signature:</strong> Handler&lt;Exception&gt; -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L223-223" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L541-541" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Event used in case of unhandled exception in internal agent</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '194', 194)" onmouseover="showTip(event, '194', 194)">
+          <code onmouseout="hideTip(event, '325', 325)" onmouseover="showTip(event, '325', 325)">
             add_MetadataRefreshed(arg1)
           </code>
-          <div class="tip" id="194">
+          <div class="tip" id="325">
             <strong>Signature:</strong> (Handler&lt;Broker list&gt;) -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L226-226" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L544-544" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Event triggered when metadata is refreshed</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '195', 195)" onmouseover="showTip(event, '195', 195)">
+          <code onmouseout="hideTip(event, '326', 326)" onmouseover="showTip(event, '326', 326)">
             AddBroker(broker)
           </code>
-          <div class="tip" id="195">
+          <div class="tip" id="326">
             <strong>Signature:</strong> broker:Broker -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L267-267" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L585-585" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Add broker to the list of available brokers</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '196', 196)" onmouseover="showTip(event, '196', 196)">
-            Connect(brokerSeeds)
+          <code onmouseout="hideTip(event, '327', 327)" onmouseover="showTip(event, '327', 327)">
+            Connect()
           </code>
-          <div class="tip" id="196">
-            <strong>Signature:</strong> brokerSeeds:seq&lt;EndPoint&gt; -&gt; unit<br />
+          <div class="tip" id="327">
+            <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L228-228" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L546-546" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Connect the router to the cluster using the broker seeds.</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '197', 197)" onmouseover="showTip(event, '197', 197)">
+          <code onmouseout="hideTip(event, '328', 328)" onmouseover="showTip(event, '328', 328)">
             Dispose()
           </code>
-          <div class="tip" id="197">
+          <div class="tip" id="328">
             <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L287-287" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L627-627" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Dispose the router</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '198', 198)" onmouseover="showTip(event, '198', 198)">
+          <code onmouseout="hideTip(event, '329', 329)" onmouseover="showTip(event, '329', 329)">
             Error
           </code>
-          <div class="tip" id="198">
+          <div class="tip" id="329">
             <strong>Signature:</strong> IEvent&lt;Exception&gt;<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L223-223" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L541-541" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Event used in case of unhandled exception in internal agent</p>
 
 
-
+              <p>CompiledName: <code>get_Error</code></p>
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '199', 199)" onmouseover="showTip(event, '199', 199)">
+          <code onmouseout="hideTip(event, '330', 330)" onmouseover="showTip(event, '330', 330)">
             GetAllBrokers()
           </code>
-          <div class="tip" id="199">
-            <strong>Signature:</strong> unit -&gt; Broker list<br />
+          <div class="tip" id="330">
+            <strong>Signature:</strong> unit -&gt; seq&lt;Broker&gt;<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L277-277" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L597-597" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Get all available brokers</p>
 
 
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '331', 331)" onmouseover="showTip(event, '331', 331)">
+            GetAvailablePartitionIds(topicName)
+          </code>
+          <div class="tip" id="331">
+            <strong>Signature:</strong> topicName:string -&gt; Id []<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L615-615" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Get all available partitions of the specified topic</p>
+
 
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '200', 200)" onmouseover="showTip(event, '200', 200)">
+          <code onmouseout="hideTip(event, '332', 332)" onmouseover="showTip(event, '332', 332)">
             GetBroker(topic, partitionId)
           </code>
-          <div class="tip" id="200">
+          <div class="tip" id="332">
             <strong>Signature:</strong> (topic:string * partitionId:Id) -&gt; Broker<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L281-281" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L602-602" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Get broker by topic and partition id</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '201', 201)" onmouseover="showTip(event, '201', 201)">
+          <code onmouseout="hideTip(event, '333', 333)" onmouseover="showTip(event, '333', 333)">
             MetadataRefreshed
           </code>
-          <div class="tip" id="201">
+          <div class="tip" id="333">
             <strong>Signature:</strong> IEvent&lt;Broker list&gt;<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L226-226" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L544-544" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Event triggered when metadata is refreshed</p>
 
 
-
+              <p>CompiledName: <code>get_MetadataRefreshed</code></p>
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '202', 202)" onmouseover="showTip(event, '202', 202)">
+          <code onmouseout="hideTip(event, '334', 334)" onmouseover="showTip(event, '334', 334)">
             RefreshMetadata()
           </code>
-          <div class="tip" id="202">
+          <div class="tip" id="334">
             <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L271-271" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L590-590" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Refresh cluster metadata</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '203', 203)" onmouseover="showTip(event, '203', 203)">
+          <code onmouseout="hideTip(event, '335', 335)" onmouseover="showTip(event, '335', 335)">
             remove_Error(arg1)
           </code>
-          <div class="tip" id="203">
+          <div class="tip" id="335">
             <strong>Signature:</strong> Handler&lt;Exception&gt; -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L223-223" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L541-541" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Event used in case of unhandled exception in internal agent</p>
 
 
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '336', 336)" onmouseover="showTip(event, '336', 336)">
+            remove_MetadataRefreshed(arg1)
+          </code>
+          <div class="tip" id="336">
+            <strong>Signature:</strong> (Handler&lt;Broker list&gt;) -&gt; unit<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L544-544" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Event triggered when metadata is refreshed</p>
+
 
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '204', 204)" onmouseover="showTip(event, '204', 204)">
-            remove_MetadataRefreshed(arg1)
+          <code onmouseout="hideTip(event, '337', 337)" onmouseover="showTip(event, '337', 337)">
+            TrySendToBroker(...)
           </code>
-          <div class="tip" id="204">
-            <strong>Signature:</strong> (Handler&lt;Broker list&gt;) -&gt; unit<br />
-                      </div>
+          <div class="tip" id="337">
+            <strong>Signature:</strong> (topicName:string * partitionId:Id * request:Request&lt;&#39;?7268&gt;) -&gt; &#39;?7268<br />
+                          <strong>Type parameters:</strong> '?7268          </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L226-226" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Brokers.fs#L611-611" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
-          <p>Event triggered when metadata is refreshed</p>
-
+          <p>Try to send a request to broker handling the specified topic and partition.
+If an exception occurs while sending the request, the metadata is refreshed and the request is send again.
+If this also fails the exception is thrown and should be handled by the caller.</p>
 
 
         </td>

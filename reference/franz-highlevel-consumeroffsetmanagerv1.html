@@ -42,7 +42,6 @@
 <div class="xmldoc">
 <p>Offset manager for version 1. This commits and fetches offset to/from Kafka broker.</p>
 
-
 </div>
   <h3>Constructors</h3>
   <table class="table table-bordered member-list">
@@ -53,37 +52,39 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '231', 231)" onmouseover="showTip(event, '231', 231)">
+          <code onmouseout="hideTip(event, '428', 428)" onmouseover="showTip(event, '428', 428)">
             new(brokerSeeds, topicName, tcpTimeout)
           </code>
-          <div class="tip" id="231">
-            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * tcpTimeout:int) -&gt; ConsumerOffsetManagerV1<br />
+          <div class="tip" id="428">
+            <strong>Signature:</strong> (brokerSeeds:EndPoint array * topicName:string * tcpTimeout:int) -&gt; ConsumerOffsetManagerV1<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L314-314" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L380-380" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           
+              <p>CompiledName: <code>.ctor</code></p>
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '232', 232)" onmouseover="showTip(event, '232', 232)">
-            new(...)
+          <code onmouseout="hideTip(event, '429', 429)" onmouseover="showTip(event, '429', 429)">
+            new(topicName, brokerRouter)
           </code>
-          <div class="tip" id="232">
-            <strong>Signature:</strong> (brokerSeeds:seq&lt;EndPoint&gt; * topicName:string * brokerRouter:BrokerRouter) -&gt; ConsumerOffsetManagerV1<br />
+          <div class="tip" id="429">
+            <strong>Signature:</strong> (topicName:string * brokerRouter:IBrokerRouter) -&gt; ConsumerOffsetManagerV1<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L231-231" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L309-309" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           
+              <p>CompiledName: <code>.ctor</code></p>
         </td>
       </tr>
     </tbody>
@@ -97,19 +98,59 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '233', 233)" onmouseover="showTip(event, '233', 233)">
+          <code onmouseout="hideTip(event, '430', 430)" onmouseover="showTip(event, '430', 430)">
+            Commit(consumerGroup, offsets)
+          </code>
+          <div class="tip" id="430">
+            <strong>Signature:</strong> (consumerGroup:string * offsets:seq&lt;PartitionOffset&gt;) -&gt; unit<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L391-391" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Commit offset for the specified topic and partitions</p>
+
+
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '431', 431)" onmouseover="showTip(event, '431', 431)">
             Dispose()
           </code>
-          <div class="tip" id="233">
+          <div class="tip" id="431">
             <strong>Signature:</strong> unit -&gt; unit<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L315-315" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L381-381" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '432', 432)" onmouseover="showTip(event, '432', 432)">
+            Fetch(consumerGroup)
+          </code>
+          <div class="tip" id="432">
+            <strong>Signature:</strong> consumerGroup:string -&gt; PartitionOffset []<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/HighLevel.fs#L386-386" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          <p>Fetch offset for the specified topic and partitions</p>
+
+
         </td>
       </tr>
     </tbody>

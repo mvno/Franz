@@ -42,7 +42,6 @@
 <div class="xmldoc">
 <p>Reads from a stream conforming to the Kafka protocol</p>
 
-
 </div>
   <h3>Constructors</h3>
   <table class="table table-bordered member-list">
@@ -53,19 +52,20 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '290', 290)" onmouseover="showTip(event, '290', 290)">
+          <code onmouseout="hideTip(event, '523', 523)" onmouseover="showTip(event, '523', 523)">
             new()
           </code>
-          <div class="tip" id="290">
+          <div class="tip" id="523">
             <strong>Signature:</strong> unit -&gt; BigEndianReader<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L55-55" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L68-68" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           
+              <p>CompiledName: <code>.ctor</code></p>
         </td>
       </tr>
     </tbody>
@@ -79,169 +79,179 @@
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '291', 291)" onmouseover="showTip(event, '291', 291)">
+          <code onmouseout="hideTip(event, '524', 524)" onmouseover="showTip(event, '524', 524)">
             Read(size stream)
           </code>
-          <div class="tip" id="291">
+          <div class="tip" id="524">
             <strong>Signature:</strong> size:int -&gt; stream:Stream -&gt; byte []<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L70-70" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L87-87" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read a number of bytes from the stream</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '292', 292)" onmouseover="showTip(event, '292', 292)">
+          <code onmouseout="hideTip(event, '525', 525)" onmouseover="showTip(event, '525', 525)">
             ReadBytes(stream)
           </code>
-          <div class="tip" id="292">
+          <div class="tip" id="525">
             <strong>Signature:</strong> stream:Stream -&gt; byte []<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L102-102" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L124-124" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read a byte array from the stream, using the prefixed int32 to determine the length of the array</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '293', 293)" onmouseover="showTip(event, '293', 293)">
+          <code onmouseout="hideTip(event, '526', 526)" onmouseover="showTip(event, '526', 526)">
             ReadEndianAware(isLittleEndian bytes)
           </code>
-          <div class="tip" id="293">
-            <strong>Signature:</strong> isLittleEndian:bool -&gt; (bytes:&#39;?6969 []) -&gt; &#39;?6969 []<br />
-                          <strong>Type parameters:</strong> '?6969          </div>
+          <div class="tip" id="526">
+            <strong>Signature:</strong> isLittleEndian:bool -&gt; (bytes:&#39;?7545 []) -&gt; &#39;?7545 []<br />
+                          <strong>Type parameters:</strong> '?7545          </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L65-65" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L82-82" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Convert an array to big endian if needed</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '294', 294)" onmouseover="showTip(event, '294', 294)">
+          <code onmouseout="hideTip(event, '527', 527)" onmouseover="showTip(event, '527', 527)">
             ReadInt16(stream)
           </code>
-          <div class="tip" id="294">
+          <div class="tip" id="527">
             <strong>Signature:</strong> stream:Stream -&gt; int16<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L81-81" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L98-98" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read an int16 from the stream</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '295', 295)" onmouseover="showTip(event, '295', 295)">
+          <code onmouseout="hideTip(event, '528', 528)" onmouseover="showTip(event, '528', 528)">
             ReadInt32(stream)
           </code>
-          <div class="tip" id="295">
+          <div class="tip" id="528">
             <strong>Signature:</strong> stream:Stream -&gt; int<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L86-86" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L103-103" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read an int32 from the stream</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '296', 296)" onmouseover="showTip(event, '296', 296)">
+          <code onmouseout="hideTip(event, '529', 529)" onmouseover="showTip(event, '529', 529)">
             ReadInt64(stream)
           </code>
-          <div class="tip" id="296">
+          <div class="tip" id="529">
             <strong>Signature:</strong> stream:Stream -&gt; int64<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L91-91" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L108-108" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read an int64 from the stream</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '297', 297)" onmouseover="showTip(event, '297', 297)">
+          <code onmouseout="hideTip(event, '530', 530)" onmouseover="showTip(event, '530', 530)">
             ReadInt8(stream)
           </code>
-          <div class="tip" id="297">
+          <div class="tip" id="530">
             <strong>Signature:</strong> stream:Stream -&gt; int8<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L76-76" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L93-93" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read an int8 from the stream</p>
 
 
-
         </td>
       </tr>
       <tr>
         <td class="member-name">
 
-          <code onmouseout="hideTip(event, '298', 298)" onmouseover="showTip(event, '298', 298)">
+          <code onmouseout="hideTip(event, '531', 531)" onmouseover="showTip(event, '531', 531)">
             ReadString(stream)
           </code>
-          <div class="tip" id="298">
+          <div class="tip" id="531">
             <strong>Signature:</strong> stream:Stream -&gt; string<br />
                       </div>
         </td>
         <td class="xmldoc">
-            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L96-96" class="github-link">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L113-113" class="github-link">
               <img src="../content/img/github.png" class="normal" />
               <img src="../content/img/github-blue.png" class="hover" />
             </a>
           <p>Read a string from the stream, using the prefixed int16 to determine the length of the string</p>
 
 
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
 
+          <code onmouseout="hideTip(event, '532', 532)" onmouseover="showTip(event, '532', 532)">
+            ReadZKString(stream)
+          </code>
+          <div class="tip" id="532">
+            <strong>Signature:</strong> stream:Stream -&gt; string<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Stream.fs#L118-118" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
         </td>
       </tr>
     </tbody>

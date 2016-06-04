@@ -56,7 +56,6 @@
           </td>
           <td class="xmldoc"><p>Valid API keys for requests</p>
 
-
 </td>
         </tr>
         <tr>
@@ -64,7 +63,6 @@
             <a href="franz-messages-apiversion.html">ApiVersion</a>
           </td>
           <td class="xmldoc"><p>API versions, currently valid values are 0 and 1</p>
-
 
 </td>
         </tr>
@@ -74,7 +72,6 @@
           </td>
           <td class="xmldoc"><p>This byte holds metadata attributes about the message. The lowest 2 bits contain the compression codec used for the message. The other bits should be set to 0.</p>
 
-
 </td>
         </tr>
         <tr>
@@ -82,7 +79,6 @@
             <a href="franz-messages-broker.html">Broker</a>
           </td>
           <td class="xmldoc"><p>Broker</p>
-
 
 </td>
         </tr>
@@ -100,7 +96,6 @@
 For example, one might want to monitor not just the requests per second overall, but the number coming from each client application (each of which could reside on multiple servers).
 This id acts as a logical grouping across all requests from a particular client.</p>
 
-
 </td>
         </tr>
         <tr>
@@ -111,10 +106,15 @@ This id acts as a logical grouping across all requests from a particular client.
         </tr>
         <tr>
           <td class="type-name">
+            <a href="franz-messages-consumergroup.html">ConsumerGroup</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
             <a href="franz-messages-consumermetadatarequest.html">ConsumerMetadataRequest</a>
           </td>
           <td class="xmldoc"><p>Consumer metadata request</p>
-
 
 </td>
         </tr>
@@ -124,7 +124,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Consumer metadata response</p>
 
-
 </td>
         </tr>
         <tr>
@@ -132,7 +131,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-correlationid.html">CorrelationId</a>
           </td>
           <td class="xmldoc"><p>This is a user-supplied integer. It will be passed back in the response by the server, unmodified. It is useful for matching request and response between the client and server.</p>
-
 
 </td>
         </tr>
@@ -142,15 +140,31 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>The CRC is the CRC32 of the remainder of the message bytes.</p>
 
-
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-describegroupmember.html">DescribeGroupMember</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-describegrouprequest.html">DescribeGroupRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-describegroupresponse.html">DescribeGroupResponse</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-messages-errorcode.html">ErrorCode</a>
           </td>
           <td class="xmldoc"><p>Possible error codes from brokers</p>
-
 
 </td>
         </tr>
@@ -160,7 +174,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>FetchPartitionRequest</p>
 
-
 </td>
         </tr>
         <tr>
@@ -168,7 +181,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-fetchpartitionresponse.html">FetchPartitionResponse</a>
           </td>
           <td class="xmldoc"><p>FetchPartitionResponse</p>
-
 
 </td>
         </tr>
@@ -178,7 +190,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Fetch request</p>
 
-
 </td>
         </tr>
         <tr>
@@ -186,7 +197,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-fetchresponse.html">FetchResponse</a>
           </td>
           <td class="xmldoc"><p>Fetch response</p>
-
 
 </td>
         </tr>
@@ -196,7 +206,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>FetchTopicRequest</p>
 
-
 </td>
         </tr>
         <tr>
@@ -205,15 +214,49 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>FetchTopicResponse</p>
 
-
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-groupassignment.html">GroupAssignment</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-groupinformation.html">GroupInformation</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-groupmember.html">GroupMember</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-groupprotocol.html">GroupProtocol</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-heartbeatrequest.html">HeartbeatRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-heartbeatresponse.html">HeartbeatResponse</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-messages-id.html">Id</a>
           </td>
           <td class="xmldoc"><p>Type for broker and partition ids</p>
-
 
 </td>
         </tr>
@@ -223,8 +266,43 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>The set subset of the replicas that are "caught up" to the leader.</p>
 
-
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-joingrouprequest.html">JoinGroupRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-joingroupresponse.html">JoinGroupResponse</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-leavegrouprequest.html">LeaveGroupRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-leavegroupresponse.html">LeaveGroupResponse</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-listgroupsrequest.html">ListGroupsRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-listgroupsresponse.html">ListGroupsResponse</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
@@ -232,15 +310,19 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>This is a version id used to allow backwards compatible evolution of the message binary format. The current value is 0.</p>
 
-
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-memberassignment.html">MemberAssignment</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-messages-message.html">Message</a>
           </td>
           <td class="xmldoc"><p>Message in a messageset.</p>
-
 
 </td>
         </tr>
@@ -250,7 +332,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Type for messageset.</p>
 
-
 </td>
         </tr>
         <tr>
@@ -258,7 +339,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-messagesize.html">MessageSize</a>
           </td>
           <td class="xmldoc"><p>Message size</p>
-
 
 </td>
         </tr>
@@ -268,7 +348,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Metadata request</p>
 
-
 </td>
         </tr>
         <tr>
@@ -276,7 +355,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-metadataresponse.html">MetadataResponse</a>
           </td>
           <td class="xmldoc"><p>Metadata response</p>
-
 
 </td>
         </tr>
@@ -286,7 +364,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>This is the offset used in kafka as the log sequence number.</p>
 
-
 </td>
         </tr>
         <tr>
@@ -294,7 +371,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-offsetcommitrequestv0partition.html">OffsetCommitRequestV0Partition</a>
           </td>
           <td class="xmldoc"><p>OffsetCommitRequestV0Partition</p>
-
 
 </td>
         </tr>
@@ -304,7 +380,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>OffsetCommitRequestV0Topic</p>
 
-
 </td>
         </tr>
         <tr>
@@ -312,7 +387,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-offsetcommitrequestv1partition.html">OffsetCommitRequestV1Partition</a>
           </td>
           <td class="xmldoc"><p>OffsetCommitRequestV1Partition</p>
-
 
 </td>
         </tr>
@@ -322,7 +396,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>OffsetCommitRequestV1Topic</p>
 
-
 </td>
         </tr>
         <tr>
@@ -330,7 +403,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-offsetcommitresponse.html">OffsetCommitResponse</a>
           </td>
           <td class="xmldoc"><p>Offset commit response</p>
-
 
 </td>
         </tr>
@@ -340,7 +412,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>OffsetCommitResponsePartition</p>
 
-
 </td>
         </tr>
         <tr>
@@ -348,7 +419,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-offsetcommitresponsetopic.html">OffsetCommitResponseTopic</a>
           </td>
           <td class="xmldoc"><p>OffsetCommitResponseTopic</p>
-
 
 </td>
         </tr>
@@ -358,7 +428,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Offset commit request version 0</p>
 
-
 </td>
         </tr>
         <tr>
@@ -367,6 +436,13 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Offset commit request version 1</p>
 
+</td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-offsetcommitv2request.html">OffsetCommitV2Request</a>
+          </td>
+          <td class="xmldoc"><p>Offset commit request version 2</p>
 
 </td>
         </tr>
@@ -376,7 +452,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Offset fetch request</p>
 
-
 </td>
         </tr>
         <tr>
@@ -384,7 +459,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-offsetfetchrequesttopic.html">OffsetFetchRequestTopic</a>
           </td>
           <td class="xmldoc"><p>OffsetFetchRequestTopic</p>
-
 
 </td>
         </tr>
@@ -394,7 +468,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>Offset fetch response</p>
 
-
 </td>
         </tr>
         <tr>
@@ -403,7 +476,6 @@ This id acts as a logical grouping across all requests from a particular client.
           </td>
           <td class="xmldoc"><p>OffsetFetchResponsePartition</p>
 
-
 </td>
         </tr>
         <tr>
@@ -411,7 +483,6 @@ This id acts as a logical grouping across all requests from a particular client.
             <a href="franz-messages-offsetfetchresponsetopic.html">OffsetFetchResponseTopic</a>
           </td>
           <td class="xmldoc"><p>OffsetFetchResponseTopic</p>
-
 
 </td>
         </tr>
@@ -422,7 +493,6 @@ This id acts as a logical grouping across all requests from a particular client.
           <td class="xmldoc"><p>Creates a offset request.
 This API describes the valid offset range available for a set of topic-partitions</p>
 
-
 </td>
         </tr>
         <tr>
@@ -431,7 +501,6 @@ This API describes the valid offset range available for a set of topic-partition
           </td>
           <td class="xmldoc"><p>OffsetRequestPartition</p>
 
-
 </td>
         </tr>
         <tr>
@@ -439,7 +508,6 @@ This API describes the valid offset range available for a set of topic-partition
             <a href="franz-messages-offsetrequesttopic.html">OffsetRequestTopic</a>
           </td>
           <td class="xmldoc"><p>OffsetRequestTopic</p>
-
 
 </td>
         </tr>
@@ -450,7 +518,6 @@ This API describes the valid offset range available for a set of topic-partition
           <td class="xmldoc"><p>An offset response.
 Contains the starting offset of each segment for the requested partition as well as the "log end offset" i.e. the offset of the next message that would be appended to the given partition.</p>
 
-
 </td>
         </tr>
         <tr>
@@ -459,15 +526,19 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>OffsetResponseTopic</p>
 
-
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-partitionassignment.html">PartitionAssignment</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-messages-partitionmetadata.html">PartitionMetadata</a>
           </td>
           <td class="xmldoc"><p>PartitionMetadata</p>
-
 
 </td>
         </tr>
@@ -477,7 +548,6 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>PartitionOffset</p>
 
-
 </td>
         </tr>
         <tr>
@@ -485,7 +555,6 @@ Contains the starting offset of each segment for the requested partition as well
             <a href="franz-messages-partitionproducerequest.html">PartitionProduceRequest</a>
           </td>
           <td class="xmldoc"><p>PartitionProduceRequest</p>
-
 
 </td>
         </tr>
@@ -495,7 +564,6 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>PartitionProduceResponse</p>
 
-
 </td>
         </tr>
         <tr>
@@ -503,7 +571,6 @@ Contains the starting offset of each segment for the requested partition as well
             <a href="franz-messages-producerequest.html">ProduceRequest</a>
           </td>
           <td class="xmldoc"><p>Produce request</p>
-
 
 </td>
         </tr>
@@ -513,7 +580,6 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>Produce response</p>
 
-
 </td>
         </tr>
         <tr>
@@ -521,7 +587,6 @@ Contains the starting offset of each segment for the requested partition as well
             <a href="franz-messages-replicas.html">Replicas</a>
           </td>
           <td class="xmldoc"><p>The set of alive nodes that currently acts as slaves for the leader for this partition.</p>
-
 
 </td>
         </tr>
@@ -531,15 +596,25 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>Request base class</p>
 
-
 </td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-syncgrouprequest.html">SyncGroupRequest</a>
+          </td>
+          <td class="xmldoc"></td>
+        </tr>
+        <tr>
+          <td class="type-name">
+            <a href="franz-messages-syncgroupresponse.html">SyncGroupResponse</a>
+          </td>
+          <td class="xmldoc"></td>
         </tr>
         <tr>
           <td class="type-name">
             <a href="franz-messages-topicmetadata.html">TopicMetadata</a>
           </td>
           <td class="xmldoc"><p>TopicMetadata</p>
-
 
 </td>
         </tr>
@@ -549,7 +624,6 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>TopicProduceRequest</p>
 
-
 </td>
         </tr>
         <tr>
@@ -558,7 +632,6 @@ Contains the starting offset of each segment for the requested partition as well
           </td>
           <td class="xmldoc"><p>TopicProduceResponse</p>
 
-
 </td>
         </tr>
     </tbody>
@@ -566,6 +639,86 @@ Contains the starting offset of each segment for the requested partition as well
 
   </div>
 
+  <h3>Functions and values</h3>
+  <table class="table table-bordered member-list">
+    <thead>
+      <tr><td>Function or value</td><td>Description</td></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '4', 4)" onmouseover="showTip(event, '4', 4)">
+            correlationId 
+          </code>
+          <div class="tip" id="4">
+            <strong>Signature:</strong> int ref<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L143-143" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '5', 5)" onmouseover="showTip(event, '5', 5)">
+            DefaultGenerationId 
+          </code>
+          <div class="tip" id="5">
+            <strong>Signature:</strong> int<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L293-293" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '6', 6)" onmouseover="showTip(event, '6', 6)">
+            DefaultRetentionTime 
+          </code>
+          <div class="tip" id="6">
+            <strong>Signature:</strong> int64<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L291-291" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '7', 7)" onmouseover="showTip(event, '7', 7)">
+            DefaultTimestamp 
+          </code>
+          <div class="tip" id="7">
+            <strong>Signature:</strong> int64<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+            <a href="http://github.com/mvno/Franz/tree/master/src/Franz/Messages.fs#L289-289" class="github-link">
+              <img src="../content/img/github.png" class="normal" />
+              <img src="../content/img/github-blue.png" class="hover" />
+            </a>
+          
+        </td>
+      </tr>
+    </tbody>
+  </table>
 
         </div>
         <div class="span3">
