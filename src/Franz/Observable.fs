@@ -54,14 +54,16 @@ and ObservableConsumer(consumer : ChunkedConsumer) =
 
     member __.Consume(cancellationToken : CancellationToken) =
         consumer.CheckDisposedState()
-        let rec loop() =
-            if cancellationToken.IsCancellationRequested then ()
-            else
-                consumer.Consume(cancellationToken)
-                |> pushToAllObsevers
-                |> agent.PostAndReply
-                loop()
-        loop()
+        let consume = async {
+            let rec loop() =
+                if cancellationToken.IsCancellationRequested then ()
+                else
+                    consumer.Consume(cancellationToken)
+                    |> pushToAllObsevers
+                    |> agent.PostAndReply
+                    loop()
+            loop() }
+        Async.Start(consume, cancellationToken)
 
     member __.StopConsuming() =
         agent.PostAndReply(Complete)
@@ -71,16 +73,17 @@ and ObservableConsumer(consumer : ChunkedConsumer) =
         if not disposed then
             self.StopConsuming()
             disposed <- true
+    
+    member __.GetPosition() =
+        consumer.GetPosition()
+
+    member __.SetPosition(offsets) =
+        consumer.SetPosition(offsets)
+
+    member __.OffsetManager = consumer.OffsetManager
 
     interface IObservable<MessageWithMetadata> with
         member self.Subscribe(observer) = self.Subscribe(observer)
 
-    interface IConsumer with
-        member __.GetPosition() =
-            consumer.GetPosition()
-        member __.SetPosition(offsets) =
-            consumer.SetPosition(offsets)
-        member __.OffsetManager = consumer.OffsetManager
-        member __.Consume(cancellationToken) =
-            consumer.Consume(cancellationToken)
+    interface IDisposable with
         member self.Dispose() = self.Dispose()
