@@ -1,19 +1,21 @@
 ### 3.0.0
-* Fix bug which would throw exception when consumer got exceptions while communicating with broker. This is done by trying to reconnect when consuming fails. The retry interval is defined using the ConnectionRetryInterval property in the consumer options.
-* Allow selecting specific partitions when producing messages, using a specified key. To use round robin as previously, please use the RoundRobinProducer. When key is passed this key is passed along to Kafak message
-* Consuming messages with metadata no also includes the partition for which the message is consumed
-* Do not allow setting offset not in partition whitelist
-* New consumer, ChunkedConsumer, which consume messages in chunks, and won't use as much memory
-* Support for version 2 of the OffsetCommit protocol
-* Fixed bug where OffsetManager for version 1 of the OffsetCommit protocol did not use the default timestamp value. This resulted in not using the expected offset retention time
-* Increment correlation id on each request
-* Replace Consumer.Consume method with Consumer.ConsumeWithMetdata
-* Rename Set/GetOffsets methods on the consumer to Set/GetPosition, to clearly indicate these methods has nothing with the offsets handled by the OffsetManager
-* Support user-defined logging by implementing the ILogger interface and set the logger through LogConfiguration
-* Move partition whitelist into ConsumerOptions
-* Fix bug in producer where an unavailable broker would result in not refreshing the metadata
-* Fix bug where consuming data from a broker going down would result in a infinite loop
-* Support for connecting to the cluster through the Zookeeper cluster. There is currently no support for handling new topics created while the consumer is running.
+A lot of bugfixes and new features have been included in this release.
+
+* Fixed a bug which would throw an exception when a consumer failed while communicating with a broker. Instead of throwing an exception, we now try to reconnect, and only if this fails throw an exception. The retry interval is defined in the consumer options as ConnectionRetryInterval.
+* Support for specifying which partitions to send messages to. This is done by specifying a key along with the messages, and providing a function used to select the partition based on the key. To use round-robin as previously, you should use the new RoundRobinProducer.
+* Consumed messages now also contains the offset and partition for which the message were consumed.
+* Fixed a bug which would allow you set an offset for a partition, not in the partition whitelist.
+* New consumer, ChunkedConsumer, which consume messages in chunks, and won't use as much memory.
+* Support for version 2 of the OffsetCommit protocol.
+* Fixed bug where OffsetManager for version 1 of the OffsetCommit protocol did not use the default timestamp value. This resulted in not using the expected offset retention time.
+* Increment correlation id on each request.
+* Rename Set/GetOffsets methods on the consumer to Set/GetPosition, to clearly indicate these methods has nothing with the offsets handled by the OffsetManager to do.
+* Support user-defined logging by implementing the ILogger interface and set the logger through LogConfiguration.
+* Move partition whitelist into ConsumerOptions.
+* Fix bug in producer where an unavailable broker would result in not refreshing the metadata.
+* Fix bug where consuming data from a broker going down would result in a infinite loop.
+* Experimental support for reading the state and connection to a Kafka cluster through the Zookeeper cluster.
+* FSharp.Core is no longer pinned to a specific version
 ### 2.1.0
 * Handle situtation where fetching big messagesets could result in a infinite loop
 * Fix memory leak
