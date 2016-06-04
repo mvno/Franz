@@ -26,8 +26,15 @@ Producer:
 ```csharp
 using Franz.Highlevel
 
-var producer = new Producer(new[] { new EndPoint("localhost", 9092), new EndPoint("localhost", 9093) });
-producer.SendMessage("testTopic", "Test message");
+// Key is allowed to be null
+var message = new Message("testValue", "testKey");
+
+var roundRobinProducer = new RoundRobinProducer(new[] { new EndPoint("localhost", 9092) });
+roundRobinProducer.SendMessage("testTopic", message);
+
+// This producer allows you to control which partition messages and sent to
+var producer = new Producer(new[] { new EndPoint("localhost", 9092) }, (topic, key) => 1);
+producer.SendMessage("testTopic", message);
 ```
 
 Consumer:
@@ -35,11 +42,24 @@ Consumer:
 ```csharp
 using Franz.Highlevel
 
+var cts = new CancellationTokenSource();
+var token = cts.Token;
 var endPoints = new[] { new EndPoint("localhost", 9092), new EndPoint("localhost", 9093) };
+
 var consumer = new Consumer(endPoints, "testTopic")
 foreach (var message = consumer.Consume())
 {
 	/// Process message
+}
+
+// Chunked consumers uses much less memory, but receives messages slower, and isn't as easy to use
+var chunkedConsumer = new ChunkedConsumer(endPoints, "testTopic");
+while(true)
+{
+  foreach (var message in chunkedConsumer.Consume(token))
+  {
+    // Handle message
+  }
 }
 ```
 
