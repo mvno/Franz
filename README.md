@@ -1,6 +1,3 @@
-[![Issue Stats](http://issuestats.com/github/mvno/franz/badge/issue)](http://issuestats.com/github/mvno/franz)
-[![Issue Stats](http://issuestats.com/github/mvno/franz/badge/pr)](http://issuestats.com/github/mvno/franz)
-
 Franz
 =====
 
