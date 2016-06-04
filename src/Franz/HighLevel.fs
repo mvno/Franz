@@ -763,12 +763,13 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
     new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions())
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
-    member self.Consume(_) =
+    member self.Consume(cancellationToken : System.Threading.CancellationToken) =
         base.CheckDisposedState()
-        self.PartitionOffsets.Keys
-        |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None) })
-        |> Async.Parallel
-        |> Async.RunSynchronously
+        let consume =
+            self.PartitionOffsets.Keys
+            |> Seq.map (fun x -> async { return! self.ConsumeInChunks(x, None) })
+            |> Async.Parallel
+        Async.RunSynchronously(consume, cancellationToken = cancellationToken)
         |> Seq.concat
     
     /// Releases all connections and disposes the consumer
