@@ -47,6 +47,14 @@
     <Compile Include="Cluster.fs" />
     <None Include="paket.references" />
     <Compile Include="ClusterControlTest.fs" />
+    <Compile Include="BasicTest.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Franz\Franz.fsproj">
+      <Name>Franz</Name>
+      <Project>{f94bbb75-87ff-4881-8bd7-be8bb2f577c0}</Project>
+      <Private>True</Private>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
