@@ -9,14 +9,14 @@
     open Franz.HighLevel
 
     let kafka_brokers = [|
-        { Address = "http://192.168.100.100"; Port = 9091 };
-        { Address = "http://192.168.100.100"; Port = 9092 };
-        { Address = "http://192.168.100.100"; Port = 9093 };|]
+        { Address = "192.168.100.100"; Port = 9091 };
+        { Address = "192.168.100.100"; Port = 9092 };
+        { Address = "192.168.100.100"; Port = 9093 };|]
 
     let zookeepers = [|
-        { Address = "http://192.168.100.100"; Port = 2181 };
-        { Address = "http://192.168.100.100"; Port = 2182 };
-        { Address = "http://192.168.100.100"; Port = 2183 };|]
+        { Address = "192.168.100.100"; Port = 2181 };
+        { Address = "192.168.100.100"; Port = 2182 };
+        { Address = "192.168.100.100"; Port = 2183 };|]
 
     let sshPath = "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
     let virtualBoxPath = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
