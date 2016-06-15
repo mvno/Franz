@@ -26,6 +26,8 @@ init:
   - netsh advfirewall firewall add rule name="Zookeeper 3 quorum - out" dir=out action=allow protocol=TCP localport=2890
   - netsh advfirewall firewall add rule name="Zookeeper 3 leader - in" dir=in action=allow protocol=TCP localport=3890
   - netsh advfirewall firewall add rule name="Zookeeper 3 leader - out" dir=out action=allow protocol=TCP localport=3890
+  - Netsh Advfirewall show allprofiles
+  - Netsh advfirewall firewall show rule name=all
 
 build_script:
   - cmd: build.cmd NuGet
