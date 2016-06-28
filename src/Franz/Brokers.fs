@@ -110,19 +110,18 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
                 send self request
             with
             | :? IOException as ioe ->
-                if ioe.InnerException <> null && ioe.InnerException :? SocketException then
-                    let se = ioe.InnerException :?> SocketException
-                    match enum<SocketErrorCodes> se.ErrorCode with
-                    | SocketErrorCodes.ConnectionTimedOut -> LogConfiguration.Logger.Info.Invoke("Connection timed out on send. Retrying...")
-                    | _ -> LogConfiguration.Logger.Warning.Invoke("Send failed. Retrying...", se)
-                else
-                    LogConfiguration.Logger.Warning.Invoke("Send failed. Retrying...", ioe)
+                if ioe.InnerException <> null then
+                    LogConfiguration.Logger.Info.Invoke(ioe.InnerException.Message)
+                LogConfiguration.Logger.Info.Invoke(ioe.Message)
+                LogConfiguration.Logger.Info.Invoke("Retrying send...")
                 send self request
-            | :? UnderlyingConnectionClosedException ->
-                LogConfiguration.Logger.Info.Invoke("Broker unable to send, since the underlying connection have been closed since last usage.")
+            | :? UnderlyingConnectionClosedException as ucce->
+                LogConfiguration.Logger.Info.Invoke(ucce.Message)
+                LogConfiguration.Logger.Info.Invoke("Retrying send...")
                 send self request
             | e ->
-                LogConfiguration.Logger.Warning.Invoke("Send failed. Retrying...", e)
+                LogConfiguration.Logger.Warning.Invoke("An unexpected exception occured during send. Please investigate.", e)
+                LogConfiguration.Logger.Info.Invoke("Retrying send...")
                 send self request
             )
         request.DeserializeResponse(rawResponseStream)
