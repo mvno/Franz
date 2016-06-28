@@ -6,10 +6,7 @@ open System.Text
 
 type UnderlyingConnectionClosedException() =
     inherit Exception()
-    override e.Message = "Could not read any data from stream"
-
-type SocketErrorCodes =
-    | ConnectionTimedOut = 10060
+    override e.Message = "Could not read any data from stream."
 
 /// Writes to a stream conforming to the Kafka protocol
 [<AbstractClass; Sealed>]
