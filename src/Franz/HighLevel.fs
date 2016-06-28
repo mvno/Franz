@@ -78,6 +78,7 @@ type BaseProducer (brokerRouter : IBrokerRouter, compressionCodec, partitionSele
             |> Seq.map (fun x -> MessageSet.Create(int64 -1, int8 0, System.Text.Encoding.UTF8.GetBytes(x.Key), System.Text.Encoding.UTF8.GetBytes(x.Value)))
             |> Seq.toArray
         try
+            let key = if key <> null then key else ""
             send key topic messageSets requiredAcks brokerProcessingTimeout 0
         with
         | _ ->
