@@ -1,10 +1,8 @@
 NUGET
   remote: https://www.nuget.org/api/v2
-  specs:
     Crc32C.NET (1.0.5)
     FAKE (4.25.5)
     FsCheck (1.0.1)
-    FSharp.Collections.ParallelSeq (1.0.2)
     FSharp.Compiler.Service (2.0.0.6)
     FSharp.Core (4.0.0.1) - framework: >= net45
     FSharp.Formatting (2.14.2)
@@ -12,15 +10,14 @@ NUGET
       FSharpVSPowerTools.Core (>= 2.3 < 2.4)
     FSharpVSPowerTools.Core (2.3)
       FSharp.Compiler.Service (>= 2.0.0.3)
-    Microsoft.Bcl (1.1.10) - framework: net10, net11, net20, net35, net40, net40-full
+    Microsoft.Bcl (1.1.10) - framework: net10, net11, net20, net30, net35, net40, net40-full
       Microsoft.Bcl.Build (>= 1.0.14)
-    Microsoft.Bcl.Build (1.0.21) - import_targets: false, framework: net10, net11, net20, net35, net40, net40-full
-    Microsoft.Net.Http (2.2.29) - framework: net10, net11, net20, net35, net40, net40-full
+    Microsoft.Bcl.Build (1.0.21) - import_targets: false, framework: net10, net11, net20, net30, net35, net40, net40-full
+    Microsoft.Net.Http (2.2.29) - framework: net10, net11, net20, net30, net35, net40, net40-full
       Microsoft.Bcl (>= 1.1.10)
       Microsoft.Bcl.Build (>= 1.0.14)
-    NuGet.CommandLine (3.4.3)
-    Octokit (0.19)
-      Microsoft.Net.Http
+    Octokit (0.20)
+      Microsoft.Net.Http  - framework: net10, net11, net20, net30, net35, net40, net40-full
     Snappy.NET (1.1.1.8)
       Crc32C.NET (>= 1.0.5)
     SourceLink.Fake (1.1)
@@ -191,6 +188,5 @@ NUGET
     xunit.runner.console (2.1)
 GITHUB
   remote: fsharp/FAKE
-  specs:
-    modules/Octokit/Octokit.fsx (26ea4dbb3d60352b88162bb32577015af2e7c44e)
-      Octokit
+    modules/Octokit/Octokit.fsx (911c3efbc9127d52b1db0dc0ed6e12aafd23d548)
+      Octokit (>= 0.20)
