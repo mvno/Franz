@@ -262,7 +262,10 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
 
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) (consumerGroup : string) (managerName : string) =
         let errorCodes = Seq.concat (offsetCommitResponse.Topics |> Seq.map (fun t -> t.Partitions |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError) |> Seq.map(fun p -> sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
-        let topic = (offsetCommitResponse.Topics |> Seq.head).Name
+        let topic =
+            match offsetCommitResponse.Topics |> Seq.tryHead with
+            | Some x -> x.Name
+            | None -> "Could not get topic name"
         match Seq.isEmpty errorCodes with
         | false -> raiseWithErrorLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to %s, topic '%s', group '%s': %A" managerName topic consumerGroup offsets)
