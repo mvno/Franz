@@ -1,3 +1,6 @@
+### 3.0.1
+* Fixed a bug where sending messages without null key, would result in an exception
+
 ### 3.0.0
 A lot of bugfixes and new features have been included in this release.
 
