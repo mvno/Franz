@@ -109,11 +109,20 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
             try
                 send self request
             with
+            | :? IOException as ioe ->
+                if ioe.InnerException <> null && ioe.InnerException :? SocketException then
+                    let se = ioe.InnerException :?> SocketException
+                    match enum<SocketErrorCodes> se.ErrorCode with
+                    | SocketErrorCodes.ConnectionTimedOut -> LogConfiguration.Logger.Info.Invoke("Connection timed out on send. Retrying...")
+                    | _ -> LogConfiguration.Logger.Warning.Invoke("Send failed. Retrying...", se)
+                else
+                    LogConfiguration.Logger.Warning.Invoke("Send failed. Retrying...", ioe)
+                send self request
             | :? UnderlyingConnectionClosedException ->
                 LogConfiguration.Logger.Info.Invoke("Broker unable to send, since the underlying connection have been closed since last usage.")
                 send self request
             | e ->
-                LogConfiguration.Logger.Warning.Invoke("Broker unable to send.", e)
+                LogConfiguration.Logger.Warning.Invoke("Send failed. Retrying...", e)
                 send self request
             )
         request.DeserializeResponse(rawResponseStream)
