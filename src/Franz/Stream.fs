@@ -8,6 +8,9 @@ type UnderlyingConnectionClosedException() =
     inherit Exception()
     override e.Message = "Could not read any data from stream"
 
+type SocketErrorCodes =
+    | ConnectionTimedOut = 10060
+
 /// Writes to a stream conforming to the Kafka protocol
 [<AbstractClass; Sealed>]
 type BigEndianWriter() =
