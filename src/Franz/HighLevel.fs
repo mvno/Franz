@@ -69,7 +69,7 @@ type BaseProducer (brokerRouter : IBrokerRouter, compressionCodec, partitionSele
             brokerRouter.RefreshMetadata()
             send key topicName messages requiredAcks brokerProcessingTimeout 0
         | ErrorCode.RequestTimedOut ->
-            retryOnRequestTimedOut (fun () -> send topicName key messages requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
+            retryOnRequestTimedOut (fun () -> send key topicName messages requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) retryCount
         | _ -> raiseWithErrorLog(BrokerReturnedErrorException partitionResponse.ErrorCode)
 
     let sendMessages key topic requiredAcks brokerProcessingTimeout messages =
