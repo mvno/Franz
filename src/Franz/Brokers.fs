@@ -179,6 +179,7 @@ type ZookeeperBrokerRouterMessage =
     | BrokerIdsChanged
     | TopicPartitionStateUpdated of string * Id
     | GetAllBrokers of AsyncReplyChannel<Broker seq>
+    | GetRandomBroker of AsyncReplyChannel<Broker option>
     | TopicsChanged
     | TopicPartitionsChanged of string
 
@@ -187,6 +188,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
     let mutable disposed = false
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
+    let random = new Random()
 
     let agent = new Agent<_>(fun inbox ->
         let getAndWatchBrokerIds() = zookeeperManager.GetBrokerIds(fun () -> inbox.Post(BrokerIdsChanged))
@@ -344,11 +346,25 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
                 | TopicPartitionStateUpdated (topic, partition) -> (brokers |> topicPartitionStateUpdated (topic, partition), topicPartitions)
                 | BrokerIdsChanged -> brokers |> idsChanged topicPartitions
                 | GetAllBrokers reply -> reply.Reply(brokers |> Map.getValues); (brokers, topicPartitions)
+                | GetRandomBroker reply ->
+                    let index = random.Next(brokers.Count)
+                    brokers
+                    |> Map.getValues
+                    |> Seq.tryItem index
+                    |> reply.Reply
+                    (brokers, topicPartitions)
                 | TopicsChanged -> topicsChanged brokers topicPartitions
                 | TopicPartitionsChanged topic -> topic |> partitionsChanged brokers topicPartitions
             return! loop brokers topicPartitions
         }
         loop Map.empty Map.empty)
+
+    let getRandomBroker() =
+        match agent.PostAndReply(GetRandomBroker) with
+        | Some x -> x
+        | None ->
+            LogConfiguration.Logger.Warning.Invoke("No brokers available", null)
+            raise (NoBrokersAvailable())
 
     do
        agent.Error.Add(fun x -> errorEvent.Trigger(raiseWithFatalLog(x)))
@@ -430,6 +446,8 @@ type BrokerRouterMessage =
     | Close
     /// Connect to the cluster
     | Connect of EndPoint seq * AsyncReplyChannel<unit>
+    /// Get a random broker
+    | GetRandomBroker of AsyncReplyChannel<Broker option>
 
 /// The broker router. Handles all logic related to broker metadata and available brokers, using the Kafka cluster as the source of information
 type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
@@ -437,6 +455,7 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()
     let metadataRefreshed = new Event<_>()
+    let random = new Random()
     let getPartitions nodeId response =
         response.TopicMetadata
         |> Seq.map (fun t -> { TopicName = t.Name; PartitionIds = t.PartitionMetadata |> Seq.filter (fun p -> p.ErrorCode.IsSuccess() && p.Leader = nodeId) |> Seq.map (fun p -> p.PartitionId) |> Seq.toArray })
@@ -507,6 +526,12 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             | Connect (brokerSeeds, reply) ->
                 if not connected then connect brokerSeeds
                 reply.Reply()
+                return! loop brokers lastRoundRobinIndex true
+            | GetRandomBroker reply ->
+                let index = random.Next(brokers.Length)
+                brokers
+                |> Seq.tryItem index
+                |> reply.Reply
                 return! loop brokers lastRoundRobinIndex true
         }
         loop [] -1 false), cts.Token)
