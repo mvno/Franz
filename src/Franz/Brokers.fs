@@ -164,6 +164,10 @@ type IBrokerRouter =
     abstract member GetBroker : string * Id -> Broker
     /// Try to send a request to broker handling the specified topic and partition
     abstract member TrySendToBroker : string * Id * Request<'a> -> 'a
+    /// Try to send a request to a broker using round robin algorithm
+    abstract member TrySendToBroker : Request<'a> -> 'a
+    /// Try to send a request to a broker specified by id
+    abstract member TrySendToBroker : Id * Request<'a> -> 'a
     /// Get all available partitions of the specified topic
     abstract member GetAvailablePartitionIds : string -> Id array
     /// Event used in case of unhandled exception in internal agent
@@ -366,6 +370,16 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             LogConfiguration.Logger.Warning.Invoke("No brokers available", null)
             raise (NoBrokersAvailable())
 
+    let getBroker(id) =
+        let broker =
+            agent.PostAndReply(GetAllBrokers)
+            |> Seq.tryFind (fun x -> x.Id = id)
+        match broker with
+        | Some x -> x
+        | None ->
+            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to find broker with id %i" id)
+            raise (BrokerNotFound(id))
+
     do
        agent.Error.Add(fun x -> errorEvent.Trigger(raiseWithFatalLog(x)))
        zookeeperManager.ConnectionLost.Add(fun () -> errorEvent.Trigger(raiseWithFatalLog(UnableToConnectToAnyZookeeperException())))
@@ -412,6 +426,16 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         raiseIfDisposed disposed
         let broker = self.GetBroker(topic, partitionId)
         broker.Send(request)
+    /// Try to send a request to a random broker.
+    /// If this fails an exception is thrown and should be handled by the caller.
+    member __.TryToSendToBroker(request) =
+        raiseIfDisposed disposed
+        getRandomBroker().Send(request)
+    /// Try to send a request to a specific broker.
+    /// If this fails an exception is thrown and should be handled by the caller.
+    member __.TryToSendToBroker(id, request) =
+        raiseIfDisposed disposed
+        getBroker(id).Send(request)
     /// Refresh cluster metadata
     member __.RefreshMetadata() = ()
     /// Event triggered when metadata is refreshed
@@ -424,9 +448,11 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
         member self.GetAvailablePartitionIds(topic) = self.GetAvailablePartitionIds(topic)
         member self.GetBroker(topic, partitionId) = self.GetBroker(topic, partitionId)
         member self.TrySendToBroker(topic, partitionId, request) = self.TryToSendToBroker(topic, partitionId, request)
+        member self.TrySendToBroker(request) = self.TryToSendToBroker(request)
         member self.Error = self.Error
         member self.MetadataRefreshed = self.MetadataRefreshed
         member self.RefreshMetadata() = self.RefreshMetadata()
+        member self.TrySendToBroker(id, request) = self.TryToSendToBroker(id, request)
     interface IDisposable with
         /// Dispose the router
         member self.Dispose() = self.Dispose()
@@ -574,6 +600,14 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         brokerRouter.RefreshMetadata()
         brokerRouter.GetBroker(topicName, partitionId)
 
+    let getBroker(id) =
+        let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
+        match brokers |> Seq.tryFind (fun x -> x.Id = id) with
+        | Some x -> x
+        | None ->
+            LogConfiguration.Logger.Info.Invoke(sprintf "Unable to find broker with id %i" id)
+            raise (BrokerNotFound(id))
+
     do
         router.Error.Add(fun x -> errorEvent.Trigger(x))
 
@@ -652,6 +686,16 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
     member self.TrySendToBroker(topicName, partitionId, request) =
         let broker = self.GetBroker(topicName, partitionId)
         Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
+    /// Try to send a request to a random broker.
+    /// If an exception is thrown this should be handled by the caller.
+    member __.TrySendToBroker(request) =
+        raiseIfDisposed disposed
+        match router.PostAndReply(GetRandomBroker) with
+        | Some x -> x.Send(request)
+        | None ->
+            LogConfiguration.Logger.Warning.Invoke("No brokers available", null)
+            raise (NoBrokersAvailable())
+
     /// Get all available partitions of the specified topic
     member __.GetAvailablePartitionIds(topicName) =
         raiseIfDisposed(disposed)
@@ -664,6 +708,11 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
             |> Seq.map (fun x -> x.PartitionIds)
             |> Seq.concat
             |> Seq.toArray
+    /// Try to send a request to a specific broker.
+    /// If this fails an exception is thrown and should be handled by the caller.
+    member __.TrySendToBroker(id, request) =
+        raiseIfDisposed disposed
+        getBroker(id).Send(request)
     /// Dispose the router
     member __.Dispose() =
         if not disposed then
@@ -677,7 +726,9 @@ type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
         member self.GetAllBrokers() = self.GetAllBrokers()
         member self.GetAvailablePartitionIds(topicName) = self.GetAvailablePartitionIds(topicName)
         member self.TrySendToBroker(topicName, partitionId, request) = self.TrySendToBroker(topicName, partitionId, request)
+        member self.TrySendToBroker(request) = self.TrySendToBroker(request)
         member self.GetBroker(topic, partitionId) = self.GetBroker(topic, partitionId)
         member self.Error = self.Error
         member self.MetadataRefreshed = self.MetadataRefreshed
         member self.RefreshMetadata() = self.RefreshMetadata()
+        member self.TrySendToBroker(id, request) = self.TrySendToBroker(id, request)
