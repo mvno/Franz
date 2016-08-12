@@ -13,6 +13,14 @@ type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
     member __.Partition = partition
     override e.Message = sprintf "Could not find broker for topic %s partition %i after several retries." e.Topic e.Partition
 
+type BrokerNotFound (id : int) =
+    inherit Exception()
+    override e.Message = sprintf "Could not find broker with id %i" id
+
+type NoBrokersAvailable() =
+    inherit Exception()
+    override __.Message = "No brokers available"
+
 type UnableToConnectToAnyBrokerException() =
     inherit Exception()
     override __.Message = "Could not connect to any of the broker seeds"
