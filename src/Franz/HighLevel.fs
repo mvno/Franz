@@ -550,7 +550,7 @@ type IConsumer =
     /// Get the current consumer position
     abstract member GetPosition : unit -> PartitionOffset array
     /// Set the current consumer position
-    abstract member SetPosition : PartitionOffset array -> unit
+    abstract member SetPosition : PartitionOffset seq -> unit
     abstract member OffsetManager : IConsumerOffsetManager
     abstract member BrokerRouter : IBrokerRouter
 
