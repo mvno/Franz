@@ -837,15 +837,6 @@ module Messages =
         override __.DeserializeResponse(stream) =
             JoinGroupResponse.Deserialize(stream)
 
-    [<NoEquality;NoComparison>]
-    type SyncGroupResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; MemberAssignment : byte array }
-        static member Deserialize(stream) =
-            {
-                CorrelationId = stream |> BigEndianReader.ReadInt32;
-                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                MemberAssignment = stream |> BigEndianReader.ReadBytes;
-            }
     [<NoEquality;NoComparison>] type PartitionAssignment = { Topic : string; Partitions : int array }
     [<NoEquality;NoComparison>]
     type MemberAssignment =
@@ -887,6 +878,17 @@ module Messages =
                 PartitionAssignment = stream |> MemberAssignment.readAssignments [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
                 UserData = stream |> BigEndianReader.ReadBytes
             }
+
+    [<NoEquality;NoComparison>]
+    type SyncGroupResponse =
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; MemberAssignment : MemberAssignment }
+        static member Deserialize(stream) =
+            {
+                CorrelationId = stream |> BigEndianReader.ReadInt32;
+                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
+                MemberAssignment = stream |> MemberAssignment.Deserialize;
+            }
+
     [<NoEquality;NoComparison>] type GroupAssignment = { MemberId : string; MemberAssignment : MemberAssignment }
     type SyncGroupRequest(groupId, generationId, memberId, groupAssignments) =
         inherit Request<SyncGroupResponse>()
