@@ -724,6 +724,9 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
     member internal __.CheckDisposedState() =
         raiseIfDisposed(disposed)
 
+    member internal __.ClearPositions() =
+        partitionOffsets.Clear()
+
     interface IDisposable with
         member self.Dispose() = self.Dispose()
 
