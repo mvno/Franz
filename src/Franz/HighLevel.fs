@@ -1,11 +1,14 @@
 ﻿namespace Franz.HighLevel
 
+#nowarn "40"
+
 open System
 open System.Collections.Generic
 open Franz
 open System.Collections.Concurrent
 open Franz.Compression
 open Franz.Internal
+open System.Threading        
 
 type ErrorCommittingOffsetException (offsetManagerName : string, topic : string, consumerGroup : string, errorCodes : seq<string>) =
     inherit Exception()
@@ -801,3 +804,359 @@ type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter 
         member self.Consume(cancellationToken) =
             self.Consume(cancellationToken)
         member self.Dispose() = self.Dispose()
+        /// Gets the broker router
+        member self.BrokerRouter = self.BrokerRouter
+
+/// Interface used to implement consumer group assignors
+type IAssignor =
+    /// Name of the assignor
+    abstract member Name : string
+    /// Perform group assignment given group members and available partition ids
+    abstract member Assign : GroupMember seq * Id seq -> GroupAssignment array
+
+type RoundRobinAssignor(topic) =
+    let version = 0s
+
+    member __.Name = "roundrobin"
+    member __.Assign(members : GroupMember seq, partitions : Id seq) =
+        let rec memberSeq = seq {
+            for x in members do yield x
+            yield! memberSeq
+        }
+        let assignments = new Dictionary<string, int list>()
+        members |> Seq.iter (fun x -> assignments.Add(x.MemberId, []))
+        partitions
+        |> Seq.iter2 (fun (m : GroupMember) p -> assignments.[m.MemberId] <- p :: assignments.[m.MemberId]) memberSeq
+        assignments
+        |> Seq.map (fun x -> { GroupAssignment.MemberId = x.Key; MemberAssignment = { Version = version; UserData = [||]; PartitionAssignment = [| { Topic = topic; Partitions = x.Value |> Seq.toArray } |] } })
+        |> Seq.toArray
+
+    interface IAssignor with
+        /// Name of the assignor
+        member self.Name = self.Name
+        /// Perform group assignment given group members and available partition ids
+        member self.Assign(members, partitions) = self.Assign(members, partitions)
+
+type internal CoordinatorMessage =
+    | JoinGroup of CancellationToken
+    | LeaveGroup
+//    | Consume of CancellationToken * AsyncReplyChannel<MessageWithMetadata seq>
+
+/// High level kafka consumer.
+type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff, sessionTimeout, assignors : IAssignor seq) =
+    let mutable disposed = false
+    let groupCts = new CancellationTokenSource()
+    let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
+    let queueEmptyEvent = new ManualResetEventSlim(true)
+    let queueAvailableEvent = new AutoResetEvent(false)
+    let messageQueue =
+        let rec loop() =
+            let success, msg = innerMessageQueue.TryDequeue()
+            if success then seq { yield msg; yield! loop() }
+            else
+                queueEmptyEvent.Set()
+                queueAvailableEvent.WaitOne() |> ignore
+                // TODO: Handle cancellation
+                queueEmptyEvent.Reset()
+                seq { yield! loop() }
+        seq { yield! loop() }
+                
+    // TODO: Handle overloads
+    let consumer =
+        // TODO: TCP timeout must be greater than session timeout
+        let options = new ConsumerOptions()
+        options.TcpTimeout <- 40000
+        new ChunkedConsumer(brokerSeeds, topic, options)
+
+    let getGroupCoordinatorId() =
+        // TODO: Handle situation where group doesn't exists yet
+        let response =
+            new ConsumerMetadataRequest(groupId)
+            |> consumer.BrokerRouter.TrySendToBroker
+        response.CoordinatorId
+
+    let tryFindAssignor protocol = assignors |> Seq.tryFind (fun x -> x.Name = protocol)
+
+    let getAssigment response =
+        match tryFindAssignor response.GroupProtocol with
+        | Some x ->
+            consumer.BrokerRouter.RefreshMetadata()
+            x.Assign(response.Members, consumer.BrokerRouter.GetAvailablePartitionIds(topic))
+        | None -> raiseWithErrorLog (invalidOp (sprintf "Coordinator selected unsupported protocol %s" response.GroupProtocol))
+
+    let trySendToBroker coordinatorId request = consumer.BrokerRouter.TrySendToBroker(coordinatorId, request)
+    let createSyncRequest response assignment = new SyncGroupRequest(groupId, response.GenerationId, response.MemberId, assignment)
+    
+    let joinAsLeader response =
+        response
+        |> getAssigment
+        |> createSyncRequest response
+    
+    let joinAsFollower response = createSyncRequest response [||]
+    
+    let (|Leader|Follower|) response =
+        if response.LeaderId = response.MemberId then Leader
+        else Follower
+        
+    let sendJoinGroupAsync (coordinatorId : Id) success failure =
+        async {
+            try
+                let response =
+                    new JoinGroupRequest(groupId, sessionTimeout, "", "consumer", assignors |> Seq.map (fun x -> { Name = x.Name; Metadata = [||] }))
+                    |> trySendToBroker coordinatorId
+                match response.ErrorCode with
+                | ErrorCode.NoError -> return! success response
+                | _ -> return! failure response.ErrorCode
+            with
+                e ->
+                    LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while joining group. Trying to rejoin...", e)
+                    return! failure ErrorCode.Unknown
+        }
+
+    let sendSyncGroupRequestAsync (request : SyncGroupRequest) (coordinatorId : Id) success failure =
+        async {
+            try
+                let response = request |> trySendToBroker coordinatorId
+                match response.ErrorCode with
+                | ErrorCode.NoError -> return! success coordinatorId response
+                | _ -> return! failure response.ErrorCode
+            with
+                e ->
+                    LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while syncing group. Trying to rejoin...", e)
+                    return! failure ErrorCode.Unknown
+        }
+
+    let sendHeartbeatRequestAsync (generationId : Id) memberId (coordinatorId : Id) cts success failure =
+        async {
+            try
+                let response =
+                    new HeartbeatRequest(groupId, generationId, memberId)
+                    |> trySendToBroker coordinatorId
+                match response.ErrorCode with
+                | ErrorCode.NoError -> return! success cts generationId memberId coordinatorId
+                | _ -> return! failure cts response.ErrorCode
+            with
+                e ->
+                    LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while sending heartbeat. Trying to rejoin...", e)
+                    return! failure cts ErrorCode.Unknown
+        }
+
+    let updateConsumerPosition (partitionAssignments : PartitionAssignment array) =
+        consumer.ClearPositions()
+        let assignedPartitions =
+            partitionAssignments
+            |> Seq.filter (fun x -> x.Topic = topic)
+            |> Seq.map(fun x -> x.Partitions)
+            |> Seq.concat
+            |> Seq.toArray
+
+        let offsetsForAssignedPartitions =
+            consumer.OffsetManager.Fetch(groupId)
+            |> Seq.filter (fun x -> assignedPartitions |> Seq.contains(x.PartitionId))
+
+        let unavailableOffsets =
+            assignedPartitions
+            |> Seq.filter (fun x -> offsetsForAssignedPartitions |> Seq.map(fun y -> y.PartitionId) |> Seq.contains(x) |> not)
+            |> Seq.map (fun x -> { PartitionOffset.Offset = 0L; PartitionOffset.PartitionId = x; PartitionOffset.Metadata = "" })
+
+        let offsetsForAssignedPartitions =
+            unavailableOffsets
+            |> Seq.append offsetsForAssignedPartitions
+
+        consumer.SetPosition(offsetsForAssignedPartitions)
+
+    let joinGroup success failure =
+        let coordinatorId = getGroupCoordinatorId()
+        sendJoinGroupAsync coordinatorId (success coordinatorId) failure
+
+    let consumeAsync(token) =
+        async {
+            while true do
+                if queueEmptyEvent.IsSet then
+                    try
+                        let msgs = consumer.Consume(token)
+                        if msgs |> Seq.isEmpty |> not then
+                            msgs
+                            |> Seq.iter innerMessageQueue.Enqueue
+                            queueAvailableEvent.Set() |> ignore
+                    with
+                        :? OperationCanceledException -> return ()
+        }
+
+    let stopConsuming (cts : CancellationTokenSource) =
+        LogConfiguration.Logger.Info.Invoke("Stopping consuming...")
+        cts.Cancel()
+
+    let createLinkedCancellationTokenSource token =
+        CancellationTokenSource.CreateLinkedTokenSource([| token; groupCts.Token |])
+
+    let agent = Agent<CoordinatorMessage>.Start(fun inbox ->
+            let mutable agentCts : CancellationTokenSource = null
+            let rec notConnectedState () =
+                async {
+                    let! msg = inbox.Receive()
+                    match msg with
+                    | JoinGroup token ->
+                        agentCts <- createLinkedCancellationTokenSource token
+                        return! joinGroup joiningState failedJoinState
+                    | LeaveGroup -> return! notConnectedState()
+                }
+            and reconnectState () =
+                async {
+                    let currentPosition = consumer.GetPosition()
+                    if currentPosition |> Seq.isEmpty |> not then
+                        try
+                            consumer.OffsetManager.Commit(groupId, currentPosition)
+                        with e -> LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" groupId retryBackOff)
+                    let! msg = inbox.TryReceive(retryBackOff)
+                    match msg with
+                    | Some x ->
+                        match x with
+                        | LeaveGroup -> return! notConnectedState()
+                        | JoinGroup token ->
+                            agentCts <- createLinkedCancellationTokenSource token
+                            return! joinGroup joiningState failedJoinState
+                    | None ->
+                        if agentCts.IsCancellationRequested then ()
+                        else
+                            return! joinGroup joiningState failedJoinState
+                }
+            and failedJoinState (errorCode : ErrorCode) =
+                async {
+                    match errorCode with
+                    | ErrorCode.ConsumerCoordinatorNotAvailable
+                    | ErrorCode.GroupLoadInProgressCode
+                    | ErrorCode.NotCoordinatorForConsumer
+                    | ErrorCode.UnknownMemberIdCode ->
+                        LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." groupId errorCode)
+                        return! reconnectState()
+                    | ErrorCode.InconsistentGroupProtocolCode ->
+                        let ex = InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                    | ErrorCode.InvalidSessionTimeoutCode ->
+                        let ex = InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                    | ErrorCode.GroupAuthorizationFailedCode ->
+                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                    | _ ->
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        return! reconnectState()
+                }
+            and joiningState (coordinatorId : Id) (response : JoinGroupResponse) =
+                async {
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Syncing consumer group '%s'" groupId)
+                    let syncRequest =
+                        response
+                        |> match response with
+                            | Leader -> joinAsLeader
+                            | Follower -> joinAsFollower
+                    return! sendSyncGroupRequestAsync syncRequest coordinatorId (syncingState response.GenerationId response.MemberId) failedSyncState
+                }
+            and failedSyncState (errorCode : ErrorCode) =
+                async {
+                    match errorCode with
+                    | ErrorCode.ConsumerCoordinatorNotAvailable
+                    | ErrorCode.NotCoordinatorForConsumer
+                    | ErrorCode.IllegalGenerationCode
+                    | ErrorCode.UnknownMemberIdCode
+                    | ErrorCode.RebalanceInProgressCode ->
+                        LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." groupId errorCode)
+                        return! reconnectState()
+                    | ErrorCode.GroupAuthorizationFailedCode ->
+                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                    | _ ->
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        return! reconnectState()
+                }
+            and syncingState (generationId : Id) (memberId : string) (coordinatorId : Id) (response : SyncGroupResponse) =
+                async {
+                    try
+                        updateConsumerPosition response.MemberAssignment.PartitionAssignment
+                    with
+                        e ->
+                            LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
+                            return! reconnectState()
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" groupId response.MemberAssignment.PartitionAssignment)
+                    let cts = new CancellationTokenSource()
+                    Async.Start(consumeAsync(cts.Token), cts.Token)
+                    return! connectedState cts generationId memberId coordinatorId
+                }
+            and connectedState (cts : CancellationTokenSource) (generationId : Id) (memberId : string) (coordinatorId : Id) =
+                async {
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected loop %s..." memberId)
+                    let! msg = inbox.TryReceive(heartbeatInterval)
+                    match msg with
+                    | Some x ->
+                        match x with
+                        | LeaveGroup ->
+                            stopConsuming cts
+                            return! notConnectedState()
+                        | _ ->
+                            return! sendHeartbeatRequestAsync generationId memberId coordinatorId cts connectedState failedHeartbeatState
+                    | None ->
+                        if agentCts.IsCancellationRequested then
+                            stopConsuming cts
+                        else
+                            return! sendHeartbeatRequestAsync generationId memberId coordinatorId cts connectedState failedHeartbeatState
+                }
+            and failedHeartbeatState (cts : CancellationTokenSource) (errorCode : ErrorCode) =
+                async {
+                    stopConsuming cts
+                    match errorCode with
+                    | ErrorCode.ConsumerCoordinatorNotAvailable
+                    | ErrorCode.NotCoordinatorForConsumer
+                    | ErrorCode.IllegalGenerationCode
+                    | ErrorCode.UnknownMemberIdCode ->
+                        LogConfiguration.Logger.Trace.Invoke(sprintf "Heartbeat failed with %O. Trying to rejoin..." errorCode)
+                        return! reconnectState()
+                    | ErrorCode.RebalanceInProgressCode ->
+                        return! reconnectState()
+                    | ErrorCode.GroupAuthorizationFailedCode ->
+                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                    | _ ->
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." groupId)
+                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        return! reconnectState()
+                }
+
+            notConnectedState())
+
+    /// Consume messages from the topic specified. Uses the IConsumer provided in the constructor to consume messages.
+    member __.Consume(token) =
+        raiseIfDisposed disposed
+        agent.Post(JoinGroup token)
+        messageQueue
+    
+    member __.ClearPositions() = consumer.ClearPositions()
+    member __.OffsetManager = consumer.OffsetManager
+    member __.GetPosition = consumer.GetPosition
+    member __.SetPosition = consumer.SetPosition
+    
+    member __.LeaveGroup() =
+        raiseIfDisposed disposed
+        agent.Post(LeaveGroup)
+
+    /// Releases all connections and disposes the consumer
+    member __.Dispose() =
+        if not disposed then
+            groupCts.Cancel()
+            consumer.Dispose()
+            disposed <- true
+
+    member __.BrokerRouter =
+        raiseIfDisposed disposed
+        consumer.BrokerRouter
+
+    interface IConsumer with
+        member self.GetPosition() = self.GetPosition()
+        member self.SetPosition(offsets) = self.SetPosition(offsets)
+        member self.OffsetManager = self.OffsetManager
+        member self.Consume(cancellationToken) = self.Consume(cancellationToken)
+        member self.Dispose() = self.Dispose()
+        member self.BrokerRouter = self.BrokerRouter
