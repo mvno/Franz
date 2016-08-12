@@ -272,6 +272,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
         | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to %s, topic '%s', group '%s': %A" managerName topic consumerGroup offsets)
 
     let innerCommit offsets consumerGroup =
+        if offsets |> Seq.isEmpty then ()
         let broker = brokerRouter.GetAllBrokers() |> Seq.head
         let partitions = offsets |> Seq.map (fun x -> { OffsetCommitRequestV0Partition.Id = x.PartitionId; Metadata = x.Metadata; Offset = x.Offset }) |> Seq.toArray
         let request = new OffsetCommitV0Request(consumerGroup, [| { OffsetCommitRequestV0Topic.Name = topicName; Partitions = partitions } |])
