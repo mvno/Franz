@@ -552,6 +552,7 @@ type IConsumer =
     /// Set the current consumer position
     abstract member SetPosition : PartitionOffset array -> unit
     abstract member OffsetManager : IConsumerOffsetManager
+    abstract member BrokerRouter : IBrokerRouter
 
 /// Offset storage type
 type OffsetStorage =
@@ -641,6 +642,9 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
         brokerRouter.Connect()
         brokerRouter.GetAllBrokers() |> updateTopicPartitions
         brokerRouter.MetadataRefreshed.Add(fun x -> x |> updateTopicPartitions)
+
+    /// Gets the broker router
+    member __.BrokerRouter = brokerRouter
 
     /// The position of the consumer
     abstract member PartitionOffsets : ConcurrentDictionary<Id, Offset> with get
@@ -758,6 +762,8 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrok
         member self.Consume(cancellationToken) =
             self.Consume(cancellationToken)
         member self.Dispose() = self.Dispose()
+        /// Gets the broker router
+        member self.BrokerRouter = self.BrokerRouter
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
