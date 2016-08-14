@@ -747,10 +747,10 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
         member self.Dispose() = self.Dispose()
 
 /// High level kafka consumer.
-type Consumer(consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
+type Consumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) =
     inherit BaseConsumer(brokerRouter, consumerOptions)
 
-    new (brokerSeeds, consumerOptions : ConsumerOptions) = new Consumer(consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
+    new (brokerSeeds, consumerOptions : ConsumerOptions) = new Consumer(new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout), consumerOptions)
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
         base.CheckDisposedState()
@@ -785,10 +785,10 @@ type Consumer(consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
-type ChunkedConsumer(consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
+type ChunkedConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) =
     inherit BaseConsumer(brokerRouter, consumerOptions)
 
-    new (brokerSeeds, consumerOptions : ConsumerOptions) = new ChunkedConsumer(consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
+    new (brokerSeeds, consumerOptions : ConsumerOptions) = new ChunkedConsumer(new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout), consumerOptions)
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
@@ -869,7 +869,7 @@ type GroupConsumerOptions() =
     member val GroupId = "" with get, set
 
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerSeeds, options : GroupConsumerOptions) =
+type GroupConsumer(brokerSeeds : EndPoint array, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()

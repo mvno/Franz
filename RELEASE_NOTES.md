@@ -2,6 +2,7 @@
 **Breaking changes**
 
 * Topic has been moved to consumer options, meaning that consumers no longer needs this argument in the constructor.
+* Consumers now all take arguments in the same order.
 
 **Other changes**
 
