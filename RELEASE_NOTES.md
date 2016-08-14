@@ -1,4 +1,10 @@
-### 3.1.0
+### 4.0.0
+**Breaking changes**
+
+* Topic has been moved to consumer options, meaning that consumers no longer needs this argument in the constructor.
+
+**Other changes**
+
 * Support for the group membership features in Kafka. To use these features, make sure to use the GroupConsumer.
 * Added support a request to a random broker and to a specific broker specified by broker id.
 * IConsumer.SetPosition now takes an IEnumerable instead of an array

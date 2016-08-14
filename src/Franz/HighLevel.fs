@@ -612,22 +612,22 @@ type ConsumerOptions() =
 
 /// Base class for consumers, containing shared functionality
 [<AbstractClass>]
-type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) =
+type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) =
     let mutable disposed = false
 
     let offsetManager =
         match consumerOptions.OffsetStorage with
-        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(topicName, brokerRouter)) :> IConsumerOffsetManager
-        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(topicName, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.Zookeeper -> (new ConsumerOffsetManagerV0(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.Kafka -> (new ConsumerOffsetManagerV1(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.KafkaV2 -> (new ConsumerOffsetManagerV2(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
+        | OffsetStorage.DualCommit -> (new ConsumerOffsetManagerDualCommit(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
         | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     let partitionOffsets = new ConcurrentDictionary<Id, Offset>()
     let updateTopicPartitions (brokers : Broker seq) =
         brokers
         |> Seq.map (fun x -> x.LeaderFor)
         |> Seq.concat
-        |> Seq.filter (fun x -> x.TopicName = topicName)
+        |> Seq.filter (fun x -> x.TopicName = consumerOptions.Topic)
         |> Seq.map (fun x ->
             match consumerOptions.PartitionWhitelist with
             | [||] -> x.PartitionIds
@@ -695,8 +695,8 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
         async {
             try
                 let (_, offset) = partitionOffsets.TryGetValue(partitionId)
-                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = topicName; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
-                let response = brokerRouter.TrySendToBroker(topicName, partitionId, request)
+                let request = new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, [| { Name = consumerOptions.Topic; Partitions = [| { FetchOffset = offset; Id = partitionId; MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
+                let response = brokerRouter.TrySendToBroker(consumerOptions.Topic, partitionId, request)
                 let partitionResponse = response.Topics |> Seq.map (fun x -> x.Partitions) |> Seq.concat |> Seq.head
                 match partitionResponse.ErrorCode with
                 | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable ->
@@ -712,8 +712,8 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
                     brokerRouter.RefreshMetadata()
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | ErrorCode.OffsetOutOfRange ->
-                    let broker = brokerRouter.GetBroker(topicName, partitionId)
-                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId topicName
+                    let broker = brokerRouter.GetBroker(consumerOptions.Topic, partitionId)
+                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId consumerOptions.Topic
                     partitionOffsets.AddOrUpdate(partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) |> ignore
                     return! self.ConsumeInChunks(partitionId, maxBytes)
                 | _ ->
@@ -725,7 +725,7 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
                 LogConfiguration.Logger.Info.Invoke(sprintf "Temporarily increasing fetch size to %i to accommodate increased message size." increasedFetchSize)
                 return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
             | e ->
-                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" topicName partitionId consumerOptions.ConnectionRetryInterval, e)
+                LogConfiguration.Logger.Error.Invoke(sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" consumerOptions.Topic partitionId consumerOptions.ConnectionRetryInterval, e)
                 do! Async.Sleep consumerOptions.ConnectionRetryInterval
                 return Seq.empty<_>
         }
@@ -747,11 +747,10 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
         member self.Dispose() = self.Dispose()
 
 /// High level kafka consumer.
-type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
-    inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
+type Consumer(consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
+    inherit BaseConsumer(brokerRouter, consumerOptions)
 
-    new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new Consumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
-    new (brokerSeeds, topicName) = new Consumer(brokerSeeds, topicName, new ConsumerOptions())
+    new (brokerSeeds, consumerOptions : ConsumerOptions) = new Consumer(consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
     /// Consume messages from the topic specified in the consumer. This function returns a blocking IEnumerable. Also returns offset of the message.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
         base.CheckDisposedState()
@@ -786,11 +785,10 @@ type Consumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrok
 
 /// High level kafka consumer, consuming messages in chunks defined by MaxBytes, MinBytes and MaxWaitTime in the consumer options. Each call to the consume functions,
 /// will provide a new chunk of messages. If no messages are available an empty sequence will be returned.
-type ChunkedConsumer(topicName, consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
-    inherit BaseConsumer(topicName, brokerRouter, consumerOptions)
+type ChunkedConsumer(consumerOptions : ConsumerOptions, brokerRouter : IBrokerRouter) =
+    inherit BaseConsumer(brokerRouter, consumerOptions)
 
-    new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new ChunkedConsumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
-    new (brokerSeeds, topicName) = new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions())
+    new (brokerSeeds, consumerOptions : ConsumerOptions) = new ChunkedConsumer(consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout))
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     member self.Consume(cancellationToken : System.Threading.CancellationToken) =
@@ -871,7 +869,7 @@ type GroupConsumerOptions() =
     member val GroupId = "" with get, set
 
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerSeeds, topic, options : GroupConsumerOptions) =
+type GroupConsumer(brokerSeeds, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
@@ -893,7 +891,7 @@ type GroupConsumer(brokerSeeds, topic, options : GroupConsumerOptions) =
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
         if options.GroupId |> String.IsNullOrEmpty then invalidOp "Group id cannot be null or empty"
-        new ChunkedConsumer(brokerSeeds, topic, options)
+        new ChunkedConsumer(brokerSeeds, options)
 
     let rec getGroupCoordinatorId() =
         let response =
@@ -909,7 +907,7 @@ type GroupConsumer(brokerSeeds, topic, options : GroupConsumerOptions) =
         match tryFindAssignor response.GroupProtocol with
         | Some x ->
             consumer.BrokerRouter.RefreshMetadata()
-            x.Assign(response.Members, consumer.BrokerRouter.GetAvailablePartitionIds(topic))
+            x.Assign(response.Members, consumer.BrokerRouter.GetAvailablePartitionIds(options.Topic))
         | None -> raiseWithErrorLog (invalidOp (sprintf "Coordinator selected unsupported protocol %s" response.GroupProtocol))
 
     let trySendToBroker coordinatorId request = consumer.BrokerRouter.TrySendToBroker(coordinatorId, request)
@@ -973,7 +971,7 @@ type GroupConsumer(brokerSeeds, topic, options : GroupConsumerOptions) =
         consumer.ClearPositions()
         let assignedPartitions =
             partitionAssignments
-            |> Seq.filter (fun x -> x.Topic = topic)
+            |> Seq.filter (fun x -> x.Topic = options.Topic)
             |> Seq.map(fun x -> x.Partitions)
             |> Seq.concat
             |> Seq.toArray
