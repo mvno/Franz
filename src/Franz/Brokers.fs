@@ -15,7 +15,7 @@ type NoBrokerFoundForTopicPartitionException (topic : string, partition : int) =
 
 type BrokerNotFound (id : int) =
     inherit Exception()
-    override e.Message = sprintf "Could not find broker with id %i" id
+    override __.Message = sprintf "Could not find broker with id %i" id
 
 type NoBrokersAvailable() =
     inherit Exception()

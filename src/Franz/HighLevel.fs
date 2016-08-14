@@ -12,23 +12,23 @@ open System.Threading
 
 type ErrorCommittingOffsetException (offsetManagerName : string, topic : string, consumerGroup : string, errorCodes : seq<string>) =
     inherit Exception()
-    member e.Codes = errorCodes
-    member e.OffsetManagerName = offsetManagerName
-    member e.Topic = topic
-    member e.ConsumerGroup = consumerGroup
+    member __.Codes = errorCodes
+    member __.OffsetManagerName = offsetManagerName
+    member __.Topic = topic
+    member __.ConsumerGroup = consumerGroup
     override e.Message = sprintf "One or more errors occoured while committing offsets (%s) for topic '%s' group '%s': %A" e.OffsetManagerName e.Topic e.ConsumerGroup e.Codes
 
 type RequestTimedOutException() =
     inherit Exception()
-    override e.Message = "Producer received RequestTimedOut on Ack from Brokers"
+    override __.Message = "Producer received RequestTimedOut on Ack from Brokers"
 
 type RequestTimedOutRetryExceededException() =
     inherit Exception()
-    override e.Message = "Producer received RequestTimedOut on Ack from Brokers to many times"
+    override __.Message = "Producer received RequestTimedOut on Ack from Brokers to many times"
 
 type BrokerReturnedErrorException (errorCode : ErrorCode) =
     inherit Exception()
-    member e.Code = errorCode
+    member __.Code = errorCode
     override e.Message = sprintf "Broker returned a response with error code: %s" (e.Code.ToString())
 
 module Seq =
