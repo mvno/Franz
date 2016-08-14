@@ -1,3 +1,9 @@
+### 3.1.0
+* Support for the group membership features in Kafka. To use these features, make sure to use the GroupConsumer.
+* Added support a request to a random broker and to a specific broker specified by broker id.
+* IConsumer.SetPosition now takes an IEnumerable instead of an array
+* A consumer now exposes a property to get the used BrokerRouter.
+
 ### 3.0.1
 * Fixed a bug where sending messages without null key, would result in an exception
 
