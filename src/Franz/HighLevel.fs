@@ -539,22 +539,29 @@ type DisabledConsumerOffsetManager() =
         member __.Commit(_, _) = ()
         member __.Dispose() = ()
 
+/// A message with offset and partition id
 [<NoEquality;NoComparison>]
 type MessageWithMetadata =
     {
+        /// The offset of the message
         Offset : Offset;
+        /// The message
         Message : Messages.Message;
+        /// The partition id
         PartitionId : Id;
     }
 
 type IConsumer =
     inherit IDisposable
+    /// Consume messages
     abstract member Consume : System.Threading.CancellationToken -> IEnumerable<MessageWithMetadata>
     /// Get the current consumer position
     abstract member GetPosition : unit -> PartitionOffset array
     /// Set the current consumer position
     abstract member SetPosition : PartitionOffset seq -> unit
+    /// Gets the offset manager
     abstract member OffsetManager : IConsumerOffsetManager
+    /// Gets the broker router
     abstract member BrokerRouter : IBrokerRouter
 
 /// Offset storage type
@@ -599,6 +606,7 @@ type ConsumerOptions() =
             else
                 partitionWhitelist <- x
 
+/// Base class for consumers, containing shared functionality
 [<AbstractClass>]
 type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) =
     let mutable disposed = false
@@ -718,6 +726,7 @@ type BaseConsumer(topicName, brokerRouter : IBrokerRouter, consumerOptions : Con
                 return Seq.empty<_>
         }
 
+    /// Dispose the consumer
     member __.Dispose() =
         if not disposed then
             offsetManager.Dispose()
@@ -814,10 +823,13 @@ type IAssignor =
     /// Perform group assignment given group members and available partition ids
     abstract member Assign : GroupMember seq * Id seq -> GroupAssignment array
 
+/// Assigns partitions to group memebers using round robin
 type RoundRobinAssignor(topic) =
     let version = 0s
 
+    /// Name of the assignor
     member __.Name = "roundrobin"
+    /// Assign partitions to members
     member __.Assign(members : GroupMember seq, partitions : Id seq) =
         let rec memberSeq = seq {
             for x in members do yield x
@@ -840,7 +852,6 @@ type RoundRobinAssignor(topic) =
 type internal CoordinatorMessage =
     | JoinGroup of CancellationToken
     | LeaveGroup
-//    | Consume of CancellationToken * AsyncReplyChannel<MessageWithMetadata seq>
 
 /// High level kafka consumer.
 type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff, sessionTimeout, assignors : IAssignor seq) =
@@ -1133,11 +1144,18 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
         agent.Post(JoinGroup token)
         messageQueue
     
-    member __.ClearPositions() = consumer.ClearPositions()
+    member internal __.ClearPositions() = consumer.ClearPositions()
+
+    /// Gets the offset manager
     member __.OffsetManager = consumer.OffsetManager
+    
+    /// Gets the consumer position
     member __.GetPosition = consumer.GetPosition
+    
+    /// Sets the consumer position
     member __.SetPosition = consumer.SetPosition
     
+    /// Leave the joined group
     member __.LeaveGroup() =
         raiseIfDisposed disposed
         agent.Post(LeaveGroup)
@@ -1149,6 +1167,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
             consumer.Dispose()
             disposed <- true
 
+    /// Gets the broker router
     member __.BrokerRouter =
         raiseIfDisposed disposed
         consumer.BrokerRouter
