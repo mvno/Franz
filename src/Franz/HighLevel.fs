@@ -865,9 +865,11 @@ type GroupConsumerOptions() =
     override val TcpTimeout = 40000 with get, set
     /// Gets or sets the available assignors
     member val Assignors = Seq.empty with get, set
+    /// Gets or sets the group id
+    member val GroupId = "" with get, set
 
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) =
+type GroupConsumer(brokerSeeds, topic, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
@@ -888,11 +890,12 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
     // TODO: Handle overloads
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
+        if options.GroupId |> String.IsNullOrEmpty then invalidOp "Group id cannot be null or empty"
         new ChunkedConsumer(brokerSeeds, topic, options)
 
     let rec getGroupCoordinatorId() =
         let response =
-            new ConsumerMetadataRequest(groupId)
+            new ConsumerMetadataRequest(options.GroupId)
             |> consumer.BrokerRouter.TrySendToBroker
         if response.CoordinatorId = -1 then getGroupCoordinatorId()
         else response.CoordinatorId
@@ -908,7 +911,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
         | None -> raiseWithErrorLog (invalidOp (sprintf "Coordinator selected unsupported protocol %s" response.GroupProtocol))
 
     let trySendToBroker coordinatorId request = consumer.BrokerRouter.TrySendToBroker(coordinatorId, request)
-    let createSyncRequest response assignment = new SyncGroupRequest(groupId, response.GenerationId, response.MemberId, assignment)
+    let createSyncRequest response assignment = new SyncGroupRequest(options.GroupId, response.GenerationId, response.MemberId, assignment)
     
     let joinAsLeader response =
         response
@@ -925,7 +928,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
         async {
             try
                 let response =
-                    new JoinGroupRequest(groupId, options.SessionTimeout, "", "consumer", options.Assignors |> Seq.map (fun x -> { Name = x.Name; Metadata = [||] }))
+                    new JoinGroupRequest(options.GroupId, options.SessionTimeout, "", "consumer", options.Assignors |> Seq.map (fun x -> { Name = x.Name; Metadata = [||] }))
                     |> trySendToBroker coordinatorId
                 match response.ErrorCode with
                 | ErrorCode.NoError -> return! success response
@@ -953,7 +956,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
         async {
             try
                 let response =
-                    new HeartbeatRequest(groupId, generationId, memberId)
+                    new HeartbeatRequest(options.GroupId, generationId, memberId)
                     |> trySendToBroker coordinatorId
                 match response.ErrorCode with
                 | ErrorCode.NoError -> return! success cts generationId memberId coordinatorId
@@ -974,7 +977,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
             |> Seq.toArray
 
         let offsetsForAssignedPartitions =
-            consumer.OffsetManager.Fetch(groupId)
+            consumer.OffsetManager.Fetch(options.GroupId)
             |> Seq.filter (fun x -> assignedPartitions |> Seq.contains(x.PartitionId))
 
         let unavailableOffsets =
@@ -1029,9 +1032,9 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
                     let currentPosition = consumer.GetPosition()
                     if currentPosition |> Seq.isEmpty |> not then
                         try
-                            consumer.OffsetManager.Commit(groupId, currentPosition)
+                            consumer.OffsetManager.Commit(options.GroupId, currentPosition)
                         with e -> LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" groupId options.ConnectionRetryInterval)
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" options.GroupId options.ConnectionRetryInterval)
                     let! msg = inbox.TryReceive(options.ConnectionRetryInterval)
                     match msg with
                     | Some x ->
@@ -1052,25 +1055,25 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
                     | ErrorCode.GroupLoadInProgressCode
                     | ErrorCode.NotCoordinatorForConsumer
                     | ErrorCode.UnknownMemberIdCode ->
-                        LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." groupId errorCode)
+                        LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! reconnectState()
                     | ErrorCode.InconsistentGroupProtocolCode ->
-                        let ex = InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" groupId)
+                        let ex = InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                     | ErrorCode.InvalidSessionTimeoutCode ->
-                        let ex = InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" groupId)
+                        let ex = InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" groupId)
+                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." groupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
             and joiningState (coordinatorId : Id) (response : JoinGroupResponse) =
                 async {
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Syncing consumer group '%s'" groupId)
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Syncing consumer group '%s'" options.GroupId)
                     let syncRequest =
                         response
                         |> match response with
@@ -1086,13 +1089,13 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
                     | ErrorCode.IllegalGenerationCode
                     | ErrorCode.UnknownMemberIdCode
                     | ErrorCode.RebalanceInProgressCode ->
-                        LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." groupId errorCode)
+                        LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! reconnectState()
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" groupId)
+                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." groupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
@@ -1104,7 +1107,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
                         e ->
                             LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
                             return! reconnectState()
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" groupId response.MemberAssignment.PartitionAssignment)
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.PartitionAssignment)
                     let cts = new CancellationTokenSource()
                     Async.Start(consumeAsync(cts.Token), cts.Token)
                     return! connectedState cts generationId memberId coordinatorId
@@ -1140,10 +1143,10 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
                     | ErrorCode.RebalanceInProgressCode ->
                         return! reconnectState()
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" groupId)
+                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." groupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
@@ -1155,8 +1158,6 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
         raiseIfDisposed disposed
         agent.Post(JoinGroup token)
         messageQueue
-    
-    member internal __.ClearPositions() = consumer.ClearPositions()
 
     /// Gets the offset manager
     member __.OffsetManager = consumer.OffsetManager
