@@ -868,12 +868,12 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
         options.TcpTimeout <- 40000
         new ChunkedConsumer(brokerSeeds, topic, options)
 
-    let getGroupCoordinatorId() =
-        // TODO: Handle situation where group doesn't exists yet
+    let rec getGroupCoordinatorId() =
         let response =
             new ConsumerMetadataRequest(groupId)
             |> consumer.BrokerRouter.TrySendToBroker
-        response.CoordinatorId
+        if response.CoordinatorId = -1 then getGroupCoordinatorId()
+        else response.CoordinatorId
 
     let tryFindAssignor protocol = assignors |> Seq.tryFind (fun x -> x.Name = protocol)
 
