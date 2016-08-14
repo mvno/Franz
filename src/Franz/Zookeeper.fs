@@ -589,15 +589,15 @@ type TopicPartitionState = {
 /// Connect to the Zookeeper cluster defined by the provided Zookeeper instances. If a connection to an instance is lost
 /// a connection to one of the other instances is made. If unable to connect to any of the instances in the cluster,
 /// the ConnectionLost event is raised and should be handle by the user.
-type ZookeeperManager(endpoints : EndPoint array, sessionTimeout : int) =
+type ZookeeperManager(endpoints : EndPoint seq, sessionTimeout : int) =
     let brokerIdsPath = "/brokers/ids"
     let topicsPath = "/brokers/topics"
     let mutable client : ZookeeperClient = null
     let mutable disposed = false
     let connectionLostEvent = new Event<_>()
-    let numberOfEndpoints = endpoints.Length
+    let numberOfEndpoints = endpoints |> Seq.length
     let endpointSeq =
-        endpoints |> Array.shuffle
+        endpoints |> Seq.toArray |> Array.shuffle
         let rec innerSeq =
             seq {
                 for x in endpoints do yield x

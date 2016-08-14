@@ -476,7 +476,7 @@ type BrokerRouterMessage =
     | GetRandomBroker of AsyncReplyChannel<Broker option>
 
 /// The broker router. Handles all logic related to broker metadata and available brokers, using the Kafka cluster as the source of information
-type BrokerRouter(brokerSeeds : EndPoint array, tcpTimeout) as self =
+type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
     let mutable disposed = false
     let cts = new System.Threading.CancellationTokenSource()
     let errorEvent = new Event<_>()

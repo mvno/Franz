@@ -869,7 +869,7 @@ type GroupConsumerOptions() =
     member val GroupId = "" with get, set
 
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerSeeds : EndPoint array, options : GroupConsumerOptions) =
+type GroupConsumer(brokerSeeds : EndPoint seq, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
