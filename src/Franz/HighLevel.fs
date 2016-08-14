@@ -881,10 +881,16 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
             if success then seq { yield msg; yield! loop() }
             else
                 queueEmptyEvent.Set()
-                queueAvailableEvent.WaitOne() |> ignore
-                // TODO: Handle cancellation
+                waitForData()
+        and waitForData() =
+            let gotData = queueAvailableEvent.WaitOne(100)
+            if gotData then
                 queueEmptyEvent.Reset()
                 seq { yield! loop() }
+            else
+                if groupCts.IsCancellationRequested then Seq.empty
+                else waitForData()
+            
         seq { yield! loop() }
                 
     let consumer =
