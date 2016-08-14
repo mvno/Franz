@@ -581,8 +581,10 @@ type OffsetStorage =
 type ConsumerOptions() =
     let mutable partitionWhitelist = [||]
     let mutable offsetManager = OffsetStorage.Zookeeper
+    abstract member TcpTimeout : int with get, set
+    
     /// The timeout for sending and receiving TCP data in milliseconds. Default value is 10000.
-    member val TcpTimeout = 10000 with get, set
+    default val TcpTimeout = 10000 with get, set
     /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued. Default value is 5000.
     member val MaxWaitTime = 5000 with get, set
     /// This is the minimum number of bytes of messages that must be available to give a response. If the client sets this to 0 the server will always respond immediately,
@@ -853,8 +855,19 @@ type internal CoordinatorMessage =
     | JoinGroup of CancellationToken
     | LeaveGroup
 
-/// High level kafka consumer.
-type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff, sessionTimeout, assignors : IAssignor seq) =
+type GroupConsumerOptions() =
+    inherit ConsumerOptions()
+    /// Gets or sets the interval between heartbeats. The default values is 3000 ms.
+    member val HeartbeatInterval = 3000 with get, set
+    /// Gets or sets the session timeout. The default value is 30000 ms.
+    member val SessionTimeout = 30000 with get, set
+    /// Gets or sets the TCP timeout, this value must be greater than the session timeout. The default value is 40000 ms.
+    override val TcpTimeout = 40000 with get, set
+    /// Gets or sets the available assignors
+    member val Assignors = Seq.empty with get, set
+
+/// High level kafka consumer using the group management features of Kafka.
+type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
@@ -886,7 +899,8 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
         if response.CoordinatorId = -1 then getGroupCoordinatorId()
         else response.CoordinatorId
 
-    let tryFindAssignor protocol = assignors |> Seq.tryFind (fun x -> x.Name = protocol)
+    let tryFindAssignor protocol : IAssignor option =
+        options.Assignors |> Seq.tryFind (fun x -> x.Name = protocol)
 
     let getAssigment response =
         match tryFindAssignor response.GroupProtocol with
@@ -913,7 +927,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
         async {
             try
                 let response =
-                    new JoinGroupRequest(groupId, sessionTimeout, "", "consumer", assignors |> Seq.map (fun x -> { Name = x.Name; Metadata = [||] }))
+                    new JoinGroupRequest(groupId, options.SessionTimeout, "", "consumer", options.Assignors |> Seq.map (fun x -> { Name = x.Name; Metadata = [||] }))
                     |> trySendToBroker coordinatorId
                 match response.ErrorCode with
                 | ErrorCode.NoError -> return! success response
@@ -1019,8 +1033,8 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
                         try
                             consumer.OffsetManager.Commit(groupId, currentPosition)
                         with e -> LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" groupId retryBackOff)
-                    let! msg = inbox.TryReceive(retryBackOff)
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" groupId options.ConnectionRetryInterval)
+                    let! msg = inbox.TryReceive(options.ConnectionRetryInterval)
                     match msg with
                     | Some x ->
                         match x with
@@ -1100,7 +1114,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, heartbeatInterval, retryBackOff,
             and connectedState (cts : CancellationTokenSource) (generationId : Id) (memberId : string) (coordinatorId : Id) =
                 async {
                     LogConfiguration.Logger.Info.Invoke(sprintf "Connected loop %s..." memberId)
-                    let! msg = inbox.TryReceive(heartbeatInterval)
+                    let! msg = inbox.TryReceive(options.HeartbeatInterval)
                     match msg with
                     | Some x ->
                         match x with
