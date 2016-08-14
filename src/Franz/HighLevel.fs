@@ -887,9 +887,7 @@ type GroupConsumer(brokerSeeds, topic, groupId, options : GroupConsumerOptions) 
                 
     // TODO: Handle overloads
     let consumer =
-        // TODO: TCP timeout must be greater than session timeout
-        let options = new ConsumerOptions()
-        options.TcpTimeout <- 40000
+        if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
         new ChunkedConsumer(brokerSeeds, topic, options)
 
     let rec getGroupCoordinatorId() =
