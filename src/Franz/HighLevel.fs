@@ -607,6 +607,8 @@ type ConsumerOptions() =
                 partitionWhitelist <- [||]
             else
                 partitionWhitelist <- x
+    /// Gets or sets the consumer topic
+    member val Topic = "" with get, set
 
 /// Base class for consumers, containing shared functionality
 [<AbstractClass>]
