@@ -869,7 +869,7 @@ type GroupConsumerOptions() =
     member val GroupId = "" with get, set
 
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerSeeds : EndPoint seq, options : GroupConsumerOptions) =
+type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
@@ -887,11 +887,10 @@ type GroupConsumer(brokerSeeds : EndPoint seq, options : GroupConsumerOptions) =
                 seq { yield! loop() }
         seq { yield! loop() }
                 
-    // TODO: Handle overloads
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
         if options.GroupId |> String.IsNullOrEmpty then invalidOp "Group id cannot be null or empty"
-        new ChunkedConsumer(brokerSeeds, options)
+        new ChunkedConsumer(brokerRouter, options)
 
     let rec getGroupCoordinatorId() =
         let response =
@@ -1152,6 +1151,8 @@ type GroupConsumer(brokerSeeds : EndPoint seq, options : GroupConsumerOptions) =
                 }
 
             notConnectedState())
+
+    new (brokerSeeds, options : GroupConsumerOptions) = new GroupConsumer(new BrokerRouter(brokerSeeds, options.TcpTimeout), options)
 
     /// Consume messages from the topic specified. Uses the IConsumer provided in the constructor to consume messages.
     member __.Consume(token) =
