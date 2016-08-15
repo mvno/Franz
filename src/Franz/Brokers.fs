@@ -607,6 +607,13 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
             LogConfiguration.Logger.Info.Invoke(sprintf "Unable to find broker with id %i" id)
             raise (BrokerNotFound(id))
 
+    let getRandomBroker() =
+        match router.PostAndReply(GetRandomBroker) with
+        | Some x -> x
+        | None ->
+            LogConfiguration.Logger.Warning.Invoke("No brokers available", null)
+            raise (NoBrokersAvailable())
+
     do
         router.Error.Add(fun x -> errorEvent.Trigger(x))
 
@@ -689,11 +696,8 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
     /// If an exception is thrown this should be handled by the caller.
     member __.TrySendToBroker(request) =
         raiseIfDisposed disposed
-        match router.PostAndReply(GetRandomBroker) with
-        | Some x -> x.Send(request)
-        | None ->
-            LogConfiguration.Logger.Warning.Invoke("No brokers available", null)
-            raise (NoBrokersAvailable())
+        let broker = getRandomBroker()
+        broker.Send(request)
 
     /// Get all available partitions of the specified topic
     member __.GetAvailablePartitionIds(topicName) =
