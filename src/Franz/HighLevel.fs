@@ -1119,7 +1119,6 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                 }
             and connectedState (cts : CancellationTokenSource) (generationId : Id) (memberId : string) (coordinatorId : Id) =
                 async {
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected loop %s..." memberId)
                     let! msg = inbox.TryReceive(options.HeartbeatInterval)
                     match msg with
                     | Some x ->
