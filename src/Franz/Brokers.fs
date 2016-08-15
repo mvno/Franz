@@ -697,7 +697,7 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
     member __.TrySendToBroker(request) =
         raiseIfDisposed disposed
         let broker = getRandomBroker()
-        broker.Send(request)
+        Retry.retryOnException broker (fun x -> refreshMetadataOnException self x; getRandomBroker()) (fun x -> x.Send(request))
 
     /// Get all available partitions of the specified topic
     member __.GetAvailablePartitionIds(topicName) =
@@ -715,7 +715,9 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
     /// If this fails an exception is thrown and should be handled by the caller.
     member __.TrySendToBroker(id, request) =
         raiseIfDisposed disposed
-        getBroker(id).Send(request)
+        let broker = getBroker(id)
+        Retry.retryOnException broker (fun x -> refreshMetadataOnException self x; getBroker(id)) (fun x -> x.Send(request))
+
     /// Dispose the router
     member __.Dispose() =
         if not disposed then
