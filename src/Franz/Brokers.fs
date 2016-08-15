@@ -595,10 +595,9 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
             let broker = candidateBrokers |> Seq.head
             Ok(broker, lastRoundRobinIndex)
 
-    let refreshMetadataOnException (brokerRouter : IBrokerRouter) topicName partitionId (e : exn) =
+    let refreshMetadataOnException (brokerRouter : IBrokerRouter) (e : exn) =
         LogConfiguration.Logger.Info.Invoke(sprintf "Unable to send request to broker due to (%s), refreshing metadata." e.Message)
         brokerRouter.RefreshMetadata()
-        brokerRouter.GetBroker(topicName, partitionId)
 
     let getBroker(id) =
         let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
@@ -685,7 +684,7 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
     /// If this also fails the exception is thrown and should be handled by the caller.
     member self.TrySendToBroker(topicName, partitionId, request) =
         let broker = self.GetBroker(topicName, partitionId)
-        Retry.retryOnException broker (refreshMetadataOnException self topicName partitionId) (fun x -> x.Send(request))
+        Retry.retryOnException broker (fun x -> refreshMetadataOnException self x; self.GetBroker(topicName, partitionId)) (fun x -> x.Send(request))
     /// Try to send a request to a random broker.
     /// If an exception is thrown this should be handled by the caller.
     member __.TrySendToBroker(request) =
