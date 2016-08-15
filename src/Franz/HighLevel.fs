@@ -10,6 +10,9 @@ open Franz.Compression
 open Franz.Internal
 open System.Threading        
 
+type ConsumerException (msg, innerException : exn) =
+    inherit Exception(msg, innerException)
+
 type ErrorCommittingOffsetException (offsetManagerName : string, topic : string, consumerGroup : string, errorCodes : seq<string>) =
     inherit Exception()
     member __.Codes = errorCodes
