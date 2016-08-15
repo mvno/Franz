@@ -1025,7 +1025,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
         }
 
     let stopConsuming (cts : CancellationTokenSource) =
-        LogConfiguration.Logger.Info.Invoke("Stopping consuming...")
+        LogConfiguration.Logger.Trace.Invoke("Stopping consuming...")
         cts.Cancel()
 
     let createLinkedCancellationTokenSource token =
@@ -1049,7 +1049,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         try
                             consumer.OffsetManager.Commit(options.GroupId, currentPosition)
                         with e -> LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" options.GroupId options.ConnectionRetryInterval)
+                    LogConfiguration.Logger.Trace.Invoke(sprintf "Rejoining group '%s' in %i ms" options.GroupId options.ConnectionRetryInterval)
                     let! msg = inbox.TryReceive(options.ConnectionRetryInterval)
                     match msg with
                     | Some x ->
@@ -1085,7 +1085,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                 }
             and joiningState (coordinatorId : Id) (response : JoinGroupResponse) =
                 async {
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Syncing consumer group '%s'" options.GroupId)
+                    LogConfiguration.Logger.Trace.Invoke(sprintf "Syncing consumer group '%s'" options.GroupId)
                     let syncRequest =
                         response
                         |> match response with
@@ -1118,7 +1118,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         e ->
                             LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
                             return! reconnectState()
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.PartitionAssignment)
+                    LogConfiguration.Logger.Trace.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.PartitionAssignment)
                     let cts = new CancellationTokenSource()
                     Async.Start(consumeAsync(cts.Token), cts.Token)
                     return! connectedState cts generationId memberId coordinatorId
