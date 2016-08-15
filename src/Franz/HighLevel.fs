@@ -878,6 +878,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
     let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
     let queueEmptyEvent = new ManualResetEventSlim(true)
     let queueAvailableEvent = new AutoResetEvent(false)
+    let mutable fatalException : Exception option = None
     let messageQueue =
         let rec loop() =
             let success, msg = innerMessageQueue.TryDequeue()
@@ -887,6 +888,9 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                 waitForData()
         and waitForData() =
             let gotData = queueAvailableEvent.WaitOne(100)
+            if fatalException.IsSome then
+                LogConfiguration.Logger.Fatal.Invoke(fatalException.Value.Message, fatalException.Value)
+                raise (ConsumerException(fatalException.Value.Message, fatalException.Value))
             if gotData then
                 queueEmptyEvent.Reset()
                 seq { yield! loop() }
