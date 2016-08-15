@@ -899,6 +899,9 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                 else waitForData()
             
         seq { yield! loop() }
+
+    let setFatalException e =
+        fatalException <- Some (e :> Exception)
                 
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
@@ -1070,14 +1073,11 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! reconnectState()
                     | ErrorCode.InconsistentGroupProtocolCode ->
-                        let ex = InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId)
-                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        setFatalException (InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId))
                     | ErrorCode.InvalidSessionTimeoutCode ->
-                        let ex = InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" options.GroupId)
-                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        setFatalException (InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" options.GroupId))
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId)
-                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        setFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
@@ -1104,8 +1104,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! reconnectState()
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId)
-                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        setFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
@@ -1154,8 +1153,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.RebalanceInProgressCode ->
                         return! reconnectState()
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        let ex = InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId)
-                        LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
+                        setFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
