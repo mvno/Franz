@@ -882,10 +882,12 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
     let messageQueue =
         let rec loop() =
             let success, msg = innerMessageQueue.TryDequeue()
-            if success then seq { yield msg; yield! loop() }
+            if groupCts.IsCancellationRequested then Seq.empty
             else
-                queueEmptyEvent.Set()
-                waitForData()
+                if success then seq { yield msg; yield! loop() }
+                else
+                    queueEmptyEvent.Set()
+                    waitForData()
         and waitForData() =
             let gotData = queueAvailableEvent.WaitOne(100)
             if fatalException.IsSome then
