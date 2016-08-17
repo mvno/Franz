@@ -871,39 +871,91 @@ type GroupConsumerOptions() =
     /// Gets or sets the group id
     member val GroupId = "" with get, set
 
-/// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) =
-    let mutable disposed = false
-    let groupCts = new CancellationTokenSource()
-    let innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
-    let queueEmptyEvent = new ManualResetEventSlim(true)
-    let queueAvailableEvent = new AutoResetEvent(false)
+/// Blocking message queue, much like BlockingCollection in BCL, but doesn't support threadsafe consuming
+type MessageQueue() as self =
+    let stopEvent = new ManualResetEventSlim(false)
+    let runningEvent = new ManualResetEventSlim(true)
     let mutable fatalException : Exception option = None
-    let messageQueue =
-        let rec loop() =
-            let success, msg = innerMessageQueue.TryDequeue()
-            if groupCts.IsCancellationRequested then Seq.empty
-            else
-                if success then seq { yield msg; yield! loop() }
-                else
-                    queueEmptyEvent.Set()
-                    waitForData()
-        and waitForData() =
-            let gotData = queueAvailableEvent.WaitOne(100)
+    let mutable innerMessageQueue = new ConcurrentQueue<MessageWithMetadata>()
+    let queueAvailableResetEvent = new AutoResetEvent(false)
+    let queueEmptyEvent = new Event<EventHandler, EventArgs>()
+
+    let queue =
+        let checkException() =
             if fatalException.IsSome then
                 LogConfiguration.Logger.Fatal.Invoke(fatalException.Value.Message, fatalException.Value)
                 raise (ConsumerException(fatalException.Value.Message, fatalException.Value))
+        
+        let rec loop() =
+            if not runningEvent.IsSet then
+                checkException()
+                runningEvent.Wait(100) |> ignore
+                if stopEvent.IsSet then Seq.empty
+                else seq { yield! loop() }
+            elif stopEvent.IsSet then Seq.empty
+            else
+                checkException()
+                let success, msg = innerMessageQueue.TryDequeue()
+                if success then seq { yield msg; yield! loop() }
+                else
+                    queueEmptyEvent.Trigger(self, EventArgs.Empty)
+                    waitForData()
+        and waitForData() =
+            let gotData = queueAvailableResetEvent.WaitOne(100)
+            checkException()
             if gotData then
-                queueEmptyEvent.Reset()
                 seq { yield! loop() }
             else
-                if groupCts.IsCancellationRequested then Seq.empty
+                if stopEvent.IsSet then Seq.empty
                 else waitForData()
             
         seq { yield! loop() }
 
-    let setFatalException e =
-        fatalException <- Some (e :> Exception)
+    /// Event raised when the queue is empty
+    [<CLIEvent>]
+    member __.QueueEmpty = queueEmptyEvent.Publish
+
+    /// Add a message to the queue
+    member __.Add(msg) =
+        innerMessageQueue.Enqueue(msg)
+        queueAvailableResetEvent.Set() |> ignore
+
+    /// Add multiple messages to the queue
+    member self.Add(msgs : MessageWithMetadata seq) = msgs |> Seq.iter self.Add
+    
+    /// Stop consuming, this makes callers iterating over the queue return
+    member __.Stop() = stopEvent.Set()
+    
+    /// Pause consuming, this doesn't make callers iterating over the queue return
+    member __.Pause() = runningEvent.Reset()
+    
+    /// Start consuming, if not started the queue always returns an empty sequence, even if data has been added
+    member __.Start() = runningEvent.Set()
+    
+    /// Set exception, this make the queue throw an exception on the next iteration
+    member __.SetFatalException(e) = fatalException <- Some (e :> Exception)
+    
+    /// Find the lowest unprocessed partition offsets in the queue. To get consistent results, the queue should be stopped or paused.
+    member __.FindLowestUnprocessedPartitionOffsets() =
+        innerMessageQueue
+        |> Seq.groupBy (fun x -> x.PartitionId)
+        |> Seq.map (fun (id, msgs) ->
+            { PartitionId = id; Offset = msgs |> Seq.map (fun x -> x.Offset) |> Seq.min; Metadata = "" })
+
+    /// Clear the queue
+    member __.Clear() =
+        innerMessageQueue <- new ConcurrentQueue<MessageWithMetadata>()
+        queueEmptyEvent.Trigger(self, EventArgs.Empty)
+
+    interface IEnumerable<MessageWithMetadata> with
+        member __.GetEnumerator() = queue.GetEnumerator()
+        member __.GetEnumerator() = queue.GetEnumerator() :> Collections.IEnumerator
+
+/// High level kafka consumer using the group management features of Kafka.
+type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) =
+    let mutable disposed = false
+    let groupCts = new CancellationTokenSource()
+    let messageQueue = new MessageQueue()
                 
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
@@ -1014,16 +1066,16 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
 
     let consumeAsync(token) =
         async {
-            while true do
-                if queueEmptyEvent.IsSet then
-                    try
-                        let msgs = consumer.Consume(token)
-                        if msgs |> Seq.isEmpty |> not then
-                            msgs
-                            |> Seq.iter innerMessageQueue.Enqueue
-                            queueAvailableEvent.Set() |> ignore
-                    with
-                        :? OperationCanceledException -> return ()
+            let rec addMessagesToQueue() =
+                try
+                    let msgs = consumer.Consume(token)
+                    if msgs |> Seq.length = 0 then addMessagesToQueue()
+                    msgs |> messageQueue.Add
+                with
+                    :? OperationCanceledException -> ()
+            addMessagesToQueue()
+            use _ = messageQueue.QueueEmpty.Subscribe (fun _ -> addMessagesToQueue())
+            ()
         }
 
     let stopConsuming (cts : CancellationTokenSource) =
@@ -1075,11 +1127,11 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! reconnectState()
                     | ErrorCode.InconsistentGroupProtocolCode ->
-                        setFatalException (InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId))
+                        messageQueue.SetFatalException (InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId))
                     | ErrorCode.InvalidSessionTimeoutCode ->
-                        setFatalException (InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" options.GroupId))
+                        messageQueue.SetFatalException (InvalidOperationException(sprintf "Tried to join group '%s' with invalid session timeout" options.GroupId))
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        setFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
+                        messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
@@ -1106,7 +1158,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! reconnectState()
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        setFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
+                        messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
@@ -1155,7 +1207,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.RebalanceInProgressCode ->
                         return! reconnectState()
                     | ErrorCode.GroupAuthorizationFailedCode ->
-                        setFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
+                        messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
@@ -1170,7 +1222,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
     member __.Consume(token) =
         raiseIfDisposed disposed
         agent.Post(JoinGroup token)
-        messageQueue
+        messageQueue :> IEnumerable<MessageWithMetadata>
 
     /// Gets the offset manager
     member __.OffsetManager = consumer.OffsetManager

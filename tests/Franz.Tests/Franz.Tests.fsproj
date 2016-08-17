@@ -94,6 +94,7 @@
     <Compile Include="MessagesTest.fs" />
     <Compile Include="CompressionTest.fs" />
     <Compile Include="ConsumerOptionsTest.fs" />
+    <Compile Include="MessageQueueTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
