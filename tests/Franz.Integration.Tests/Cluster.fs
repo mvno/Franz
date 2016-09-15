@@ -5,7 +5,7 @@
     open System.Threading
     open System.Text
     open Xunit
-    open Franz
+    open Franz.Internal
     open Franz.HighLevel
 
     let kafka_brokers = [|
