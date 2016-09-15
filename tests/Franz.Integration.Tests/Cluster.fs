@@ -143,6 +143,7 @@
         performVagrantCommand "init ChristianTrolleMikkelsen/kafkacluster"
         performVagrantCommand "box update"
         performVagrantCommand "up"
+        start()
 
     [<System.AttributeUsageAttribute(AttributeTargets.Method, AllowMultiple = false)>]
     type FranzFactAttribute()=

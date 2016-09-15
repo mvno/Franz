@@ -11,6 +11,8 @@ let topicName = "Franz.Integration.Test"
 
 [<FranzFact>]
 let ``must produce and consume 1 message`` () =
+    reset()
+
     let broker = new BrokerRouter(kafka_brokers, 10000)
     let producer = new RoundRobinProducer(broker)
     let expectedMessage = {Key = ""; Value = "must produce and consume 1 message"}
