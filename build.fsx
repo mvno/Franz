@@ -143,9 +143,8 @@ Target "RunTests" (fun _ ->
         !! testAssemblies
         |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
     else
-        let unitTestAssemblies = !! testAssemblies
-                                    -- "Franz.Integration.Tests.dll"
-        unitTestAssemblies |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
+        !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
+        |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
 )
 
 #if MONO
