@@ -2,30 +2,6 @@ os: Visual Studio 2015
 init:
   - git config --global core.autocrlf input
   - choco install SourceLink
-  - netsh advfirewall firewall add rule name="Kafka Broker 1 - in" dir=in action=allow protocol=TCP localport=9091
-  - netsh advfirewall firewall add rule name="Kafka Broker 1 - out" dir=out action=allow protocol=TCP localport=9091
-  - netsh advfirewall firewall add rule name="Kafka Broker 2 - in" dir=in action=allow protocol=TCP localport=9092
-  - netsh advfirewall firewall add rule name="Kafka Broker 2 - out" dir=out action=allow protocol=TCP localport=9092
-  - netsh advfirewall firewall add rule name="Kafka Broker 3 - in" dir=in action=allow protocol=TCP localport=9093
-  - netsh advfirewall firewall add rule name="Kafka Broker 3 - out" dir=out action=allow protocol=TCP localport=9093
-  - netsh advfirewall firewall add rule name="Zookeeper 1 - in" dir=in action=allow protocol=TCP localport=2181
-  - netsh advfirewall firewall add rule name="Zookeeper 1 - out" dir=out action=allow protocol=TCP localport=2181
-  - netsh advfirewall firewall add rule name="Zookeeper 1 quorum - in" dir=in action=allow protocol=TCP localport=2888
-  - netsh advfirewall firewall add rule name="Zookeeper 1 quorum - out" dir=out action=allow protocol=TCP localport=2888
-  - netsh advfirewall firewall add rule name="Zookeeper 1 leader - in" dir=in action=allow protocol=TCP localport=3888
-  - netsh advfirewall firewall add rule name="Zookeeper 1 leader - out" dir=out action=allow protocol=TCP localport=3888
-  - netsh advfirewall firewall add rule name="Zookeeper 2 - in" dir=in action=allow protocol=TCP localport=2182
-  - netsh advfirewall firewall add rule name="Zookeeper 2 - out" dir=out action=allow protocol=TCP localport=2182
-  - netsh advfirewall firewall add rule name="Zookeeper 2 quorum - in" dir=in action=allow protocol=TCP localport=2889
-  - netsh advfirewall firewall add rule name="Zookeeper 2 quorum - out" dir=out action=allow protocol=TCP localport=2889
-  - netsh advfirewall firewall add rule name="Zookeeper 2 leader - in" dir=in action=allow protocol=TCP localport=3889
-  - netsh advfirewall firewall add rule name="Zookeeper 2 leader - out" dir=out action=allow protocol=TCP localport=3889
-  - netsh advfirewall firewall add rule name="Zookeeper 3 - in" dir=in action=allow protocol=TCP localport=2183
-  - netsh advfirewall firewall add rule name="Zookeeper 3 - out" dir=out action=allow protocol=TCP localport=2183
-  - netsh advfirewall firewall add rule name="Zookeeper 3 quorum - in" dir=in action=allow protocol=TCP localport=2890
-  - netsh advfirewall firewall add rule name="Zookeeper 3 quorum - out" dir=out action=allow protocol=TCP localport=2890
-  - netsh advfirewall firewall add rule name="Zookeeper 3 leader - in" dir=in action=allow protocol=TCP localport=3890
-  - netsh advfirewall firewall add rule name="Zookeeper 3 leader - out" dir=out action=allow protocol=TCP localport=3890
 
 build_script:
   - cmd: build.cmd NuGet
