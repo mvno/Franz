@@ -126,7 +126,7 @@
         if File.Exists(expectedFile) then
             executeCommandOutsideShell "choco" ("upgrade " + name + " -y") |> ignore
         else
-            executeCommandOutsideShell "choco" ("install " + name + " -y" + " -version " + version + " --force") |> ignore
+            executeCommandOutsideShell "choco" ("install " + name + " -y" + " -version " + version + " --force --ignore-checksums") |> ignore
 
     let ensureClusterIsRunning =
         System.AppDomain.CurrentDomain.DomainUnload.Add(fun x -> performVagrantCommand "destroy -f")
