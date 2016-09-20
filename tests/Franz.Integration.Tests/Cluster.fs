@@ -122,18 +122,18 @@
     let shutdown_a_zookeeper(id : int) =
         performSSHCommand (sprintf "sudo ./shutdown_a_zookeeper.sh %i" id)
 
-    let installPrerequest(name : string) (expectedFile : string) =
+    let installPrerequest(name : string) (expectedFile : string) (version : string) =
         if File.Exists(expectedFile) then
             executeCommandOutsideShell "choco" ("upgrade " + name + " -y") |> ignore
         else
-            executeCommandOutsideShell "choco" ("install " + name + " -y") |> ignore
+            executeCommandOutsideShell "choco" ("install " + name + " -y" + " -version " + version + " --force") |> ignore
 
     let ensureClusterIsRunning =
         System.AppDomain.CurrentDomain.DomainUnload.Add(fun x -> performVagrantCommand "destroy -f")
 
-        installPrerequest "win32-openssh" sshPath
-        installPrerequest "virtualbox" virtualBoxPath
-        installPrerequest "vagrant" vagrantPath
+        installPrerequest "win32-openssh" sshPath "2016.05.15"
+        installPrerequest "virtualbox" virtualBoxPath "5.0.16.105871"
+        installPrerequest "vagrant" vagrantPath "1.8.1.20160318"
 
         if (executeCommandOutsideShell virtualBoxPath "showvminfo kafka_cluster") = 1 then
             executeCommandOutsideShell virtualBoxPath "unregistervm kafka_cluster --delete" |> ignore
