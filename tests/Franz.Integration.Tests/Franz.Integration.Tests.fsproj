@@ -112,7 +112,7 @@
     </PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
-    <PostBuildEvent>powershell.exe -ExecutionPolicy RemoteSigned -Command "iwr https://chocolatey.org/install.ps1 | iex"</PostBuildEvent>
+    <PostBuildEvent>powershell.exe -ExecutionPolicy RemoteSigned -Command "if ((Get-Command "choco.exe" -ErrorAction SilentlyContinue) -eq $null) { iwr https://chocolatey.org/install.ps1 | iex }"</PostBuildEvent>
   </PropertyGroup>
   <Choose>
     <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.0')">
