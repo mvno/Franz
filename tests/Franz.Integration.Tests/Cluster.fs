@@ -110,6 +110,10 @@
 
     let reset() =
         performSSHCommand "sudo ./reset_cluster.sh"
+        let methodName = (new StackTrace()).GetFrame(1).GetMethod().Name;
+        if methodName <> "InvokeMethod" then
+            Console.WriteLine("## " + methodName)
+            Console.WriteLine("-------------------------------------------")
 
     let kill() =
         performSSHCommand "sudo ./kill_cluster.sh"
