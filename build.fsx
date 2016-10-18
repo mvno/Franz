@@ -136,8 +136,15 @@ Target "Build" (fun _ ->
 // Run the unit tests using test runner
 
 Target "RunTests" (fun _ ->
-    !! testAssemblies
-    |> xUnit2 (fun p -> p)
+    let appveyorPrNumber = environVarOrDefault "APPVEYOR_PULL_REQUEST_NUMBER" "-1"
+    let appveyorRun = environVarOrDefault "APPVEYOR" "false"
+
+    if appveyorRun = "false" then
+        !! testAssemblies
+        |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
+    else
+        !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
+        |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
 )
 
 #if MONO
