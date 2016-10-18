@@ -18,9 +18,25 @@
         { Address = "192.168.100.100"; Port = 2182 };
         { Address = "192.168.100.100"; Port = 2183 };|]
 
-    let sshPath = "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
-    let virtualBoxPath = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
-    let vagrantPath = "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe"
+    let sshPath = 
+        let path = "C:\\Program Files\\OpenSSH-Win64\\ssh.exe"
+        Console.WriteLine("# sshPath:" + path)
+        path
+
+    let virtualBoxPath = 
+        let path = "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
+        Console.WriteLine("# virtualBoxPath:" + path)
+        path
+
+    let vagrantPath = 
+        let path = "C:\\HashiCorp\\Vagrant\\bin\\vagrant.exe"
+        Console.WriteLine("# vagrantPath:" + path)
+        path
+ 
+    let workingDirectory =
+        let path = System.IO.Directory.GetCurrentDirectory()
+        Console.WriteLine("# workingDirectory shell commands:" + path)
+        path
 
     let getNewPath = System.Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)
 
@@ -31,6 +47,9 @@
         startInfo.UseShellExecute <- true
         startInfo.CreateNoWindow <- true
         startInfo.WindowStyle <- ProcessWindowStyle.Hidden
+        startInfo.WorkingDirectory <- workingDirectory
+
+        System.Console.WriteLine("  # " + System.IO.Path.GetFileName(command) + " " + arguments + "'")
 
         let proc = Process.Start(startInfo)
         proc.WaitForExit()
@@ -46,6 +65,9 @@
         startInfo.EnvironmentVariables.Item("PATH") <- getNewPath
         startInfo.RedirectStandardOutput <- true
         startInfo.RedirectStandardError <- true
+        startInfo.WorkingDirectory <- workingDirectory
+
+        System.Console.WriteLine("  # " + System.IO.Path.GetFileName(command) + " " + arguments + "'")
 
         let outputBuilder = StringBuilder()
         let errorBuilder = StringBuilder() 
@@ -128,7 +150,7 @@
         else
             executeCommandOutsideShell "choco" ("install " + name + " -y" + " -version " + version + " --force --ignore-checksums") |> ignore
 
-    let ensureClusterIsRunning =
+    let ensureClusterIsRunning() =
         System.AppDomain.CurrentDomain.DomainUnload.Add(fun x -> performVagrantCommand "destroy -f")
 
         installPrerequest "win32-openssh" sshPath "2016.05.15"
@@ -143,9 +165,8 @@
         performVagrantCommand "init ChristianTrolleMikkelsen/kafkacluster"
         performVagrantCommand "box update"
         performVagrantCommand "up"
-        start()
 
     [<System.AttributeUsageAttribute(AttributeTargets.Method, AllowMultiple = false)>]
     type FranzFactAttribute()=
         inherit Xunit.FactAttribute()
-        let cluster = ensureClusterIsRunning
+        static let cluster = ensureClusterIsRunning()
