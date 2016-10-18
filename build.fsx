@@ -139,7 +139,7 @@ Target "RunTests" (fun _ ->
     let appveyorPrNumber = environVarOrDefault "APPVEYOR_PULL_REQUEST_NUMBER" "-1"
     let appveyorRun = environVarOrDefault "APPVEYOR" "false"
 
-    if appveyorPrNumber = "-1" || appveyorRun = "false" then
+    if appveyorRun = "false" then
         !! testAssemblies
         |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
     else
