@@ -17,7 +17,9 @@ let ``must produce and consume 1 message`` () =
     let producer = new RoundRobinProducer(broker)
     let expectedMessage = {Key = ""; Value = "must produce and consume 1 message"}
     producer.SendMessage(topicName, expectedMessage);
-    let consumer = new ChunkedConsumer(kafka_brokers, topicName)
+    let options = new ConsumerOptions()
+    options.Topic <- topicName
+    let consumer = new ChunkedConsumer(broker, options)
     let tokenSource = new CancellationTokenSource()
 
     let message = consumer.Consume(tokenSource.Token) |> Seq.head
