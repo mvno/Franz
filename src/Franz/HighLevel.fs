@@ -960,6 +960,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
         if options.GroupId |> String.IsNullOrEmpty then invalidOp "Group id cannot be null or empty"
+        if options.Topic |> String.IsNullOrEmpty then invalidOp "Topic cannot be null or empty"
         new ChunkedConsumer(brokerRouter, options)
 
     let rec getGroupCoordinatorId() =
