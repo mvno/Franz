@@ -48,6 +48,7 @@
     <Compile Include="Cluster.fs" />
     <Compile Include="ClusterControlTest.fs" />
     <Compile Include="BasicTest.fs" />
+    <Compile Include="ConsumerGroupTest.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Franz\Franz.fsproj">
