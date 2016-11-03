@@ -867,9 +867,9 @@ type GroupConsumerOptions() =
     /// Gets or sets the TCP timeout, this value must be greater than the session timeout. The default value is 40000 ms.
     override val TcpTimeout = 40000 with get, set
     /// Gets or sets the available assignors
-    member val Assignors = Seq.empty with get, set
+    member val Assignors : IAssignor array = [| new RoundRobinAssignor() |] with get, set
     /// Gets or sets the group id
-    member val GroupId = "" with get, set
+    member val GroupId = Guid.NewGuid().ToString() with get, set
 
 /// Blocking message queue, much like BlockingCollection in BCL, but doesn't support threadsafe consuming
 type MessageQueue() as self =
