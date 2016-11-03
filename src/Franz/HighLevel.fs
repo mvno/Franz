@@ -1066,13 +1066,17 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
 
     let consumeAsync(token) =
         async {
-            let rec addMessagesToQueue() =
-                try
-                    let msgs = consumer.Consume(token)
-                    if msgs |> Seq.length = 0 then addMessagesToQueue()
-                    msgs |> messageQueue.Add
-                with
-                    :? OperationCanceledException -> ()
+            let addMessagesToQueue() =
+                let mutable breakLoop = false
+                while not breakLoop do
+                    try
+                        let msgs = consumer.Consume(token)
+                        if msgs |> Seq.length > 0 then
+                            LogConfiguration.Logger.Info.Invoke("Message added")
+                            msgs |> messageQueue.Add
+                            breakLoop <- true
+                    with
+                        :? OperationCanceledException -> breakLoop <- true
             addMessagesToQueue()
             use _ = messageQueue.QueueEmpty.Subscribe (fun _ -> addMessagesToQueue())
             ()
