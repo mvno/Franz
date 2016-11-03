@@ -825,17 +825,17 @@ type ChunkedConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOpt
 type IAssignor =
     /// Name of the assignor
     abstract member Name : string
-    /// Perform group assignment given group members and available partition ids
-    abstract member Assign : GroupMember seq * Id seq -> GroupAssignment array
+    /// Perform group assignment given the topic, group members and available partition ids
+    abstract member Assign : string * GroupMember seq * Id seq -> GroupAssignment array
 
 /// Assigns partitions to group memebers using round robin
-type RoundRobinAssignor(topic) =
+type RoundRobinAssignor() =
     let version = 0s
 
     /// Name of the assignor
     member __.Name = "roundrobin"
     /// Assign partitions to members
-    member __.Assign(members : GroupMember seq, partitions : Id seq) =
+    member __.Assign(topic : string, members : GroupMember seq, partitions : Id seq) =
         let rec memberSeq = seq {
             for x in members do yield x
             yield! memberSeq
@@ -851,8 +851,8 @@ type RoundRobinAssignor(topic) =
     interface IAssignor with
         /// Name of the assignor
         member self.Name = self.Name
-        /// Perform group assignment given group members and available partition ids
-        member self.Assign(members, partitions) = self.Assign(members, partitions)
+        /// Perform group assignment given the topic, group members and available partition ids
+        member self.Assign(topic, members, partitions) = self.Assign(topic, members, partitions)
 
 type internal CoordinatorMessage =
     | JoinGroup of CancellationToken
@@ -976,7 +976,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
         match tryFindAssignor response.GroupProtocol with
         | Some x ->
             consumer.BrokerRouter.RefreshMetadata()
-            x.Assign(response.Members, consumer.BrokerRouter.GetAvailablePartitionIds(options.Topic))
+            x.Assign(options.Topic, response.Members, consumer.BrokerRouter.GetAvailablePartitionIds(options.Topic))
         | None -> raiseWithErrorLog (invalidOp (sprintf "Coordinator selected unsupported protocol %s" response.GroupProtocol))
 
     let trySendToBroker coordinatorId request = consumer.BrokerRouter.TrySendToBroker(coordinatorId, request)
