@@ -1,6 +1,5 @@
 ﻿module ConsumerGroupTest
 
-open Xunit
 open Swensen.Unquote
 open Cluster
 open Franz
@@ -25,4 +24,4 @@ let ``consumer group consumer must be able to read 1 message`` () =
     tokenSource.CancelAfter(30000)
 
     let message = consumer.Consume(tokenSource.Token) |> Seq.tryHead
-    Assert.True(message.IsSome)
+    test <@ message.IsSome @>

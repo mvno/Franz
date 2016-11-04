@@ -1,6 +1,5 @@
 ﻿module BasicTest
 
-open Xunit
 open Swensen.Unquote
 open Cluster
 open Franz
@@ -25,4 +24,4 @@ let ``must produce and consume 1 message`` () =
     let message = consumer.Consume(tokenSource.Token) |> Seq.head
     tokenSource.Cancel()
 
-    Assert.Equal(expectedMessage.Value, System.Text.Encoding.UTF8.GetString(message.Message.Value))
+    test <@ System.Text.Encoding.UTF8.GetString(message.Message.Value) = expectedMessage.Value @>
