@@ -24,4 +24,9 @@ let ``consumer group consumer must be able to read 1 message`` () =
     tokenSource.CancelAfter(30000)
 
     let message = consumer.Consume(tokenSource.Token) |> Seq.tryHead
-    test <@ message.IsSome @>
+    test
+        <@
+            match message with
+            | Some x -> System.Text.Encoding.UTF8.GetString(x.Message.Value) = expectedMessage.Value
+            | None -> false
+        @>
