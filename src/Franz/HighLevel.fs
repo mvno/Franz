@@ -1073,7 +1073,6 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     try
                         let msgs = consumer.Consume(token)
                         if msgs |> Seq.length > 0 then
-                            LogConfiguration.Logger.Info.Invoke("Message added")
                             msgs |> messageQueue.Add
                             breakLoop <- true
                     with
