@@ -1179,15 +1179,15 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
             and syncingState (generationId : Id) (memberId : string) (coordinatorId : Id) (response : SyncGroupResponse) =
                 async {
                     try
-                        updateConsumerPosition response.MemberAssignment.PartitionAssignment
+                        updateConsumerPosition response.MemberAssignment.Value.PartitionAssignment
                     with
                         e ->
                             LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
                             return! reconnectState()
-                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.PartitionAssignment)
+                    LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.Value.PartitionAssignment)
                     let cts = new CancellationTokenSource()
                     Async.Start(consumeAsync(cts.Token), cts.Token)
-                    onConnected.Trigger(new ConnectedEventArgs(options.GroupId, response.MemberAssignment))
+                    onConnected.Trigger(new ConnectedEventArgs(options.GroupId, response.MemberAssignment.Value))
                     return! connectedState cts generationId memberId coordinatorId
                 }
             and connectedState (cts : CancellationTokenSource) (generationId : Id) (memberId : string) (coordinatorId : Id) =

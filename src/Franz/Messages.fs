@@ -881,12 +881,17 @@ module Messages =
 
     [<NoEquality;NoComparison>]
     type SyncGroupResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; MemberAssignment : MemberAssignment }
+        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; MemberAssignment : MemberAssignment option }
         static member Deserialize(stream) =
+            let correlationId = stream |> BigEndianReader.ReadInt32
+            let errorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>
+            let memberAssignment =
+                if errorCode = ErrorCode.NoError then stream |> MemberAssignment.Deserialize |> Some
+                else None
             {
-                CorrelationId = stream |> BigEndianReader.ReadInt32;
-                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                MemberAssignment = stream |> MemberAssignment.Deserialize;
+                CorrelationId = correlationId;
+                ErrorCode = errorCode;
+                MemberAssignment = memberAssignment;
             }
 
     [<NoEquality;NoComparison>] type GroupAssignment = { MemberId : string; MemberAssignment : MemberAssignment }
