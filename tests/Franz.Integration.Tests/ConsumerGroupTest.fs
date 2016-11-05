@@ -52,4 +52,6 @@ let ``consumer group consumer must be able to read message after starting`` () =
 
     producer.SendMessage(topicName, expectedMessage);
 
-    resetEvent.WaitOne(30000)
+    test<@ resetEvent.WaitOne(30000) @>
+
+    tokenSource.Cancel()
