@@ -154,6 +154,9 @@
         else
             executeCommandOutsideShell "choco" ("install " + name + " -y" + " -version " + version + " --force --ignore-checksums") |> ignore
 
+    let createTopic topic replicationFactor partitions =
+        performSSHCommand (sprintf "/etc/kafka1/bin/kafka-topics.sh --create --topic %s --replication-factor %i --partitions %i --zookeeper localhost" topic replicationFactor partitions)
+
     let ensureClusterIsRunning() =
         System.AppDomain.CurrentDomain.DomainUnload.Add(fun x -> performVagrantCommand "destroy -f")
 
