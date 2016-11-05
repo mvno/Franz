@@ -959,7 +959,7 @@ type ConnectedEventArgs(groupId : string, assignment : MemberAssignment) =
     member __.Assignment = assignment
 
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) as self =
+type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let messageQueue = new MessageQueue()
@@ -1145,7 +1145,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
@@ -1172,7 +1172,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
@@ -1222,7 +1222,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code, while trying to join group '%s'. Trying to rejoin..." options.GroupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
