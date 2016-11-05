@@ -951,12 +951,20 @@ type MessageQueue() as self =
         member __.GetEnumerator() = queue.GetEnumerator()
         member __.GetEnumerator() = queue.GetEnumerator() :> Collections.IEnumerator
 
+type ConnectedEventArgs(groupId : string, assignment : MemberAssignment) =
+    inherit EventArgs()
+    /// Group id
+    member __.GroupId = groupId
+    /// Assignment
+    member __.Assignment = assignment
+
 /// High level kafka consumer using the group management features of Kafka.
-type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) =
+type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) as self =
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let messageQueue = new MessageQueue()
-                
+    let onConnected = new Event<ConnectedEventArgs>()
+
     let consumer =
         if options.TcpTimeout < options.HeartbeatInterval then invalidOp "TCP timeout must be greater than heartbeat interval"
         if options.GroupId |> String.IsNullOrEmpty then invalidOp "Group id cannot be null or empty"
@@ -1179,6 +1187,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.PartitionAssignment)
                     let cts = new CancellationTokenSource()
                     Async.Start(consumeAsync(cts.Token), cts.Token)
+                    onConnected.Trigger(new ConnectedEventArgs(options.GroupId, response.MemberAssignment))
                     return! connectedState cts generationId memberId coordinatorId
                 }
             and connectedState (cts : CancellationTokenSource) (generationId : Id) (memberId : string) (coordinatorId : Id) =
@@ -1241,6 +1250,10 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
     member __.LeaveGroup() =
         raiseIfDisposed disposed
         agent.Post(LeaveGroup)
+
+    /// Event raised the consumer has connected to group
+    [<CLIEvent>]
+    member __.OnConnected = onConnected.Publish
 
     /// Releases all connections and disposes the consumer
     member __.Dispose() =
