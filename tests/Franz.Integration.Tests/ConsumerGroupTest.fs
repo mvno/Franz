@@ -115,3 +115,46 @@ let ``with two consumers partitions are split among them`` () =
             completedEvent.Set() |> ignore)
 
     test <@ completedEvent.WaitOne(60000) @>
+
+[<FranzFact>]
+let ``when a consumer leaves the group another consumer takes over the partitions`` () =
+    reset()
+    createTopic topicName 2 2
+
+    let broker = new BrokerRouter(kafka_brokers, 10000)
+    broker.Connect()
+    let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    let consumer1 = new GroupConsumer(broker, options)
+    let consumer2 = new GroupConsumer(kafka_brokers, options)
+    let tokenSource = new CancellationTokenSource()
+    let tokenSource2 = new CancellationTokenSource()
+    let completedEvent = new ManualResetEvent(false)
+    let countDownEvent = new CountdownEvent(2)
+
+    let startAsync token a =
+        Async.Start(a, token)
+
+    async { consumer1.Consume(tokenSource.Token) |> ignore } |> startAsync tokenSource.Token
+    use t1 = consumer1.OnConnected.Subscribe (fun x ->
+        if not countDownEvent.IsSet then
+            countDownEvent.Signal() |> ignore
+        else
+            let assignment = x.Assignment.PartitionAssignment |> Seq.head
+            let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
+            test <@ assignment.Topic = topicName && assignment.Partitions |> Seq.forall (fun x -> availablePartitionIds |> Seq.contains x) @>
+            completedEvent.Set() |> ignore)
+    
+    async { consumer2.Consume(tokenSource2.Token) |> ignore } |> startAsync tokenSource2.Token
+    use t2 = consumer2.OnConnected.Subscribe (fun _ ->
+        if not countDownEvent.IsSet then
+            countDownEvent.Signal() |> ignore
+        else ())
+
+    if countDownEvent.Wait(30000) then
+        consumer2.LeaveGroup()
+    else failwith "Both consumers did not connect"
+
+    test <@ completedEvent.WaitOne(60000) @>
