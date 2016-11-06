@@ -889,8 +889,8 @@ type MessageQueue() as self =
         let rec loop() =
             if not runningEvent.IsSet then
                 checkException()
-                runningEvent.Wait(100) |> ignore
-                if stopEvent.IsSet then Seq.empty
+                let index = WaitHandle.WaitAny([| stopEvent.WaitHandle; runningEvent.WaitHandle |])
+                if index = 0 then Seq.empty
                 else seq { yield! loop() }
             elif stopEvent.IsSet then Seq.empty
             else
@@ -901,13 +901,9 @@ type MessageQueue() as self =
                     queueEmptyEvent.Trigger(self, EventArgs.Empty)
                     waitForData()
         and waitForData() =
-            let gotData = queueAvailableResetEvent.WaitOne(100)
-            checkException()
-            if gotData then
-                seq { yield! loop() }
-            else
-                if stopEvent.IsSet then Seq.empty
-                else waitForData()
+            let index = WaitHandle.WaitAny([| queueAvailableResetEvent; stopEvent.WaitHandle |])
+            if index = 0 then seq { yield! loop() }
+            else Seq.empty
             
         seq { yield! loop() }
 
@@ -933,7 +929,9 @@ type MessageQueue() as self =
     member __.Start() = runningEvent.Set()
     
     /// Set exception, this make the queue throw an exception on the next iteration
-    member __.SetFatalException(e) = fatalException <- Some (e :> Exception)
+    member __.SetFatalException(e) =
+        queueAvailableResetEvent.Set() |> ignore
+        fatalException <- Some (e :> Exception)
     
     /// Find the lowest unprocessed partition offsets in the queue. To get consistent results, the queue should be stopped or paused.
     member __.FindLowestUnprocessedPartitionOffsets() =
