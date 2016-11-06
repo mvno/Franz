@@ -138,7 +138,7 @@ type Producer(brokerRouter : IBrokerRouter, compressionCodec : CompressionCodec,
         self.SendMessages(topicName, [| message |], requiredAcks, brokerProcessingTimeout)
     
     /// Releases all connections and disposes the producer
-    member self.Dispose() = (self :> IDisposable).Dispose()
+    member __.Dispose() = base.Dispose()
     
     interface IProducer with
         member self.SendMessage(topicName, message, requiredAcks, brokerProcessingTimeout) =
