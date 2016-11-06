@@ -1183,7 +1183,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                             LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
                             return! reconnectState()
                     LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.Value.PartitionAssignment)
-                    let cts = new CancellationTokenSource()
+                    let cts = CancellationTokenSource.CreateLinkedTokenSource(agentCts.Token)
                     Async.Start(consumeAsync(cts.Token), cts.Token)
                     onConnected.Trigger(new ConnectedEventArgs(options.GroupId, response.MemberAssignment.Value))
                     return! connectedState cts generationId memberId coordinatorId
