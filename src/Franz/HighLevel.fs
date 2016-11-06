@@ -1220,7 +1220,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
-                        let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
+                        let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to send heartbeat '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
                         return! reconnectState()
                 }
