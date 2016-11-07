@@ -1142,8 +1142,11 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
 
     let stopConsuming (cts : CancellationTokenSource) =
         LogConfiguration.Logger.Trace.Invoke("Stopping consuming...")
-        consumer.OffsetManager.Commit(options.Topic, consumer.GetPosition())
         cts.Cancel()
+
+    let stopConsumingAndCommitOffsets (cts : CancellationTokenSource) =
+        stopConsuming cts
+        consumer.OffsetManager.Commit(options.GroupId, consumer.GetPosition())
 
     let createLinkedCancellationTokenSource token =
         CancellationTokenSource.CreateLinkedTokenSource([| token; groupCts.Token |])
@@ -1159,15 +1162,23 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         return! joinGroup joiningState (failedJoinState false)
                     | LeaveGroup -> return! notConnectedState()
                 }
-            and reconnectState commitOffsets =
+            and delayedReconnectState commitOffsets =
+                reconnectState commitOffsets true
+            and immediateReconnectState commitOffsets =
+                reconnectState commitOffsets false
+            and reconnectState commitOffsets delayedReconnect =
                 async {
                     let currentPosition = consumer.GetPosition()
                     if commitOffsets && currentPosition |> Seq.isEmpty |> not then
                         try
                             consumer.OffsetManager.Commit(options.GroupId, currentPosition)
                         with e -> LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
-                    LogConfiguration.Logger.Trace.Invoke(sprintf "Rejoining group '%s' in %i ms" options.GroupId options.ConnectionRetryInterval)
-                    let! msg = inbox.TryReceive(options.ConnectionRetryInterval)
+                    let reconnectInterval =
+                        if delayedReconnect then
+                            LogConfiguration.Logger.Info.Invoke(sprintf "Rejoining group '%s' in %i ms" options.GroupId options.ConnectionRetryInterval)
+                            options.ConnectionRetryInterval
+                        else 0
+                    let! msg = inbox.TryReceive(reconnectInterval)
                     match msg with
                     | Some x ->
                         match x with
@@ -1188,7 +1199,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.NotCoordinatorForConsumer
                     | ErrorCode.UnknownMemberIdCode ->
                         LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
-                        return! reconnectState commitOffsets
+                        return! delayedReconnectState commitOffsets
                     | ErrorCode.InconsistentGroupProtocolCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId))
                     | ErrorCode.InvalidSessionTimeoutCode ->
@@ -1196,9 +1207,10 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
+                        LogConfiguration.Logger.Info.Invoke(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
-                        return! reconnectState commitOffsets
+                        return! delayedReconnectState commitOffsets
                 }
             and joiningState (coordinatorId : Id) (response : JoinGroupResponse) =
                 async {
@@ -1219,13 +1231,13 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.UnknownMemberIdCode
                     | ErrorCode.RebalanceInProgressCode ->
                         LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
-                        return! reconnectState true
+                        return! delayedReconnectState true
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
-                        return! reconnectState true
+                        return! delayedReconnectState true
                 }
             and syncingState (generationId : Id) (memberId : string) (coordinatorId : Id) (response : SyncGroupResponse) =
                 async {
@@ -1234,7 +1246,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     with
                         e ->
                             LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
-                            return! reconnectState true
+                            return! delayedReconnectState true
                     LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.Value.PartitionAssignment)
                     let cts = CancellationTokenSource.CreateLinkedTokenSource(agentCts.Token)
                     Async.Start(consumeAsync(cts.Token), cts.Token)
@@ -1248,13 +1260,13 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | Some x ->
                         match x with
                         | LeaveGroup ->
-                            stopConsuming cts
+                            stopConsumingAndCommitOffsets cts
                             return! notConnectedState()
                         | _ ->
                             return! sendHeartbeatRequestAsync generationId memberId coordinatorId cts connectedState failedHeartbeatState
                     | None ->
                         if agentCts.IsCancellationRequested then
-                            stopConsuming cts
+                            stopConsumingAndCommitOffsets cts
                         else
                             return! sendHeartbeatRequestAsync generationId memberId coordinatorId cts connectedState failedHeartbeatState
                 }
@@ -1267,15 +1279,15 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.IllegalGenerationCode
                     | ErrorCode.UnknownMemberIdCode ->
                         LogConfiguration.Logger.Trace.Invoke(sprintf "Heartbeat failed with %O. Trying to rejoin..." errorCode)
-                        return! reconnectState true
+                        return! delayedReconnectState true
                     | ErrorCode.RebalanceInProgressCode ->
-                        return! reconnectState true
+                        return! immediateReconnectState true
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to send heartbeat '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
-                        return! reconnectState true
+                        return! delayedReconnectState true
                 }
 
             notConnectedState())

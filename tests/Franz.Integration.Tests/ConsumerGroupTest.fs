@@ -167,16 +167,13 @@ let ``when initial join fails offsets are not committed`` () =
     let connectedEvent = new ManualResetEventSlim(false)
     let offsetsCommitted = new ManualResetEvent(false)
 
-    use t1 = consumer.OnConnected.Subscribe(fun _ ->
-        connectedEvent.Set()
-        consumer.LeaveGroup())
+    use t1 = consumer.OnConnected.Subscribe(fun _ -> connectedEvent.Set())
     use t2 = consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x ->
         test <@ connectedEvent.IsSet @>
-        test <@ x.ConsumerGroup = options.GroupId @>
         offsetsCommitted.Set() |> ignore)
     consumer |> startConsumingAsync tokenSource.Token
 
-    test <@ offsetsCommitted.WaitOne(30000) @>
+    test <@ not <| offsetsCommitted.WaitOne(30000) @>
 
 [<FranzFact>]
 let ``when consumer leaves group offsets are committed`` () =
@@ -198,7 +195,36 @@ let ``when consumer leaves group offsets are committed`` () =
         consumer.LeaveGroup())
     use t2 = consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x ->
         test <@ connectedEvent.IsSet @>
+        test <@ x.ConsumerGroup = options.GroupId @>
         offsetsCommitted.Set() |> ignore)
     consumer |> startConsumingAsync tokenSource.Token
+
+    test <@ offsetsCommitted.WaitOne(30000) @>
+
+[<FranzFact>]
+let ``when a consumer group is rebalanced because another consumer connected, then offsets from the connected consumer are comitted`` () =
+    reset()
+    createTopic topicName 2 2
+
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    use consumer1 = new GroupConsumer(kafka_brokers, options)
+    use consumer2 = new GroupConsumer(kafka_brokers, options)
+    let tokenSource = new CancellationTokenSource()
+    let firstConsumerConnectedEvent = new ManualResetEventSlim(false)
+    let offsetsCommitted = new ManualResetEvent(false)
+
+    use t1 = consumer1.OnConnected.Subscribe(fun _ ->
+        if not firstConsumerConnectedEvent.IsSet then
+            firstConsumerConnectedEvent.Set()
+            printfn "Starting second consumer"
+            consumer2 |> startConsumingAsync tokenSource.Token)
+    use t2 = consumer1.OffsetManager.OnOffsetsCommitted.Subscribe(fun x ->
+        printfn "Consumer1 offsets committed"
+        if firstConsumerConnectedEvent.IsSet then
+            test <@ x.PartitionOffsets |> Seq.length = 2 @>
+            offsetsCommitted.Set() |> ignore)
+    consumer1 |> startConsumingAsync tokenSource.Token
 
     test <@ offsetsCommitted.WaitOne(30000) @>
