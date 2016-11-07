@@ -233,6 +233,16 @@ type RoundRobinProducer(brokerRouter : IBrokerRouter, compressionCodec : Compres
 [<StructuredFormatDisplay("Id: {PartitionId}, Offset: {Offset}, Metadata: {Metadata}")>]
 type PartitionOffset = { PartitionId : Id; Offset : Offset; Metadata : string }
 
+/// Event raised when offsets are committed
+type OffsetsCommittedEventArgs(consumerGroup : string, topic : string, partitionOffsets : PartitionOffset array) =
+    inherit EventArgs()
+    /// The consumer grop
+    member __.ConsumerGroup = consumerGroup
+    /// The topic
+    member __.Topic = topic
+    /// The partitions and their offset
+    member __.PartitionOffsets = partitionOffsets
+
 /// Interface for offset managers
 type IConsumerOffsetManager =
     inherit IDisposable
@@ -240,10 +250,14 @@ type IConsumerOffsetManager =
     abstract member Fetch : string -> PartitionOffset array
     /// Commit offset for the specified topic and partitions
     abstract member Commit : string * PartitionOffset seq -> unit
+    /// Event raised when offsets are committed
+    [<CLIEvent>]
+    abstract member OnOffsetsCommitted : IEvent<OffsetsCommittedEventArgs>
 
 /// Offset manager for version 0. This commits and fetches offset to/from Zookeeper instances.
 type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
+    let onOffsetsCommitted = new Event<OffsetsCommittedEventArgs>()
     let refreshMetadataOnException f =
         try
             f()
@@ -275,7 +289,9 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
             | None -> "Could not get topic name"
         match Seq.isEmpty errorCodes with
         | false -> raiseWithErrorLog(ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
-        | true -> LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to %s, topic '%s', group '%s': %A" managerName topic consumerGroup offsets)
+        | true ->
+            onOffsetsCommitted.Trigger (new OffsetsCommittedEventArgs(consumerGroup, topic, offsets |> Seq.toArray))
+            LogConfiguration.Logger.Info.Invoke(sprintf "Offsets committed to %s, topic '%s', group '%s': %A" managerName topic consumerGroup offsets)
 
     let innerCommit offsets consumerGroup =
         if offsets |> Seq.isEmpty then ()
@@ -292,6 +308,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
         if not disposed then
             brokerRouter.Dispose()
             disposed <- true
+    
     /// Fetch offset for the specified topic and partitions
     member __.Fetch(consumerGroup) =
         raiseIfDisposed(disposed)
@@ -302,12 +319,19 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
         raiseIfDisposed(disposed)
 
         refreshMetadataOnException (fun () -> innerCommit offsets consumerGroup)
+
+    /// Event raised when offsets are committed
+    [<CLIEvent>]
+    member __.OnOffsetsCommitted = onOffsetsCommitted.Publish
+
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
         member self.Dispose() = self.Dispose()
+        [<CLIEvent>]
+        member self.OnOffsetsCommitted = self.OnOffsetsCommitted
 
 module internal ErrorHelper =
     let inline (|HasError|) errorCode (x : ^a seq) =
@@ -319,6 +343,7 @@ module internal ErrorHelper =
 /// Offset manager for version 1. This commits and fetches offset to/from Kafka broker.
 type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
+    let onOffsetsCommitted = new Event<OffsetsCommittedEventArgs>()
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
         try
@@ -403,16 +428,24 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
         raiseIfDisposed(disposed)
 
         refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
+
+    /// Event raised when offsets are committed
+    [<CLIEvent>]
+    member __.OnOffsetsCommitted = onOffsetsCommitted.Publish
+
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
         member self.Dispose() = self.Dispose()
+        [<CLIEvent>]
+        member self.OnOffsetsCommitted = self.OnOffsetsCommitted
 
 /// Offset manager for version 2. This commits and fetches offset to/from Kafka broker.
 type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
+    let onOffsetsCommitted = new Event<OffsetsCommittedEventArgs>()
     let coordinatorDictionary = new ConcurrentDictionary<string, Broker>()
     let refreshMetadataOnException f =
         try
@@ -497,16 +530,24 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
         raiseIfDisposed(disposed)
 
         refreshMetadataOnException (fun () -> innerCommit consumerGroup offsets)
+
+    /// Event raised when offsets are committed
+    [<CLIEvent>]
+    member __.OnOffsetsCommitted = onOffsetsCommitted.Publish
+
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
         member self.Dispose() = self.Dispose()
+        [<CLIEvent>]
+        member self.OnOffsetsCommitted = self.OnOffsetsCommitted
 
 /// Offset manager commiting offfsets to both Zookeeper and Kafka, but only fetches from Zookeeper. Used when migrating from Zookeeper to Kafka.
 type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : IBrokerRouter) =
     let mutable disposed = false
+    let onOffsetsCommitted = new Event<OffsetsCommittedEventArgs>()
     let consumerOffsetManagerV0 = new ConsumerOffsetManagerV0(topicName, brokerRouter) :> IConsumerOffsetManager
     let consumerOffsetManagerV1 = new ConsumerOffsetManagerV1(topicName, brokerRouter) :> IConsumerOffsetManager
     new (brokerSeeds, topicName, tcpTimeout : int) = new ConsumerOffsetManagerDualCommit(topicName, new BrokerRouter(brokerSeeds, tcpTimeout))
@@ -526,21 +567,31 @@ type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : IBrokerRouter) =
             consumerOffsetManagerV0.Dispose()
             consumerOffsetManagerV1.Dispose()
             disposed <- true
+
+    /// Event raised when offsets are committed
+    [<CLIEvent>]
+    member __.OnOffsetsCommitted = onOffsetsCommitted.Publish
+
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member self.Fetch(consumerGroup) = self.Fetch(consumerGroup)
         /// Commit offset for the specified topic and partitions
         member self.Commit(consumerGroup, offsets) = self.Commit(consumerGroup, offsets)
         member self.Dispose() = self.Dispose()
+        [<CLIEvent>]
+        member self.OnOffsetsCommitted = self.OnOffsetsCommitted
 
 /// Noop offsetmanager, used when no offset should be commit
 type DisabledConsumerOffsetManager() =
+    let onOffsetsCommitted = new Event<OffsetsCommittedEventArgs>()
     interface IConsumerOffsetManager with
         /// Fetch offset for the specified topic and partitions
         member __.Fetch(_) = [||]
         /// Commit offset for the specified topic and partitions
         member __.Commit(_, _) = ()
         member __.Dispose() = ()
+        [<CLIEvent>]
+        member __.OnOffsetsCommitted = onOffsetsCommitted.Publish
 
 /// A message with offset and partition id
 [<NoEquality;NoComparison>]
@@ -1082,7 +1133,8 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                             msgs |> messageQueue.Add
                             breakLoop <- true
                     with
-                        :? OperationCanceledException -> breakLoop <- true
+                        | :? OperationCanceledException -> breakLoop <- true
+                        | :? ObjectDisposedException -> breakLoop <- true
             addMessagesToQueue()
             use _ = messageQueue.QueueEmpty.Subscribe (fun _ -> addMessagesToQueue())
             ()
@@ -1103,13 +1155,13 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     match msg with
                     | JoinGroup token ->
                         agentCts <- createLinkedCancellationTokenSource token
-                        return! joinGroup joiningState failedJoinState
+                        return! joinGroup joiningState (failedJoinState false)
                     | LeaveGroup -> return! notConnectedState()
                 }
-            and reconnectState () =
+            and reconnectState commitOffsets =
                 async {
                     let currentPosition = consumer.GetPosition()
-                    if currentPosition |> Seq.isEmpty |> not then
+                    if commitOffsets && currentPosition |> Seq.isEmpty |> not then
                         try
                             consumer.OffsetManager.Commit(options.GroupId, currentPosition)
                         with e -> LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
@@ -1121,13 +1173,13 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                         | LeaveGroup -> return! notConnectedState()
                         | JoinGroup token ->
                             agentCts <- createLinkedCancellationTokenSource token
-                            return! joinGroup joiningState failedJoinState
+                            return! joinGroup joiningState (failedJoinState commitOffsets)
                     | None ->
                         if agentCts.IsCancellationRequested then ()
                         else
-                            return! joinGroup joiningState failedJoinState
+                            return! joinGroup joiningState (failedJoinState commitOffsets)
                 }
-            and failedJoinState (errorCode : ErrorCode) =
+            and failedJoinState (commitOffsets : bool) (errorCode : ErrorCode) =
                 async {
                     match errorCode with
                     | ErrorCode.ConsumerCoordinatorNotAvailable
@@ -1135,7 +1187,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.NotCoordinatorForConsumer
                     | ErrorCode.UnknownMemberIdCode ->
                         LogConfiguration.Logger.Info.Invoke(sprintf "Joining group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
-                        return! reconnectState()
+                        return! reconnectState commitOffsets
                     | ErrorCode.InconsistentGroupProtocolCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Could not join group '%s', as none for the protocols requested are supported" options.GroupId))
                     | ErrorCode.InvalidSessionTimeoutCode ->
@@ -1145,7 +1197,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
-                        return! reconnectState()
+                        return! reconnectState commitOffsets
                 }
             and joiningState (coordinatorId : Id) (response : JoinGroupResponse) =
                 async {
@@ -1166,13 +1218,13 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.UnknownMemberIdCode
                     | ErrorCode.RebalanceInProgressCode ->
                         LogConfiguration.Logger.Info.Invoke(sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
-                        return! reconnectState()
+                        return! reconnectState true
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to join group '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
-                        return! reconnectState()
+                        return! reconnectState true
                 }
             and syncingState (generationId : Id) (memberId : string) (coordinatorId : Id) (response : SyncGroupResponse) =
                 async {
@@ -1181,7 +1233,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     with
                         e ->
                             LogConfiguration.Logger.Warning.Invoke("Got unexpected exception while updating consumer offsets. Trying to rejoin...", e)
-                            return! reconnectState()
+                            return! reconnectState true
                     LogConfiguration.Logger.Info.Invoke(sprintf "Connected to group '%s' with assignment %A" options.GroupId response.MemberAssignment.Value.PartitionAssignment)
                     let cts = CancellationTokenSource.CreateLinkedTokenSource(agentCts.Token)
                     Async.Start(consumeAsync(cts.Token), cts.Token)
@@ -1214,15 +1266,15 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                     | ErrorCode.IllegalGenerationCode
                     | ErrorCode.UnknownMemberIdCode ->
                         LogConfiguration.Logger.Trace.Invoke(sprintf "Heartbeat failed with %O. Trying to rejoin..." errorCode)
-                        return! reconnectState()
+                        return! reconnectState true
                     | ErrorCode.RebalanceInProgressCode ->
-                        return! reconnectState()
+                        return! reconnectState true
                     | ErrorCode.GroupAuthorizationFailedCode ->
                         messageQueue.SetFatalException (InvalidOperationException(sprintf "Not authorized to join group '%s'" options.GroupId))
                     | _ ->
                         let ex = InvalidOperationException(sprintf "Got unexpected error code '%A', while trying to send heartbeat '%s'. Trying to rejoin..." errorCode options.GroupId)
                         LogConfiguration.Logger.Error.Invoke(ex.Message, ex)
-                        return! reconnectState()
+                        return! reconnectState true
                 }
 
             notConnectedState())

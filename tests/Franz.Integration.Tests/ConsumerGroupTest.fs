@@ -151,3 +151,26 @@ let ``when a consumer leaves the group another consumer takes over the partition
     else failwith "Both consumers did not connect"
 
     test <@ completedEvent.WaitOne(30000) @>
+
+[<FranzFact>]
+let ``when initial join fails offsets are not committed`` () =
+    reset()
+    createTopic topicName 1 1
+
+    let broker = new BrokerRouter(kafka_brokers, 10000)
+    broker.Connect()
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    use consumer = new GroupConsumer(broker, options)
+    let tokenSource = new CancellationTokenSource()
+    let connectedEvent = new ManualResetEventSlim(false)
+    let offsetsCommitted = new ManualResetEvent(false)
+
+    use t1 = consumer.OnConnected.Subscribe(fun _ -> connectedEvent.Set())
+    use t2 = consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x ->
+        test <@ connectedEvent.IsSet @>
+        offsetsCommitted.Set() |> ignore)
+    consumer |> startConsumingAsync tokenSource.Token
+
+    test <@ not <| offsetsCommitted.WaitOne(30000) @>
