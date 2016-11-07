@@ -167,10 +167,38 @@ let ``when initial join fails offsets are not committed`` () =
     let connectedEvent = new ManualResetEventSlim(false)
     let offsetsCommitted = new ManualResetEvent(false)
 
-    use t1 = consumer.OnConnected.Subscribe(fun _ -> connectedEvent.Set())
+    use t1 = consumer.OnConnected.Subscribe(fun _ ->
+        connectedEvent.Set()
+        consumer.LeaveGroup())
+    use t2 = consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x ->
+        test <@ connectedEvent.IsSet @>
+        test <@ x.ConsumerGroup = options.GroupId @>
+        offsetsCommitted.Set() |> ignore)
+    consumer |> startConsumingAsync tokenSource.Token
+
+    test <@ offsetsCommitted.WaitOne(30000) @>
+
+[<FranzFact>]
+let ``when consumer leaves group offsets are committed`` () =
+    reset()
+    createTopic topicName 1 1
+
+    let broker = new BrokerRouter(kafka_brokers, 10000)
+    broker.Connect()
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    use consumer = new GroupConsumer(broker, options)
+    let tokenSource = new CancellationTokenSource()
+    let connectedEvent = new ManualResetEventSlim(false)
+    let offsetsCommitted = new ManualResetEvent(false)
+
+    use t1 = consumer.OnConnected.Subscribe(fun _ ->
+        connectedEvent.Set()
+        consumer.LeaveGroup())
     use t2 = consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x ->
         test <@ connectedEvent.IsSet @>
         offsetsCommitted.Set() |> ignore)
     consumer |> startConsumingAsync tokenSource.Token
 
-    test <@ not <| offsetsCommitted.WaitOne(30000) @>
+    test <@ offsetsCommitted.WaitOne(30000) @>

@@ -1142,6 +1142,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
 
     let stopConsuming (cts : CancellationTokenSource) =
         LogConfiguration.Logger.Trace.Invoke("Stopping consuming...")
+        consumer.OffsetManager.Commit(options.Topic, consumer.GetPosition())
         cts.Cancel()
 
     let createLinkedCancellationTokenSource token =
