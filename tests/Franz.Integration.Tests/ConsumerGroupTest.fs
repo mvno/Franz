@@ -228,3 +228,46 @@ let ``when a consumer group is rebalanced because another consumer connected, th
     consumer1 |> startConsumingAsync tokenSource.Token
 
     test <@ offsetsCommitted.WaitOne(30000) @>
+
+[<FranzFact>]
+let ``offsets are only committed for assigned partitions`` () =
+    reset()
+    createTopic topicName 2 2
+
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    use consumer1 = new GroupConsumer(kafka_brokers, options)
+    use consumer2 = new GroupConsumer(kafka_brokers, options)
+    let tokenSource = new CancellationTokenSource()
+    let firstConsumerConnectedEvent = new ManualResetEventSlim(false)
+    let secondConsumerConnectedEvent = new ManualResetEventSlim(false)
+    let countDownEvent = new CountdownEvent(2)
+    let mutable assignedPartitions : PartitionAssignment array = [||]
+
+    use t1 = consumer1.OnConnected.Subscribe(fun _ ->
+        if not firstConsumerConnectedEvent.IsSet then
+            firstConsumerConnectedEvent.Set()
+            consumer2 |> startConsumingAsync tokenSource.Token)
+    use t2 = consumer2.OnConnected.Subscribe(fun x ->
+        secondConsumerConnectedEvent.Set()
+        if firstConsumerConnectedEvent.IsSet && secondConsumerConnectedEvent.IsSet then
+            assignedPartitions <- x.Assignment.PartitionAssignment
+            consumer2.LeaveGroup())
+    use t3 = consumer2.OffsetManager.OnOffsetsCommitted.Subscribe(fun c ->
+        let assignedPartitionIds = assignedPartitions |> Seq.map (fun p -> p.Partitions) |> Seq.concat
+        let topic = assignedPartitions |> Seq.map (fun p -> p.Topic) |> Seq.head
+        let committedPartitionIds = c.PartitionOffsets |> Seq.map (fun p -> p.PartitionId)
+        test <@ committedPartitionIds |> Seq.forall (fun p -> assignedPartitionIds |> Seq.contains p) && c.Topic = topic @>
+        consumer1.LeaveGroup()
+        countDownEvent.Signal() |> ignore)
+    use t4 = consumer1.OffsetManager.OnOffsetsCommitted.Subscribe(fun c ->
+        if secondConsumerConnectedEvent.IsSet then
+            let assignedPartitionIds = assignedPartitions |> Seq.map (fun p -> p.Partitions) |> Seq.concat
+            let topic = assignedPartitions |> Seq.map (fun p -> p.Topic) |> Seq.head
+            let committedPartitionIds = c.PartitionOffsets |> Seq.map (fun p -> p.PartitionId)
+            test <@ committedPartitionIds |> Seq.forall (fun p -> assignedPartitionIds |> Seq.contains p |> not) && c.Topic = topic @>
+            countDownEvent.Signal() |> ignore)
+    consumer1 |> startConsumingAsync tokenSource.Token
+    
+    test <@ countDownEvent.Wait(30000) @>
