@@ -11,18 +11,21 @@ let topicName = "Franz.Integration.Test"
 let startConsumingAsync token (consumer : IConsumer) =
     Async.Start(async { consumer.Consume(token) |> ignore }, token)
 
+let options =
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    options
+
 [<FranzFact>]
 let ``consumer group consumer must be able to read 1 message`` () =
     reset()
     createTopic topicName 1 1
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    use producer = new RoundRobinProducer(broker)
+    use producer = new RoundRobinProducer(kafka_brokers)
     let expectedMessage = {Key = ""; Value = "must produce and consume 1 message"}
     producer.SendMessage(topicName, expectedMessage);
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    use consumer = new GroupConsumer(broker, options)
+    use consumer = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
 
     tokenSource.CancelAfter(30000)
@@ -40,12 +43,9 @@ let ``consumer group consumer must be able to read message after starting`` () =
     reset()
     createTopic topicName 1 1
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    use producer = new RoundRobinProducer(broker)
+    use producer = new RoundRobinProducer(kafka_brokers)
     let expectedMessage = {Key = ""; Value = "must produce and consume 1 message"}
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    use consumer = new GroupConsumer(broker, options)
+    use consumer = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
     let resetEvent = new ManualResetEvent(false)
 
@@ -64,10 +64,7 @@ let ``with one consumer all partitions is assigned to the consumer`` () =
     reset()
     createTopic topicName 3 3
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    use consumer = new GroupConsumer(broker, options)
+    use consumer = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
     let completedEvent = new ManualResetEvent(false)
 
@@ -75,7 +72,7 @@ let ``with one consumer all partitions is assigned to the consumer`` () =
 
     use s = consumer.OnConnected.Subscribe(fun x ->
         let assignment = x.Assignment.PartitionAssignment |> Seq.head
-        let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
+        let availablePartitionIds = consumer.BrokerRouter.GetAvailablePartitionIds(topicName)
         test <@ assignment.Topic = topicName && assignment.Partitions |> Seq.exists (fun x -> availablePartitionIds |> Seq.contains x) @>
         completedEvent.Set() |> ignore)
 
@@ -86,13 +83,8 @@ let ``with two consumers partitions are split among them`` () =
     reset()
     createTopic topicName 2 2
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    broker.Connect()
-    let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
-    use consumer1 = new GroupConsumer(broker, options)
+    use consumer1 = new GroupConsumer(kafka_brokers, options)
+    let availablePartitionIds = consumer1.BrokerRouter.GetAvailablePartitionIds(topicName)
     use consumer2 = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
     let completedEvent = new ManualResetEvent(false)
@@ -117,16 +109,9 @@ let ``when a consumer leaves the group another consumer takes over the partition
     reset()
     createTopic topicName 2 2
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    broker.Connect()
-    let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
-    use consumer1 = new GroupConsumer(broker, options)
+    use consumer1 = new GroupConsumer(kafka_brokers, options)
     use consumer2 = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
-    let tokenSource2 = new CancellationTokenSource()
     let completedEvent = new ManualResetEvent(false)
     let countDownEvent = new CountdownEvent(2)
 
@@ -136,7 +121,7 @@ let ``when a consumer leaves the group another consumer takes over the partition
             countDownEvent.Signal() |> ignore
         else
             let assignment = x.Assignment.PartitionAssignment |> Seq.head
-            let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
+            let availablePartitionIds = consumer1.BrokerRouter.GetAvailablePartitionIds(topicName)
             test <@ assignment.Topic = topicName && assignment.Partitions |> Seq.forall (fun x -> availablePartitionIds |> Seq.contains x) @>
             completedEvent.Set() |> ignore)
     
@@ -157,12 +142,7 @@ let ``when initial join fails offsets are not committed`` () =
     reset()
     createTopic topicName 1 1
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    broker.Connect()
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
-    use consumer = new GroupConsumer(broker, options)
+    use consumer = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
     let connectedEvent = new ManualResetEventSlim(false)
     let offsetsCommitted = new ManualResetEvent(false)
@@ -180,12 +160,7 @@ let ``when consumer leaves group offsets are committed`` () =
     reset()
     createTopic topicName 1 1
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    broker.Connect()
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
-    use consumer = new GroupConsumer(broker, options)
+    use consumer = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
     let connectedEvent = new ManualResetEventSlim(false)
     let offsetsCommitted = new ManualResetEvent(false)
@@ -206,9 +181,6 @@ let ``when a consumer group is rebalanced because another consumer connected, th
     reset()
     createTopic topicName 2 2
 
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
     use consumer1 = new GroupConsumer(kafka_brokers, options)
     use consumer2 = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
@@ -234,9 +206,6 @@ let ``offsets are only committed for assigned partitions`` () =
     reset()
     createTopic topicName 2 2
 
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
     use consumer1 = new GroupConsumer(kafka_brokers, options)
     use consumer2 = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
@@ -277,12 +246,7 @@ let ``when a consumer leaves the group ungraceful, the group rebalances`` () =
     reset()
     createTopic topicName 2 2
 
-    let broker = new BrokerRouter(kafka_brokers, 10000)
-    broker.Connect()
-    let options = new GroupConsumerOptions()
-    options.Topic <- topicName
-    options.SessionTimeout <- 10000
-    use consumer1 = new GroupConsumer(broker, options)
+    use consumer1 = new GroupConsumer(kafka_brokers, options)
     use consumer2 = new GroupConsumer(kafka_brokers, options)
     let tokenSource = new CancellationTokenSource()
     let completedEvent = new ManualResetEvent(false)
@@ -294,7 +258,7 @@ let ``when a consumer leaves the group ungraceful, the group rebalances`` () =
             countDownEvent.Signal() |> ignore
         else
             let assignment = x.Assignment.PartitionAssignment |> Seq.head
-            let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
+            let availablePartitionIds = consumer1.BrokerRouter.GetAvailablePartitionIds(topicName)
             test <@ assignment.Topic = topicName && assignment.Partitions |> Seq.forall (fun x -> availablePartitionIds |> Seq.contains x) @>
             completedEvent.Set() |> ignore)
     
