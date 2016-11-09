@@ -271,3 +271,41 @@ let ``offsets are only committed for assigned partitions`` () =
     consumer1 |> startConsumingAsync tokenSource.Token
     
     test <@ countDownEvent.Wait(30000) @>
+
+[<FranzFact>]
+let ``when a consumer leaves the group ungraceful, the group rebalances`` () =
+    reset()
+    createTopic topicName 2 2
+
+    let broker = new BrokerRouter(kafka_brokers, 10000)
+    broker.Connect()
+    let options = new GroupConsumerOptions()
+    options.Topic <- topicName
+    options.SessionTimeout <- 10000
+    use consumer1 = new GroupConsumer(broker, options)
+    use consumer2 = new GroupConsumer(kafka_brokers, options)
+    let tokenSource = new CancellationTokenSource()
+    let completedEvent = new ManualResetEvent(false)
+    let countDownEvent = new CountdownEvent(2)
+
+    consumer1 |> startConsumingAsync tokenSource.Token
+    use t1 = consumer1.OnConnected.Subscribe (fun x ->
+        if not countDownEvent.IsSet then
+            countDownEvent.Signal() |> ignore
+        else
+            let assignment = x.Assignment.PartitionAssignment |> Seq.head
+            let availablePartitionIds = broker.GetAvailablePartitionIds(topicName)
+            test <@ assignment.Topic = topicName && assignment.Partitions |> Seq.forall (fun x -> availablePartitionIds |> Seq.contains x) @>
+            completedEvent.Set() |> ignore)
+    
+    consumer2 |> startConsumingAsync tokenSource.Token
+    use t2 = consumer2.OnConnected.Subscribe (fun _ ->
+        if not countDownEvent.IsSet then
+            countDownEvent.Signal() |> ignore
+        else ())
+
+    if countDownEvent.Wait(60000) then
+        consumer2.Dispose()
+    else failwith "Both consumers did not connect"
+
+    test <@ completedEvent.WaitOne(30000) @>
