@@ -1,7 +1,7 @@
 ﻿namespace Franz
 
 /// The valid requiredAcks values
-type RequiredAcks =
+type RequiredAcks = 
     /// The server will not send any response (this is the only case where the server will not reply to a request). Currently not supported by the client.
     | NoResponse = 0s
     /// The server will wait the data is written to the local log before sending a response.
@@ -15,15 +15,16 @@ module Messages =
     open System.IO
     open Franz.Stream
     open Franz.Internal
-
-    type BufferOverflowException() =
+    
+    type BufferOverflowException() = 
         inherit Exception()
         override e.Message = "Only received partial message"
-
+    
     /// Message size
     type MessageSize = int32
+    
     /// Valid API keys for requests
-    type ApiKey =
+    type ApiKey = 
         /// Indicates a produce request
         | ProduceRequest = 0
         /// Indicates a fecth request
@@ -50,24 +51,32 @@ module Messages =
         | DescribeGroupRequest = 15
         /// Indicates a list groups request
         | ListGroupsRequest = 16
+    
     /// API versions, currently valid values are 0 and 1
     type ApiVersion = int16
+    
     /// This is a user-supplied integer. It will be passed back in the response by the server, unmodified. It is useful for matching request and response between the client and server.
     type CorrelationId = int32
+    
     /// This is a user supplied identifier for the client application. The user can use any identifier they like and it will be used when logging errors, monitoring aggregates, etc.
     /// For example, one might want to monitor not just the requests per second overall, but the number coming from each client application (each of which could reside on multiple servers).
     /// This id acts as a logical grouping across all requests from a particular client.
     type ClientId = string
+    
     /// This is the offset used in kafka as the log sequence number.
     type Offset = int64
+    
     /// The CRC is the CRC32 of the remainder of the message bytes.
     type Crc = int32
+    
     /// This is a version id used to allow backwards compatible evolution of the message binary format. The current value is 0.
     type MagicByte = int8
+    
     /// This byte holds metadata attributes about the message. The lowest 2 bits contain the compression codec used for the message. The other bits should be set to 0.
     type Attributes = int8
+    
     /// Possible error codes from brokers
-    type ErrorCode =
+    type ErrorCode = 
         /// No error--it worked!
         | NoError = 0
         /// An unexpected server error
@@ -135,15 +144,17 @@ module Messages =
 
     /// Type for broker and partition ids
     type Id = int32
+    
     /// The set of alive nodes that currently acts as slaves for the leader for this partition.
     type Replicas = Id array
+    
     /// The set subset of the replicas that are "caught up" to the leader. 
     type Isr = Id array
-
+    
     let correlationId = ref 0
 
     /// Request base class
-    [<AbstractClass>]
+    [<AbstractClassAttribute>]
     type Request<'TResponse>() =
         /// The API key.
         abstract member ApiKey : ApiKey with get
@@ -190,88 +201,99 @@ module Messages =
             let buffer = self.WriteSize(memoryStream)
             buffer |> BigEndianWriter.Write stream
 
-    type CompressionCodec =
-    | None = 0
-    | Gzip = 1
-    | Snappy = 2
+    type CompressionCodec = 
+        | None = 0
+        | Gzip = 1
+        | Snappy = 2
 
     /// Message in a messageset.
-    [<NoEquality;NoComparison>]
-    type Message =
-        {
-            /// The CRC is the CRC32 of the remainder of the message bytes. This is used to check the integrity of the message on the broker and consumer
-            Crc : Crc;
-            /// This is a version id used to allow backwards compatible evolution of the message binary format. The current value is 0
-            MagicByte : MagicByte;
-            /// This byte holds metadata attributes about the message. The lowest 2 bits contain the compression codec used for the message. The other bits should be set to 0
-            Attributes : Attributes;
-            /// The key is an optional message key that was used for partition assignment. The key can be null
-            Key : byte array;
-            /// The value is the actual message contents as an opaque byte array. Kafka supports recursive messages in which case this may itself contain a message set. The message can be null
-            Value : byte array;
-        }
-        member self.CompressionCodec =
+    [<NoEquality; NoComparison>]
+    type Message = 
+        { /// The CRC is the CRC32 of the remainder of the message bytes. This is used to check the integrity of the message on the broker and consumer
+          Crc : Crc
+          /// This is a version id used to allow backwards compatible evolution of the message binary format. The current value is 0
+          MagicByte : MagicByte
+          /// This byte holds metadata attributes about the message. The lowest 2 bits contain the compression codec used for the message. The other bits should be set to 0
+          Attributes : Attributes
+          /// The key is an optional message key that was used for partition assignment. The key can be null
+          Key : byte array
+          /// The value is the actual message contents as an opaque byte array. Kafka supports recursive messages in which case this may itself contain a message set. The message can be null
+          Value : byte array }
+        member self.CompressionCodec = 
             let codec = self.Attributes &&& (int8 0x03)
             match codec with
             | 0y -> CompressionCodec.None
             | 1y -> CompressionCodec.Gzip
             | 2y -> CompressionCodec.Snappy
             | _ -> failwith "Unsupported compression format"
-
+    
     /// Type for messageset.
-    type MessageSet(offset : Offset, size : MessageSize, message : Message) =
-        static let rec decodeMessageSet (list : MessageSet list) (stream : Stream) (buffer : byte array) receviedPartialMessage =
+    type MessageSet(offset : Offset, size : MessageSize, message : Message) = 
+        
+        static let rec decodeMessageSet (list : MessageSet list) (stream : Stream) (buffer : byte array) 
+                       receviedPartialMessage = 
             let bytesAvailable = buffer.Length - int stream.Position
-            if bytesAvailable > MessageSet.messageSetHeaderSize then
+            if bytesAvailable > MessageSet.messageSetHeaderSize then 
                 let offset = stream |> BigEndianReader.ReadInt64
                 let messageSize = stream |> BigEndianReader.ReadInt32
-                if bytesAvailable - MessageSet.messageSetHeaderSize >= messageSize then
-                    let message =
-                        {
-                            Crc = stream |> BigEndianReader.ReadInt32;
-                            MagicByte = stream |> BigEndianReader.ReadInt8;
-                            Attributes = stream |> BigEndianReader.ReadInt8;
-                            Key = stream |> BigEndianReader.ReadBytes;
-                            Value = stream |> BigEndianReader.ReadBytes
-                        }
+                if bytesAvailable - MessageSet.messageSetHeaderSize >= messageSize then 
+                    let message = 
+                        { Crc = stream |> BigEndianReader.ReadInt32
+                          MagicByte = stream |> BigEndianReader.ReadInt8
+                          Attributes = stream |> BigEndianReader.ReadInt8
+                          Key = stream |> BigEndianReader.ReadBytes
+                          Value = stream |> BigEndianReader.ReadBytes }
+                    
                     let messageSet = new MessageSet(offset, messageSize, message)
                     decodeMessageSet (messageSet :: list) stream buffer receviedPartialMessage
-                else
-                    stream |> BigEndianReader.Read (bytesAvailable - 12) |> ignore
+                else 
+                    stream
+                    |> BigEndianReader.Read(bytesAvailable - 12)
+                    |> ignore
                     decodeMessageSet list stream buffer true
-            else
-                if list |> Seq.length = 0 && receviedPartialMessage then
-                    raise (BufferOverflowException())
-                else
-                    list
+            else if list
+                    |> Seq.length
+                    = 0
+                    && receviedPartialMessage then raise (BufferOverflowException())
+            else list
         
         /// Messageset header size
         static member private messageSetHeaderSize = 4 + 8
+        
         /// Offset of the message. When sending a message, this can be any value.
-        member val Offset = offset with get
+        member val Offset = offset
+        
         /// The size of the message in the messageset.
-        member val MessageSize = size with get
+        member val MessageSize = size
+        
         /// The total size of the messageset.
         member val MessageSetSize = size + MessageSet.messageSetHeaderSize
+        
         /// The message.
-        member val Message = message with get
+        member val Message = message
         
         /// Create a new messageset.
-        static member Create(offset : Offset, attributes : Attributes, key, value) =
+        static member Create(offset : Offset, attributes : Attributes, key, value) = 
             let stream = new MemoryStream()
-            stream |> BigEndianWriter.WriteInt8 (int8 0)
+            stream |> BigEndianWriter.WriteInt8(int8 0)
             stream |> BigEndianWriter.WriteInt8 attributes
             stream |> BigEndianWriter.WriteBytes key
             stream |> BigEndianWriter.WriteBytes value
-            let content = Array.zeroCreate(int stream.Length)
+            let content = Array.zeroCreate (int stream.Length)
             stream.Seek(int64 0, SeekOrigin.Begin) |> ignore
             stream.Read(content, 0, int stream.Length) |> ignore
             let crc = crc32 content
-            let message = { Crc = crc; MagicByte = int8 0; Attributes = attributes; Key = key; Value = value; }
+            
+            let message = 
+                { Crc = crc
+                  MagicByte = int8 0
+                  Attributes = attributes
+                  Key = key
+                  Value = value }
             new MessageSet(offset, content.Length + 4, message)
-
+        
         /// Serialize the messageset.
-        member self.Serialize (stream : Stream) =
+        member self.Serialize(stream : Stream) = 
             stream |> BigEndianWriter.WriteInt64 self.Offset
             stream |> BigEndianWriter.WriteInt32 self.MessageSize
             stream |> BigEndianWriter.WriteInt32 self.Message.Crc
@@ -279,309 +301,498 @@ module Messages =
             stream |> BigEndianWriter.WriteInt8 self.Message.Attributes
             stream |> BigEndianWriter.WriteBytes self.Message.Key
             stream |> BigEndianWriter.WriteBytes self.Message.Value
-
+        
         /// Deserialize the messageset.
-        static member Deserialize (buffer : byte array) =
+        static member Deserialize(buffer : byte array) = 
             let stream = new MemoryStream(buffer)
             decodeMessageSet [] stream buffer false
-
+    
     [<Literal>]
     let DefaultTimestamp = -1L
+    
     [<Literal>]
     let DefaultRetentionTime = -1L
+    
     [<Literal>]
     let DefaultGenerationId = -1
-
+    
     /// Broker
-    [<NoEquality;NoComparison>]
-    type Broker = { NodeId : int32; Host : string; Port : int32; }
+    [<NoEquality; NoComparison>]
+    type Broker = 
+        { NodeId : int32
+          Host : string
+          Port : int32 }
+    
     /// PartitionMetadata
-    [<NoEquality;NoComparison>]
-    type PartitionMetadata(errorCode, partitionId, leader, replicas, isr) =
+    [<NoEquality; NoComparison>]
+    type PartitionMetadata(errorCode, partitionId, leader, replicas, isr) = 
         member __.ErrorCode = errorCode
         member __.PartitionId = partitionId
         member __.Leader = leader
         member __.Replicas = replicas
         member __.Isr = isr
+    
     /// TopicMetadata
-    [<NoEquality;NoComparison>]
-    type TopicMetadata(errorCode, name, partitionMetadata) =
+    [<NoEquality; NoComparison>]
+    type TopicMetadata(errorCode, name, partitionMetadata) = 
         member __.ErrorCode = errorCode
         member __.Name = name
         member __.PartitionMetadata = partitionMetadata
+    
     /// PartitionProduceRequest
-    [<NoEquality;NoComparison>] type PartitionProduceRequest = { Id : int32; TotalMessageSetsSize : MessageSize; MessageSets : MessageSet array; }
+    [<NoEquality; NoComparison>]
+    type PartitionProduceRequest = 
+        { Id : int32
+          TotalMessageSetsSize : MessageSize
+          MessageSets : MessageSet array }
+    
     /// PartitionProduceResponse
-    [<NoEquality;NoComparison>]
-    type PartitionProduceResponse(id, errorCode, offset) =
+    [<NoEquality; NoComparison>]
+    type PartitionProduceResponse(id, errorCode, offset) = 
         member __.Id = id
         member __.ErrorCode = errorCode
         member __.Offset = offset
+    
     /// TopicProduceRequest
-    [<NoEquality;NoComparison>] type TopicProduceRequest = { Name : string; Partitions : PartitionProduceRequest array }
+    [<NoEquality; NoComparison>]
+    type TopicProduceRequest = 
+        { Name : string
+          Partitions : PartitionProduceRequest array }
+    
     /// TopicProduceResponse
-    [<NoEquality;NoComparison>] type TopicProduceResponse = { Name : string; Partitions : PartitionProduceResponse array }
+    [<NoEquality; NoComparison>]
+    type TopicProduceResponse = 
+        { Name : string
+          Partitions : PartitionProduceResponse array }
+    
     /// FetchPartitionResponse
-    [<NoEquality;NoComparison>]
-    type FetchPartitionResponse(id, errorCode, highwaterMarkOffset, messageSetSize, messageSets) =
+    [<NoEquality; NoComparison>]
+    type FetchPartitionResponse(id, errorCode, highwaterMarkOffset, messageSetSize, messageSets) = 
         member __.Id = id
         member __.ErrorCode = errorCode
         member __.HighwaterMarkOffset = highwaterMarkOffset
         member __.MessageSetSize = messageSetSize
         member __.MessageSets = messageSets
+    
     /// FetchTopicResponse
-    [<NoEquality;NoComparison>] type FetchTopicResponse = { TopicName : string; Partitions : FetchPartitionResponse array; }
+    [<NoEquality; NoComparison>]
+    type FetchTopicResponse = 
+        { TopicName : string
+          Partitions : FetchPartitionResponse array }
+    
     /// FetchPartitionRequest
-    [<NoEquality;NoComparison>] type FetchPartitionRequest = { Id : Id; FetchOffset : Offset; MaxBytes : int32; }
+    [<NoEquality; NoComparison>]
+    type FetchPartitionRequest = 
+        { Id : Id
+          FetchOffset : Offset
+          MaxBytes : int32 }
+    
     /// FetchTopicRequest
-    [<NoEquality;NoComparison>] type FetchTopicRequest = { Name : string; Partitions : FetchPartitionRequest array; }
+    [<NoEquality; NoComparison>]
+    type FetchTopicRequest = 
+        { Name : string
+          Partitions : FetchPartitionRequest array }
+    
     /// OffsetRequestPartition
-    [<NoEquality;NoComparison>] type OffsetRequestPartition = { Id : Id; Time : int64; MaxNumberOfOffsets : int32; }
+    [<NoEquality; NoComparison>]
+    type OffsetRequestPartition = 
+        { Id : Id
+          Time : int64
+          MaxNumberOfOffsets : int32 }
+    
     /// OffsetRequestTopic
-    [<NoEquality;NoComparison>] type OffsetRequestTopic = { Name : string; Partitions : OffsetRequestPartition array }
+    [<NoEquality; NoComparison>]
+    type OffsetRequestTopic = 
+        { Name : string
+          Partitions : OffsetRequestPartition array }
+    
     /// PartitionOffset
-    [<NoEquality;NoComparison>]
-    type PartitionOffset(id, errorCode, offsets) =
+    [<NoEquality; NoComparison>]
+    type PartitionOffset(id, errorCode, offsets) = 
         member __.Id = id
         member __.ErrorCode = errorCode
         member __.Offsets = offsets
+    
     /// OffsetResponseTopic
-    [<NoEquality;NoComparison>] type OffsetResponseTopic = { Name : string; Partitions : PartitionOffset array; }
+    [<NoEquality; NoComparison>]
+    type OffsetResponseTopic = 
+        { Name : string
+          Partitions : PartitionOffset array }
+    
     /// OffsetCommitRequestV1Partition
-    [<NoEquality;NoComparison>] type OffsetCommitRequestV1Partition = { Id : Id; Offset : Offset; TimeStamp : int64; Metadata : string; }
+    [<NoEquality; NoComparison>]
+    type OffsetCommitRequestV1Partition = 
+        { Id : Id
+          Offset : Offset
+          TimeStamp : int64
+          Metadata : string }
+    
     /// OffsetCommitRequestV1Topic
-    [<NoEquality;NoComparison>] type OffsetCommitRequestV1Topic = { Name : string; Partitions : OffsetCommitRequestV1Partition array; }
+    [<NoEquality; NoComparison>]
+    type OffsetCommitRequestV1Topic = 
+        { Name : string
+          Partitions : OffsetCommitRequestV1Partition array }
+    
     /// OffsetCommitResponsePartition
-    [<NoEquality;NoComparison>]
-    type OffsetCommitResponsePartition(id, errorCode) =
+    [<NoEquality; NoComparison>]
+    type OffsetCommitResponsePartition(id, errorCode) = 
         member __.Id = id
         member __.ErrorCode = errorCode
+    
     /// OffsetCommitResponseTopic
-    [<NoEquality;NoComparison>] type OffsetCommitResponseTopic = { Name : string; Partitions : OffsetCommitResponsePartition array; }
+    [<NoEquality; NoComparison>]
+    type OffsetCommitResponseTopic = 
+        { Name : string
+          Partitions : OffsetCommitResponsePartition array }
+    
     /// OffsetFetchRequestTopic
-    [<NoEquality;NoComparison>] type OffsetFetchRequestTopic = { Name : string; Partitions : Id array }
+    [<NoEquality; NoComparison>]
+    type OffsetFetchRequestTopic = 
+        { Name : string
+          Partitions : Id array }
+    
     /// OffsetFetchResponsePartition
-    [<NoEquality;NoComparison>]
-    type OffsetFetchResponsePartition(id, offset, metadata, errorCode) =
+    [<NoEquality; NoComparison>]
+    type OffsetFetchResponsePartition(id, offset, metadata, errorCode) = 
         member __.Id = id
         member __.Offset = offset
         member __.Metadata = metadata
         member __.ErrorCode = errorCode
+    
     /// OffsetFetchResponseTopic
-    [<NoEquality;NoComparison>] type OffsetFetchResponseTopic = { Name : string; Partitions : OffsetFetchResponsePartition array; }
+    [<NoEquality; NoComparison>]
+    type OffsetFetchResponseTopic = 
+        { Name : string
+          Partitions : OffsetFetchResponsePartition array }
+    
     /// OffsetCommitRequestV0Partition
-    [<NoEquality;NoComparison>] type OffsetCommitRequestV0Partition = { Id : Id; Offset : Offset; Metadata : string; }
+    [<NoEquality; NoComparison>]
+    type OffsetCommitRequestV0Partition = 
+        { Id : Id
+          Offset : Offset
+          Metadata : string }
+    
     /// OffsetCommitRequestV0Topic
-    [<NoEquality;NoComparison>] type OffsetCommitRequestV0Topic = { Name : string; Partitions : OffsetCommitRequestV0Partition array; }
-
+    [<NoEquality; NoComparison>]
+    type OffsetCommitRequestV0Topic = 
+        { Name : string
+          Partitions : OffsetCommitRequestV0Partition array }
+    
     /// Metadata response
-    [<NoEquality;NoComparison>]
-    type MetadataResponse =
-        {CorrelationId : CorrelationId; Brokers : Broker array; TopicMetadata : TopicMetadata array; }
-        static member private readBrokers list count stream =
+    [<NoEquality; NoComparison>]
+    type MetadataResponse = 
+        { CorrelationId : CorrelationId
+          Brokers : Broker array
+          TopicMetadata : TopicMetadata array }
+        
+        static member private readBrokers list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let broker = { NodeId = stream |> BigEndianReader.ReadInt32; Host = stream |> BigEndianReader.ReadString; Port = stream |> BigEndianReader.ReadInt32 }
+            | _ -> 
+                let broker = 
+                    { NodeId = stream |> BigEndianReader.ReadInt32
+                      Host = stream |> BigEndianReader.ReadString
+                      Port = stream |> BigEndianReader.ReadInt32 }
                 MetadataResponse.readBrokers (broker :: list) (count - 1) stream
-        static member private readIds list count stream =
+        
+        static member private readIds list count stream = 
             match count with
             | 0 -> list
-            | _ ->
+            | _ -> 
                 let id = stream |> BigEndianReader.ReadInt32
                 MetadataResponse.readIds (id :: list) (count - 1) stream
-        static member private readPartitionMetadata list count stream =
-                match count with
-                | 0 -> list
-                | _ ->
-                    let errorCode = stream |> BigEndianReader.ReadInt16
-                    let partitionId = stream |> BigEndianReader.ReadInt32
-                    let leader = stream |> BigEndianReader.ReadInt32
-                    let replicaCount = stream |> BigEndianReader.ReadInt32
-                    let replicas = MetadataResponse.readIds [] replicaCount stream
-                    let isrs = MetadataResponse.readIds [] (stream |> BigEndianReader.ReadInt32) stream
-                    let metadata = new PartitionMetadata(enum<ErrorCode>(int32 errorCode), partitionId, leader, replicas |> List.toArray, isrs |> List.toArray)
-                    MetadataResponse.readPartitionMetadata (metadata :: list) (count - 1) stream
-        static member private readTopicMetadata list count stream =
+        
+        static member private readPartitionMetadata list count stream = 
             match count with
             | 0 -> list
-            | _ ->
+            | _ -> 
+                let errorCode = stream |> BigEndianReader.ReadInt16
+                let partitionId = stream |> BigEndianReader.ReadInt32
+                let leader = stream |> BigEndianReader.ReadInt32
+                let replicaCount = stream |> BigEndianReader.ReadInt32
+                let replicas = MetadataResponse.readIds [] replicaCount stream
+                let isrs = MetadataResponse.readIds [] (stream |> BigEndianReader.ReadInt32) stream
+                let metadata = 
+                    new PartitionMetadata(enum<ErrorCode> (int32 errorCode), partitionId, leader, replicas |> List.toArray, 
+                                          isrs |> List.toArray)
+                MetadataResponse.readPartitionMetadata (metadata :: list) (count - 1) stream
+        
+        static member private readTopicMetadata list count stream = 
+            match count with
+            | 0 -> list
+            | _ -> 
                 let errorCode = stream |> BigEndianReader.ReadInt16
                 let topicName = stream |> BigEndianReader.ReadString
                 let numberOfPartitionMetadata = stream |> BigEndianReader.ReadInt32
                 let partitionMetadata = MetadataResponse.readPartitionMetadata [] numberOfPartitionMetadata stream
-                let metadata = new TopicMetadata(enum<ErrorCode>(int32 errorCode), topicName, partitionMetadata |> List.toArray)
+                let metadata = 
+                    new TopicMetadata(enum<ErrorCode> (int32 errorCode), topicName, partitionMetadata |> List.toArray)
                 MetadataResponse.readTopicMetadata (metadata :: list) (count - 1) stream
+        
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
             let numberOfBrokers = stream |> BigEndianReader.ReadInt32
             let brokers = MetadataResponse.readBrokers [] numberOfBrokers stream
             let numberOfMetadata = stream |> BigEndianReader.ReadInt32
             let topicMetadata = MetadataResponse.readTopicMetadata [] numberOfMetadata stream
-            { CorrelationId = correlationId; Brokers = brokers |> List.toArray; TopicMetadata = topicMetadata |> List.toArray }
-
+            { CorrelationId = correlationId
+              Brokers = brokers |> List.toArray
+              TopicMetadata = topicMetadata |> List.toArray }
+    
     /// Produce response
-    [<NoEquality;NoComparison>]
-    type ProduceResponse =
-        { CorrelationId : CorrelationId; Topics : TopicProduceResponse array; }
-        static member private readPartition list count stream =
+    [<NoEquality; NoComparison>]
+    type ProduceResponse = 
+        { CorrelationId : CorrelationId
+          Topics : TopicProduceResponse array }
+        
+        static member private readPartition list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let partition = new PartitionProduceResponse(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>, stream |> BigEndianReader.ReadInt64)
+            | _ -> 
+                let partition = 
+                    new PartitionProduceResponse(stream |> BigEndianReader.ReadInt32, 
+                                                 stream
+                                                 |> BigEndianReader.ReadInt16
+                                                 |> int
+                                                 |> enum<ErrorCode>, stream |> BigEndianReader.ReadInt64)
                 ProduceResponse.readPartition (partition :: list) (count - 1) stream
-        static member private readTopic list count stream =
+        
+        static member private readTopic list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let topic = { TopicProduceResponse.Name = stream |> BigEndianReader.ReadString; Partitions = ProduceResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> List.toArray; }
+            | _ -> 
+                let topic = 
+                    { TopicProduceResponse.Name = stream |> BigEndianReader.ReadString
+                      Partitions = 
+                          ProduceResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> List.toArray }
                 ProduceResponse.readTopic (topic :: list) (count - 1) stream
+        
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
             let numberOfTopics = (stream |> BigEndianReader.ReadInt32)
-            { ProduceResponse.CorrelationId = correlationId; Topics = ProduceResponse.readTopic [] numberOfTopics stream |> List.toArray }
-
+            { ProduceResponse.CorrelationId = correlationId
+              Topics = ProduceResponse.readTopic [] numberOfTopics stream |> List.toArray }
+    
     /// Fetch response
-    [<NoEquality;NoComparison>]
-    type FetchResponse =
-        { CorrelationId : CorrelationId; Topics : FetchTopicResponse array; }
-        static member private readPartition list count stream =
+    [<NoEquality; NoComparison>]
+    type FetchResponse = 
+        { CorrelationId : CorrelationId
+          Topics : FetchTopicResponse array }
+        
+        static member private readPartition list count stream = 
             match count with
             | 0 -> list
-            | _ ->
+            | _ -> 
                 let id = stream |> BigEndianReader.ReadInt32
-                let errorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>
+                
+                let errorCode = 
+                    stream
+                    |> BigEndianReader.ReadInt16
+                    |> int
+                    |> enum<ErrorCode>
+                
                 let highwaterMarkOffset = stream |> BigEndianReader.ReadInt64
                 let messageSetSize = stream |> BigEndianReader.ReadInt32
-                let messageSets = stream |> BigEndianReader.Read messageSetSize |> MessageSet.Deserialize |> List.rev |> Array.ofList
+                
+                let messageSets = 
+                    stream
+                    |> BigEndianReader.Read messageSetSize
+                    |> MessageSet.Deserialize
+                    |> List.rev
+                    |> Array.ofList
+                
                 let partition = new FetchPartitionResponse(id, errorCode, highwaterMarkOffset, messageSetSize, messageSets)
                 FetchResponse.readPartition (partition :: list) (count - 1) stream
-        static member private readTopic list count stream =
+        
+        static member private readTopic list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let topic = { FetchTopicResponse.TopicName = stream |> BigEndianReader.ReadString; Partitions = FetchResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+            | _ -> 
+                let topic = 
+                    { FetchTopicResponse.TopicName = stream |> BigEndianReader.ReadString
+                      Partitions = 
+                          FetchResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
                 FetchResponse.readTopic (topic :: list) (count - 1) stream
+        
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
-            { FetchResponse.CorrelationId = correlationId; Topics = FetchResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
-
+            { FetchResponse.CorrelationId = correlationId
+              Topics = FetchResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+    
     /// An offset response.
     /// Contains the starting offset of each segment for the requested partition as well as the "log end offset" i.e. the offset of the next message that would be appended to the given partition.
-    [<NoEquality;NoComparison>]
-    type OffsetResponse =
-        { CorrelationId : CorrelationId; Topics : OffsetResponseTopic array; }
-        static member private readOffsets list count stream =
+    [<NoEquality; NoComparison>]
+    type OffsetResponse = 
+        { CorrelationId : CorrelationId
+          Topics : OffsetResponseTopic array }
+        
+        static member private readOffsets list count stream = 
             match count with
             | 0 -> list
-            | _ ->
+            | _ -> 
                 let offset = stream |> BigEndianReader.ReadInt64
                 OffsetResponse.readOffsets (offset :: list) (count - 1) stream
-        static member private readPartition list count stream =
+        
+        static member private readPartition list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let partition = new PartitionOffset(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt16 |> int32 |> enum<ErrorCode>, OffsetResponse.readOffsets [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray)
+            | _ -> 
+                let partition = 
+                    new PartitionOffset(stream |> BigEndianReader.ReadInt32, 
+                                        stream
+                                        |> BigEndianReader.ReadInt16
+                                        |> int32
+                                        |> enum<ErrorCode>, 
+                                        OffsetResponse.readOffsets [] (stream |> BigEndianReader.ReadInt32) stream 
+                                        |> Seq.toArray)
                 OffsetResponse.readPartition (partition :: list) (count - 1) stream
-        static member private readTopic list count stream =
+        
+        static member private readTopic list count stream = 
             match count with
-                | 0 -> list
-                | _ ->
-                    let topic = { OffsetResponseTopic.Name = stream |> BigEndianReader.ReadString; Partitions = OffsetResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
-                    OffsetResponse.readTopic (topic :: list) (count - 1) stream
+            | 0 -> list
+            | _ -> 
+                let topic = 
+                    { OffsetResponseTopic.Name = stream |> BigEndianReader.ReadString
+                      Partitions = 
+                          OffsetResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+                OffsetResponse.readTopic (topic :: list) (count - 1) stream
+        
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
-            { CorrelationId = correlationId; OffsetResponse.Topics = OffsetResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
-
+            { CorrelationId = correlationId
+              OffsetResponse.Topics = 
+                  OffsetResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+    
     /// Consumer metadata response
-    [<NoEquality;NoComparison>]
-    type ConsumerMetadataResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; CoordinatorId : Id; CoordinatorHost : string; CoordinatorPort : int32; }
+    [<NoEquality; NoComparison>]
+    type ConsumerMetadataResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode
+          CoordinatorId : Id
+          CoordinatorHost : string
+          CoordinatorPort : int32 }
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
-            {
-                CorrelationId = correlationId;
-                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                CoordinatorId = stream |> BigEndianReader.ReadInt32;
-                CoordinatorHost = stream |> BigEndianReader.ReadString;
-                CoordinatorPort = stream |> BigEndianReader.ReadInt32
-            }
-
+            { CorrelationId = correlationId
+              ErrorCode = 
+                  stream
+                  |> BigEndianReader.ReadInt16
+                  |> int
+                  |> enum<ErrorCode>
+              CoordinatorId = stream |> BigEndianReader.ReadInt32
+              CoordinatorHost = stream |> BigEndianReader.ReadString
+              CoordinatorPort = stream |> BigEndianReader.ReadInt32 }
+    
     /// Offset commit response
-    [<NoEquality;NoComparison>]
-    type OffsetCommitResponse =
-        { CorrelationId : CorrelationId; Topics : OffsetCommitResponseTopic array; }
-        static member private readPartition list count stream =
+    [<NoEquality; NoComparison>]
+    type OffsetCommitResponse = 
+        { CorrelationId : CorrelationId
+          Topics : OffsetCommitResponseTopic array }
+        
+        static member private readPartition list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let partition = new OffsetCommitResponsePartition(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>)
+            | _ -> 
+                let partition = 
+                    new OffsetCommitResponsePartition(stream |> BigEndianReader.ReadInt32, 
+                                                      stream
+                                                      |> BigEndianReader.ReadInt16
+                                                      |> int
+                                                      |> enum<ErrorCode>)
                 OffsetCommitResponse.readPartition (partition :: list) (count - 1) stream
-        static member private readTopic list count stream =
+        
+        static member private readTopic list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let topic = { OffsetCommitResponseTopic.Name = stream |> BigEndianReader.ReadString; Partitions = OffsetCommitResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+            | _ -> 
+                let topic = 
+                    { OffsetCommitResponseTopic.Name = stream |> BigEndianReader.ReadString
+                      Partitions = 
+                          OffsetCommitResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
                 OffsetCommitResponse.readTopic (topic :: list) (count - 1) stream
+        
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
-            { OffsetCommitResponse.CorrelationId = correlationId; Topics = OffsetCommitResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
-
+            { OffsetCommitResponse.CorrelationId = correlationId
+              Topics = OffsetCommitResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+    
     /// Offset fetch response
-    [<NoEquality;NoComparison>]
-    type OffsetFetchResponse =
-        { CorrelationId : CorrelationId; Topics : OffsetFetchResponseTopic array; }
-        static member private readPartition list count stream =
+    [<NoEquality; NoComparison>]
+    type OffsetFetchResponse = 
+        { CorrelationId : CorrelationId
+          Topics : OffsetFetchResponseTopic array }
+        
+        static member private readPartition list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let partition = new OffsetFetchResponsePartition(stream |> BigEndianReader.ReadInt32, stream |> BigEndianReader.ReadInt64, stream |> BigEndianReader.ReadString, stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>)
+            | _ -> 
+                let partition = 
+                    new OffsetFetchResponsePartition(stream |> BigEndianReader.ReadInt32, 
+                                                     stream |> BigEndianReader.ReadInt64, 
+                                                     stream |> BigEndianReader.ReadString, 
+                                                     stream
+                                                     |> BigEndianReader.ReadInt16
+                                                     |> int
+                                                     |> enum<ErrorCode>)
                 OffsetFetchResponse.readPartition (partition :: list) (count - 1) stream
-        static member private readTopic list count stream =
+        
+        static member private readTopic list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let topic = { OffsetFetchResponseTopic.Name = stream |> BigEndianReader.ReadString; Partitions = OffsetFetchResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+            | _ -> 
+                let topic = 
+                    { OffsetFetchResponseTopic.Name = stream |> BigEndianReader.ReadString
+                      Partitions = 
+                          OffsetFetchResponse.readPartition [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
                 OffsetFetchResponse.readTopic (topic :: list) (count - 1) stream
+        
         /// Deserialize response from a stream
-        static member Deserialize(stream) =
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
-            { OffsetFetchResponse.CorrelationId = correlationId; Topics = OffsetFetchResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
-
+            { OffsetFetchResponse.CorrelationId = correlationId
+              Topics = OffsetFetchResponse.readTopic [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+    
     /// Metadata request
-    type MetadataRequest(topicNames) =
+    type MetadataRequest(topicNames) = 
         inherit Request<MetadataResponse>()
+        
         /// The api key
         override __.ApiKey = ApiKey.MetadataRequest
+        
         /// Gets or sets the topic names
         member val TopicNames : string array = topicNames with get, set
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteInt32 self.TopicNames.Length
             for topicName in self.TopicNames do
                 stream |> BigEndianWriter.WriteString topicName
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            MetadataResponse.Deserialize stream
+        override __.DeserializeResponse(stream) = MetadataResponse.Deserialize stream
     
     /// Creates a offset request.
     /// This API describes the valid offset range available for a set of topic-partitions
-    type OffsetRequest(replicaId : Id, topics : OffsetRequestTopic array) =
+    type OffsetRequest(replicaId : Id, topics : OffsetRequestTopic array) = 
         inherit Request<OffsetResponse>()
+        
         /// The replica id indicates the node id of the replica initiating this request. Normal client consumers should always specify this as -1 as they have no node id.
         member val ReplicaId = replicaId with get, set
+        
         /// Gets the topics.
         member val Topics = topics with get, set
+        
         /// The api key
         override __.ApiKey = ApiKey.OffsetRequest
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteInt32 self.ReplicaId
             stream |> BigEndianWriter.WriteInt32 self.Topics.Length
             for topic in self.Topics do
@@ -591,28 +802,33 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt32 partition.Id
                     stream |> BigEndianWriter.WriteInt64 partition.Time
                     stream |> BigEndianWriter.WriteInt32 partition.MaxNumberOfOffsets
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            OffsetResponse.Deserialize(stream)
-
+        override __.DeserializeResponse(stream) = OffsetResponse.Deserialize(stream)
+    
     /// Produce request
-    type ProduceRequest(requiredAcks : RequiredAcks, timeout : int32, topics : TopicProduceRequest array) =
+    type ProduceRequest(requiredAcks : RequiredAcks, timeout : int32, topics : TopicProduceRequest array) = 
         inherit Request<ProduceResponse>()
+        
         /// This field indicates how many acknowledgements the servers should receive before responding to the request
-        member val RequiredAcks = requiredAcks with get
+        member val RequiredAcks = requiredAcks
+        
         /// This provides a maximum time in milliseconds the server can await the receipt of the number of acknowledgements in RequiredAcks.
         /// The timeout is not an exact limit on the request time for a few reasons:
         /// (1) it does not include network latency,
         /// (2) the timer begins at the beginning of the processing of this request so if many requests are queued due to server overload that wait time will not be included,
         /// (3) we will not terminate a local write so if the local write time exceeds this timeout it will not be respected.
-        member val Timeout = timeout with get
+        member val Timeout = timeout
+        
         /// Gets the topics
-        member val Topics = topics with get
+        member val Topics = topics
+        
         /// The api key
         override __.ApiKey = ApiKey.ProduceRequest
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
-            stream |> BigEndianWriter.WriteInt16 (requiredAcks |> int16)
+        override self.SerializeMessage(stream) = 
+            stream |> BigEndianWriter.WriteInt16(requiredAcks |> int16)
             stream |> BigEndianWriter.WriteInt32 self.Timeout
             stream |> BigEndianWriter.WriteInt32 self.Topics.Length
             for topic in self.Topics do
@@ -623,25 +839,31 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt32 partition.Id
                     stream |> BigEndianWriter.WriteInt32 totalMessageSetsSize
                     partition.MessageSets |> Seq.iter (fun x -> stream |> x.Serialize)
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            ProduceResponse.Deserialize(stream)
-
+        override __.DeserializeResponse(stream) = ProduceResponse.Deserialize(stream)
+    
     /// Fetch request
-    type FetchRequest(replicaId : Id, maxWaitTime : int32, minBytes : int32, topics : FetchTopicRequest array) =
+    type FetchRequest(replicaId : Id, maxWaitTime : int32, minBytes : int32, topics : FetchTopicRequest array) = 
         inherit Request<FetchResponse>()
+        
         /// The replica id indicates the node id of the replica initiating this request. Normal client consumers should always specify this as -1 as they have no node id.
-        member val ReplicaId = replicaId with get
+        member val ReplicaId = replicaId
+        
         /// The max wait time is the maximum amount of time in milliseconds to block waiting if insufficient data is available at the time the request is issued.
-        member val MaxWaitTime = maxWaitTime with get
+        member val MaxWaitTime = maxWaitTime
+        
         /// Minimum number of bytes of messages that must be available to give a response.
-        member val MinBytes = minBytes with get
+        member val MinBytes = minBytes
+        
         /// Gets the topics
-        member val Topics = topics with get
+        member val Topics = topics
+        
         /// The api key
         override __.ApiKey = ApiKey.FetchRequest
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteInt32 self.ReplicaId
             stream |> BigEndianWriter.WriteInt32 self.MaxWaitTime
             stream |> BigEndianWriter.WriteInt32 self.MinBytes
@@ -653,50 +875,62 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt32 partition.Id
                     stream |> BigEndianWriter.WriteInt64 partition.FetchOffset
                     stream |> BigEndianWriter.WriteInt32 partition.MaxBytes
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            FetchResponse.Deserialize(stream)
-
+        override __.DeserializeResponse(stream) = FetchResponse.Deserialize(stream)
+    
     /// Offset fetch request
-    type OffsetFetchRequest(consumerGroup : string, topics : OffsetFetchRequestTopic array, apiVersion) =
+    type OffsetFetchRequest(consumerGroup : string, topics : OffsetFetchRequestTopic array, apiVersion) = 
         inherit Request<OffsetFetchResponse>()
+        
         /// Gets the consumer group
-        member val ConsumerGroup = consumerGroup with get
+        member val ConsumerGroup = consumerGroup
+        
         /// Gets the topics
-        member val Topics = topics with get
+        member val Topics = topics
+        
         /// The api key
         override __.ApiKey = ApiKey.OffsetFetchRequest
+        
         /// The api version
         override __.ApiVersion = apiVersion
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
             stream |> BigEndianWriter.WriteInt32 self.Topics.Length
             for topic in self.Topics do
                 stream |> BigEndianWriter.WriteString topic.Name
                 stream |> BigEndianWriter.WriteInt32 topic.Partitions.Length
                 topic.Partitions |> Array.iter (fun x -> stream |> BigEndianWriter.WriteInt32 x)
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            OffsetFetchResponse.Deserialize(stream)
-
+        override __.DeserializeResponse(stream) = OffsetFetchResponse.Deserialize(stream)
+    
     /// Offset commit request version 1
-    type OffsetCommitV1Request(consumerGroup : string, consumerGroupGeneration : Id, consumerId : string, topics : OffsetCommitRequestV1Topic array) =
+    type OffsetCommitV1Request(consumerGroup : string, consumerGroupGeneration : Id, consumerId : string, topics : OffsetCommitRequestV1Topic array) = 
         inherit Request<OffsetCommitResponse>()
+        
         /// Gets the consumer group
-        member val ConsumerGroup = consumerGroup with get
+        member val ConsumerGroup = consumerGroup
+        
         /// Gets the consumer group generation
-        member val ConsumerGroupGeneration = consumerGroupGeneration with get
+        member val ConsumerGroupGeneration = consumerGroupGeneration
+        
         /// Gets the consumer id
-        member val ConsumerId = consumerId with get
+        member val ConsumerId = consumerId
+        
         /// Gets the topics
-        member val Topics = topics with get
+        member val Topics = topics
+        
         /// The api key
         override __.ApiKey = ApiKey.OffsetCommitRequest
+        
         /// The api version
         override __.ApiVersion = int16 1
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
             stream |> BigEndianWriter.WriteInt32 self.ConsumerGroupGeneration
             stream |> BigEndianWriter.WriteString self.ConsumerId
@@ -709,21 +943,25 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt64 partition.Offset
                     stream |> BigEndianWriter.WriteInt64 partition.TimeStamp
                     stream |> BigEndianWriter.WriteString partition.Metadata
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            OffsetCommitResponse.Deserialize(stream)
-            
+        override __.DeserializeResponse(stream) = OffsetCommitResponse.Deserialize(stream)
+    
     /// Offset commit request version 0
-    type OffsetCommitV0Request(consumerGroup : string, topics : OffsetCommitRequestV0Topic array) =
+    type OffsetCommitV0Request(consumerGroup : string, topics : OffsetCommitRequestV0Topic array) = 
         inherit Request<OffsetCommitResponse>()
+        
         /// Gets the consumer group
-        member val ConsumerGroup = consumerGroup with get
+        member val ConsumerGroup = consumerGroup
+        
         /// Gets the topics
-        member val Topics = topics with get
+        member val Topics = topics
+        
         /// The api key
         override __.ApiKey = ApiKey.OffsetCommitRequest
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString self.ConsumerGroup
             stream |> BigEndianWriter.WriteInt32 self.Topics.Length
             for topic in self.Topics do
@@ -733,30 +971,38 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt32 partition.Id
                     stream |> BigEndianWriter.WriteInt64 partition.Offset
                     stream |> BigEndianWriter.WriteString partition.Metadata
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            OffsetCommitResponse.Deserialize(stream)
-
+        override __.DeserializeResponse(stream) = OffsetCommitResponse.Deserialize(stream)
+    
     /// Offset commit request version 2
-    type OffsetCommitV2Request(consumerGroupId : string, consumerGroupGenerationId : Id, consumerId : string, retentionTime : int64, topics : OffsetCommitRequestV0Topic array) =
+    type OffsetCommitV2Request(consumerGroupId : string, consumerGroupGenerationId : Id, consumerId : string, retentionTime : int64, topics : OffsetCommitRequestV0Topic array) = 
         inherit Request<OffsetCommitResponse>()
+        
         /// Gets the consumer group
-        member val ConsumerGroupId = consumerGroupId with get
+        member val ConsumerGroupId = consumerGroupId
+        
         /// Gets the consumer group generation
-        member val ConsumerGroupGenerationId = consumerGroupGenerationId with get
+        member val ConsumerGroupGenerationId = consumerGroupGenerationId
+        
         /// Gets the consumer id
-        member val ConsumerId = consumerId with get
+        member val ConsumerId = consumerId
+        
         /// The retention time. The time the offset will be retained on the broker.
         /// If -1 is specified the broker offset retention time will be used.
-        member val RetentionTime = retentionTime with get
+        member val RetentionTime = retentionTime
+        
         /// Gets the topics
-        member val Topics = topics with get
+        member val Topics = topics
+        
         /// The API key
         override __.ApiKey = ApiKey.OffsetCommitRequest
+        
         /// The API version
         override __.ApiVersion = 2s
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString self.ConsumerGroupId
             stream |> BigEndianWriter.WriteInt32 self.ConsumerGroupGenerationId
             stream |> BigEndianWriter.WriteString self.ConsumerId
@@ -769,82 +1015,118 @@ module Messages =
                     stream |> BigEndianWriter.WriteInt32 partition.Id
                     stream |> BigEndianWriter.WriteInt64 partition.Offset
                     stream |> BigEndianWriter.WriteString partition.Metadata
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            OffsetCommitResponse.Deserialize(stream)
-
+        override __.DeserializeResponse(stream) = OffsetCommitResponse.Deserialize(stream)
+    
     /// Consumer metadata request
-    type ConsumerMetadataRequest(consumerGroup : string) =
+    type ConsumerMetadataRequest(consumerGroup : string) = 
         inherit Request<ConsumerMetadataResponse>()
+        
         /// Gets the consumer group
-        member val ConsumerGroup = consumerGroup with get
+        member val ConsumerGroup = consumerGroup
+        
         /// The api key
         override __.ApiKey = ApiKey.ConsumerMetadataRequest
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
-            stream |> BigEndianWriter.WriteString self.ConsumerGroup
+        override self.SerializeMessage(stream) = stream |> BigEndianWriter.WriteString self.ConsumerGroup
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            ConsumerMetadataResponse.Deserialize(stream)
-
-    [<NoEquality;NoComparison>] type GroupMember = { MemberId : string; MemberMetadata : byte array }
-    [<NoEquality;NoComparison>]
-    type JoinGroupResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; GenerationId : Id; GroupProtocol : string; LeaderId : string; MemberId : string; Members : GroupMember array }
-        static member private readMembers list count stream =
+        override __.DeserializeResponse(stream) = ConsumerMetadataResponse.Deserialize(stream)
+    
+    [<NoEquality; NoComparison>]
+    type GroupMember = 
+        { MemberId : string
+          MemberMetadata : byte array }
+    
+    [<NoEquality; NoComparison>]
+    type JoinGroupResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode
+          GenerationId : Id
+          GroupProtocol : string
+          LeaderId : string
+          MemberId : string
+          Members : GroupMember array }
+        
+        static member private readMembers list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let groupMember = { MemberId = stream |> BigEndianReader.ReadString; MemberMetadata = stream |> BigEndianReader.ReadBytes }
+            | _ -> 
+                let groupMember = 
+                    { MemberId = stream |> BigEndianReader.ReadString
+                      MemberMetadata = stream |> BigEndianReader.ReadBytes }
                 JoinGroupResponse.readMembers (groupMember :: list) (count - 1) stream
-        static member Deserialize(stream) =
-            {
-                CorrelationId = stream |> BigEndianReader.ReadInt32;
-                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                GenerationId = stream |> BigEndianReader.ReadInt32;
-                GroupProtocol = stream |> BigEndianReader.ReadString;
-                LeaderId = stream |> BigEndianReader.ReadString;
-                MemberId = stream |> BigEndianReader.ReadString;
-                Members = JoinGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray;
-            }
-
-    [<NoEquality;NoComparison>] type GroupProtocol = { Name : string; Metadata : byte array }
-    type JoinGroupRequest(groupId, sessionTimeout, memberId, protocolType, groupProtocols) =
+        
+        static member Deserialize(stream) = 
+            { CorrelationId = stream |> BigEndianReader.ReadInt32
+              ErrorCode = 
+                  stream
+                  |> BigEndianReader.ReadInt16
+                  |> int
+                  |> enum<ErrorCode>
+              GenerationId = stream |> BigEndianReader.ReadInt32
+              GroupProtocol = stream |> BigEndianReader.ReadString
+              LeaderId = stream |> BigEndianReader.ReadString
+              MemberId = stream |> BigEndianReader.ReadString
+              Members = JoinGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+    
+    [<NoEquality; NoComparison>]
+    type GroupProtocol = 
+        { Name : string
+          Metadata : byte array }
+    
+    type JoinGroupRequest(groupId, sessionTimeout, memberId, protocolType, groupProtocols) = 
         inherit Request<JoinGroupResponse>()
+        
         /// The api key
         override __.ApiKey = ApiKey.JoinGroupRequest
+        
         /// The group id
-        member val GroupId = groupId with get
+        member val GroupId = groupId
+        
         /// The session timeout
-        member val SessionTimeout = sessionTimeout with get
+        member val SessionTimeout = sessionTimeout
+        
         /// The member id
-        member val MemberId = memberId with get
+        member val MemberId = memberId
+        
         /// The protocol type
-        member val ProtocolType = protocolType with get
+        member val ProtocolType = protocolType
+        
         /// Sequence of group protocols
-        member val GroupProtocols = groupProtocols with get
+        member val GroupProtocols = groupProtocols
+        
         /// Serialize the message
-        override self.SerializeMessage(stream) =
+        override self.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString groupId
             stream |> BigEndianWriter.WriteInt32 sessionTimeout
             stream |> BigEndianWriter.WriteString memberId
             stream |> BigEndianWriter.WriteString protocolType
-            stream |> BigEndianWriter.WriteInt32 (groupProtocols |> Seq.length)
+            stream |> BigEndianWriter.WriteInt32(groupProtocols |> Seq.length)
             for groupProtocol in groupProtocols do
                 stream |> BigEndianWriter.WriteString groupProtocol.Name
                 stream |> BigEndianWriter.WriteBytes groupProtocol.Metadata
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            JoinGroupResponse.Deserialize(stream)
-
-    [<NoEquality;NoComparison>] type PartitionAssignment = { Topic : string; Partitions : int array }
-    [<NoEquality;NoComparison>]
-    type MemberAssignment =
-        { Version : int16; PartitionAssignment : PartitionAssignment array; UserData : byte array }
-        member self.Serialize(stream) =
+        override __.DeserializeResponse(stream) = JoinGroupResponse.Deserialize(stream)
+    
+    [<NoEquality; NoComparison>]
+    type PartitionAssignment = 
+        { Topic : string
+          Partitions : int array }
+    
+    [<NoEquality; NoComparison>]
+    type MemberAssignment = 
+        { Version : int16
+          PartitionAssignment : PartitionAssignment array
+          UserData : byte array }
+        
+        member self.Serialize(stream) = 
             let ms = new MemoryStream()
             ms |> BigEndianWriter.WriteInt16 self.Version
-            ms |> BigEndianWriter.WriteInt32 (self.PartitionAssignment |> Seq.length)
+            ms |> BigEndianWriter.WriteInt32(self.PartitionAssignment |> Seq.length)
             for assignment in self.PartitionAssignment do
                 ms |> BigEndianWriter.WriteString assignment.Topic
                 ms |> BigEndianWriter.WriteInt32 assignment.Partitions.Length
@@ -852,197 +1134,284 @@ module Messages =
             ms |> BigEndianWriter.WriteBytes self.UserData
             let size = int ms.Length
             ms.Seek(0L, SeekOrigin.Begin) |> ignore
-            let buffer = Array.zeroCreate(size)
+            let buffer = Array.zeroCreate (size)
             ms.Read(buffer, 0, size) |> ignore
             stream |> BigEndianWriter.WriteBytes buffer
-        static member readPartitions list count stream =
+        
+        static member readPartitions list count stream = 
             match count with
             | 0 -> list
-            | _ ->
+            | _ -> 
                 let partitionId = stream |> BigEndianReader.ReadInt32
                 MemberAssignment.readPartitions (partitionId :: list) (count - 1) stream
-        static member readAssignments list count stream =
+        
+        static member readAssignments list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let assignment =
-                    {
-                        Topic = stream |> BigEndianReader.ReadString;
-                        Partitions = MemberAssignment.readPartitions [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray
-                    }
+            | _ -> 
+                let assignment = 
+                    { Topic = stream |> BigEndianReader.ReadString
+                      Partitions = 
+                          MemberAssignment.readPartitions [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
                 MemberAssignment.readAssignments (assignment :: list) (count - 1) stream
-        static member Deserialize(stream) =
-            stream |> BigEndianReader.ReadInt32 |> ignore // Ignore length of array
-            {
-                Version = stream |> BigEndianReader.ReadInt16;
-                PartitionAssignment = stream |> MemberAssignment.readAssignments [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
-                UserData = stream |> BigEndianReader.ReadBytes
-            }
-
-    [<NoEquality;NoComparison>]
-    type SyncGroupResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; MemberAssignment : MemberAssignment option }
-        static member Deserialize(stream) =
+        
+        static member Deserialize(stream) = 
+            stream
+            |> BigEndianReader.ReadInt32
+            |> ignore // Ignore length of array
+            { Version = stream |> BigEndianReader.ReadInt16
+              PartitionAssignment = 
+                  stream
+                  |> MemberAssignment.readAssignments [] (stream |> BigEndianReader.ReadInt32)
+                  |> Seq.toArray
+              UserData = stream |> BigEndianReader.ReadBytes }
+    
+    [<NoEquality; NoComparison>]
+    type SyncGroupResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode
+          MemberAssignment : MemberAssignment option }
+        static member Deserialize(stream) = 
             let correlationId = stream |> BigEndianReader.ReadInt32
-            let errorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>
-            let memberAssignment =
-                if errorCode = ErrorCode.NoError then stream |> MemberAssignment.Deserialize |> Some
+            
+            let errorCode = 
+                stream
+                |> BigEndianReader.ReadInt16
+                |> int
+                |> enum<ErrorCode>
+            
+            let memberAssignment = 
+                if errorCode = ErrorCode.NoError then 
+                    stream
+                    |> MemberAssignment.Deserialize
+                    |> Some
                 else None
-            {
-                CorrelationId = correlationId;
-                ErrorCode = errorCode;
-                MemberAssignment = memberAssignment;
-            }
-
-    [<NoEquality;NoComparison>] type GroupAssignment = { MemberId : string; MemberAssignment : MemberAssignment }
-    type SyncGroupRequest(groupId, generationId, memberId, groupAssignments) =
+            
+            { CorrelationId = correlationId
+              ErrorCode = errorCode
+              MemberAssignment = memberAssignment }
+    
+    [<NoEquality; NoComparison>]
+    type GroupAssignment = 
+        { MemberId : string
+          MemberAssignment : MemberAssignment }
+    
+    type SyncGroupRequest(groupId, generationId, memberId, groupAssignments) = 
         inherit Request<SyncGroupResponse>()
+        
         /// The api key
         override __.ApiKey = ApiKey.SyncGroupRequest
+        
         /// The group id
-        member val GroupId = groupId with get
+        member val GroupId = groupId
+        
         /// The generation id
-        member val GenerationId = generationId with get
+        member val GenerationId = generationId
+        
         /// The member id
-        member val MemberId = memberId with get
+        member val MemberId = memberId
+        
         /// The group assignment
-        member val GroupAssignments = groupAssignments with get
+        member val GroupAssignments = groupAssignments
+        
         /// Serialize the message
-        override __.SerializeMessage(stream) =
+        override __.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString groupId
             stream |> BigEndianWriter.WriteInt32 generationId
             stream |> BigEndianWriter.WriteString memberId
-            stream |> BigEndianWriter.WriteInt32 (groupAssignments |> Seq.length)
+            stream |> BigEndianWriter.WriteInt32(groupAssignments |> Seq.length)
             for assignment in groupAssignments do
                 stream |> BigEndianWriter.WriteString assignment.MemberId
                 stream |> assignment.MemberAssignment.Serialize
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            SyncGroupResponse.Deserialize(stream)
-
-    [<NoEquality;NoComparison>]
-    type HeartbeatResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode }
-        static member Deserialize(stream) =
-            { CorrelationId = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
-    type HeartbeatRequest(groupId, generationId, memberId) =
+        override __.DeserializeResponse(stream) = SyncGroupResponse.Deserialize(stream)
+    
+    [<NoEquality; NoComparison>]
+    type HeartbeatResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode }
+        static member Deserialize(stream) = 
+            { CorrelationId = stream |> BigEndianReader.ReadInt32
+              ErrorCode = 
+                  stream
+                  |> BigEndianReader.ReadInt16
+                  |> int
+                  |> enum<ErrorCode> }
+    
+    type HeartbeatRequest(groupId, generationId, memberId) = 
         inherit Request<HeartbeatResponse>()
+        
         /// The api key
         override __.ApiKey = ApiKey.HeartbeatGroupRequest
+        
         /// The group id
-        member val GroupId = groupId with get
+        member val GroupId = groupId
+        
         /// The generation id
-        member val GenerationId = generationId with get
+        member val GenerationId = generationId
+        
         /// The member id
-        member val MemberId = memberId with get
+        member val MemberId = memberId
+        
         /// Serialize the message
-        override __.SerializeMessage(stream) =
+        override __.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString groupId
             stream |> BigEndianWriter.WriteInt32 generationId
             stream |> BigEndianWriter.WriteString memberId
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            HeartbeatResponse.Deserialize(stream)
-
-    [<NoEquality;NoComparison>]
-    type LeaveGroupResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode }
-        static member Deserialize(stream) =
-            { CorrelationId = stream |> BigEndianReader.ReadInt32; ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode> }
-    type LeaveGroupRequest(groupId, memberId) =
+        override __.DeserializeResponse(stream) = HeartbeatResponse.Deserialize(stream)
+    
+    [<NoEquality; NoComparison>]
+    type LeaveGroupResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode }
+        static member Deserialize(stream) = 
+            { CorrelationId = stream |> BigEndianReader.ReadInt32
+              ErrorCode = 
+                  stream
+                  |> BigEndianReader.ReadInt16
+                  |> int
+                  |> enum<ErrorCode> }
+    
+    type LeaveGroupRequest(groupId, memberId) = 
         inherit Request<LeaveGroupResponse>()
+        
         /// The api key
         override __.ApiKey = ApiKey.LeaveGroupRequest
+        
         /// The group id
-        member val GroupId = groupId with get
+        member val GroupId = groupId
+        
         /// The member id
-        member val MemberId = memberId with get
+        member val MemberId = memberId
+        
         /// Serialize the message
-        override __.SerializeMessage(stream) =
+        override __.SerializeMessage(stream) = 
             stream |> BigEndianWriter.WriteString groupId
             stream |> BigEndianWriter.WriteString memberId
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            LeaveGroupResponse.Deserialize(stream)
-
-    [<NoEquality;NoComparison>] type GroupInformation = { GroupId : string; ProtocolType : string }
-    [<NoEquality;NoComparison>]
-    type ListGroupsResponse =
-        { CorrelationId : CorrelationId; ErrorCode : ErrorCode; Groups : GroupInformation array }
-        static member private readGroups list count stream =
+        override __.DeserializeResponse(stream) = LeaveGroupResponse.Deserialize(stream)
+    
+    [<NoEquality; NoComparison>]
+    type GroupInformation = 
+        { GroupId : string
+          ProtocolType : string }
+    
+    [<NoEquality; NoComparison>]
+    type ListGroupsResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode
+          Groups : GroupInformation array }
+        
+        static member private readGroups list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let groupInfo = { GroupId = stream |> BigEndianReader.ReadString; ProtocolType = stream |> BigEndianReader.ReadString }
+            | _ -> 
+                let groupInfo = 
+                    { GroupId = stream |> BigEndianReader.ReadString
+                      ProtocolType = stream |> BigEndianReader.ReadString }
                 ListGroupsResponse.readGroups (groupInfo :: list) (count - 1) stream
+        
         /// Deserialize the response
-        static member Deserialize(stream) =
-            {
-                CorrelationId = stream |> BigEndianReader.ReadInt32;
-                ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                Groups = ListGroupsResponse.readGroups [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray
-            }
-    type ListGroupsRequest() =
+        static member Deserialize(stream) = 
+            { CorrelationId = stream |> BigEndianReader.ReadInt32
+              ErrorCode = 
+                  stream
+                  |> BigEndianReader.ReadInt16
+                  |> int
+                  |> enum<ErrorCode>
+              Groups = ListGroupsResponse.readGroups [] (stream |> BigEndianReader.ReadInt32) stream |> Seq.toArray }
+    
+    type ListGroupsRequest() = 
         inherit Request<ListGroupsResponse>()
+        
         /// The api key
         override __.ApiKey = ApiKey.ListGroupsRequest
+        
         /// Serialize the message
         override __.SerializeMessage(_) = ()
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            ListGroupsResponse.Deserialize(stream)
-
-    [<NoEquality;NoComparison>]
-    type DescribeGroupMember = { MemberId : string; ClientId : string; ClientHost : string; MemberMetadata : byte array; MemberAssignment : MemberAssignment }
-    [<NoEquality;NoComparison>]
-    type ConsumerGroup = { ErrorCode : ErrorCode; GroupId : string; State : string; ProtocolType : string; Protocol : string; Members : DescribeGroupMember array }
-    [<NoEquality;NoComparison>]
-    type DescribeGroupResponse =
-        { CorrelationId : CorrelationId; Groups : ConsumerGroup array }
-        static member private readMembers list count stream =
+        override __.DeserializeResponse(stream) = ListGroupsResponse.Deserialize(stream)
+    
+    [<NoEquality; NoComparison>]
+    type DescribeGroupMember = 
+        { MemberId : string
+          ClientId : string
+          ClientHost : string
+          MemberMetadata : byte array
+          MemberAssignment : MemberAssignment }
+    
+    [<NoEquality; NoComparison>]
+    type ConsumerGroup = 
+        { ErrorCode : ErrorCode
+          GroupId : string
+          State : string
+          ProtocolType : string
+          Protocol : string
+          Members : DescribeGroupMember array }
+    
+    [<NoEquality; NoComparison>]
+    type DescribeGroupResponse = 
+        { CorrelationId : CorrelationId
+          Groups : ConsumerGroup array }
+        
+        static member private readMembers list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let m =
-                    {
-                        MemberId = stream |> BigEndianReader.ReadString;
-                        ClientId = stream |> BigEndianReader.ReadString;
-                        ClientHost = stream |> BigEndianReader.ReadString;
-                        MemberMetadata = stream |> BigEndianReader.ReadBytes;
-                        MemberAssignment = stream |> MemberAssignment.Deserialize;
-                    }
+            | _ -> 
+                let m = 
+                    { MemberId = stream |> BigEndianReader.ReadString
+                      ClientId = stream |> BigEndianReader.ReadString
+                      ClientHost = stream |> BigEndianReader.ReadString
+                      MemberMetadata = stream |> BigEndianReader.ReadBytes
+                      MemberAssignment = stream |> MemberAssignment.Deserialize }
                 DescribeGroupResponse.readMembers (m :: list) (count - 1) stream
-        static member private readGroups list count stream =
+        
+        static member private readGroups list count stream = 
             match count with
             | 0 -> list
-            | _ ->
-                let g =
-                    {
-                        ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>;
-                        GroupId = stream |> BigEndianReader.ReadString;
-                        State = stream |> BigEndianReader.ReadString;
-                        ProtocolType = stream |> BigEndianReader.ReadString;
-                        Protocol = stream |> BigEndianReader.ReadString;
-                        Members = stream |> DescribeGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
-                    }
+            | _ -> 
+                let g = 
+                    { ErrorCode = 
+                          stream
+                          |> BigEndianReader.ReadInt16
+                          |> int
+                          |> enum<ErrorCode>
+                      GroupId = stream |> BigEndianReader.ReadString
+                      State = stream |> BigEndianReader.ReadString
+                      ProtocolType = stream |> BigEndianReader.ReadString
+                      Protocol = stream |> BigEndianReader.ReadString
+                      Members = 
+                          stream
+                          |> DescribeGroupResponse.readMembers [] (stream |> BigEndianReader.ReadInt32)
+                          |> Seq.toArray }
                 DescribeGroupResponse.readGroups (g :: list) (count - 1) stream
+        
         /// Deserialize the response
-        static member Deserialize(stream) =
-            {
-                CorrelationId = stream |> BigEndianReader.ReadInt32;
-                Groups = stream |> DescribeGroupResponse.readGroups [] (stream |> BigEndianReader.ReadInt32) |> Seq.toArray;
-            }
-
-    type DescribeGroupRequest(groupIds) =
+        static member Deserialize(stream) = 
+            { CorrelationId = stream |> BigEndianReader.ReadInt32
+              Groups = 
+                  stream
+                  |> DescribeGroupResponse.readGroups [] (stream |> BigEndianReader.ReadInt32)
+                  |> Seq.toArray }
+    
+    type DescribeGroupRequest(groupIds) = 
         inherit Request<DescribeGroupResponse>()
+        
         /// The group ids
-        member val GroupIds = groupIds with get
+        member val GroupIds = groupIds
+        
         /// The api key
         override __.ApiKey = ApiKey.DescribeGroupRequest
+        
         /// Serialize the message
-        override __.SerializeMessage(stream) =
-            stream |> BigEndianWriter.WriteInt32 (groupIds |> Seq.length)
+        override __.SerializeMessage(stream) = 
+            stream |> BigEndianWriter.WriteInt32(groupIds |> Seq.length)
             groupIds |> Seq.iter (fun x -> stream |> BigEndianWriter.WriteString x)
+        
         /// Deserialize the response
-        override __.DeserializeResponse(stream) =
-            DescribeGroupResponse.Deserialize(stream)
+        override __.DeserializeResponse(stream) = DescribeGroupResponse.Deserialize(stream)
