@@ -503,6 +503,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
         match Seq.isEmpty errorCodes with
         | false -> raiseWithErrorLog (ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
         | true -> 
+            onOffsetsCommitted.Trigger(new OffsetsCommittedEventArgs(consumerGroup, topic, offsets |> Seq.toArray))
             LogConfiguration.Logger.Info.Invoke
                 (sprintf "Offsets committed to %s, topic '%s', group '%s': %A" managerName topic consumerGroup offsets)
     
@@ -652,6 +653,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
         match Seq.isEmpty errorCodes with
         | false -> raiseWithErrorLog (ErrorCommittingOffsetException(managerName, topic, consumerGroup, errorCodes))
         | true -> 
+            onOffsetsCommitted.Trigger(new OffsetsCommittedEventArgs(consumerGroup, topic, offsets |> Seq.toArray))
             LogConfiguration.Logger.Info.Invoke
                 (sprintf "Offsets committed to %s, topic '%s', group '%s': %A" managerName topic consumerGroup offsets)
     
@@ -740,8 +742,13 @@ type ConsumerOffsetManagerDualCommit(topicName, brokerRouter : IBrokerRouter) =
     /// Commit offset for the specified topic and partitions
     member __.Commit(consumerGroup, offsets) = 
         raiseIfDisposed (disposed)
+        let bothOffsetsCommitted = new CountdownEvent(2)
+        use v0OffsetsCommitted = consumerOffsetManagerV0.OnOffsetsCommitted.Subscribe(fun _ -> bothOffsetsCommitted.Signal() |> ignore)
+        use v1OffsetsCommitted = consumerOffsetManagerV1.OnOffsetsCommitted.Subscribe(fun _ -> bothOffsetsCommitted.Signal() |> ignore)
         consumerOffsetManagerV0.Commit(consumerGroup, offsets)
         consumerOffsetManagerV1.Commit(consumerGroup, offsets)
+        if bothOffsetsCommitted.IsSet then
+            onOffsetsCommitted.Trigger(new OffsetsCommittedEventArgs(consumerGroup, topicName, offsets |> Seq.toArray))
     
     member __.Dispose() = 
         if not disposed then 
