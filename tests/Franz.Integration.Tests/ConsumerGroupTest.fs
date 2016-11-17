@@ -136,8 +136,8 @@ let ``when initial join fails offsets are not committed``() =
     
     use t2 = 
         consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x -> 
-            test <@ connectedEvent.IsSet @>
-            offsetsCommitted.Set() |> ignore)
+            if connectedEvent.IsSet then
+                offsetsCommitted.Set() |> ignore)
     consumer |> startConsumingAsync tokenSource.Token
     test <@ not <| offsetsCommitted.WaitOne(30000) @>
 
@@ -157,9 +157,8 @@ let ``when consumer leaves group offsets are committed``() =
     
     use t2 = 
         consumer.OffsetManager.OnOffsetsCommitted.Subscribe(fun x -> 
-            test <@ connectedEvent.IsSet @>
-            test <@ x.ConsumerGroup = options.GroupId @>
-            offsetsCommitted.Set() |> ignore)
+            if connectedEvent.IsSet && x.ConsumerGroup = options.GroupId then
+                offsetsCommitted.Set() |> ignore)
     
     consumer |> startConsumingAsync tokenSource.Token
     test <@ offsetsCommitted.WaitOne(30000) @>
