@@ -1300,13 +1300,21 @@ type ConnectedEventArgs(groupId : string, assignment : MemberAssignment) =
     /// Assignment
     member __.Assignment = assignment
 
+/// Indicates a consumers has left the consumer group
+type DisconnectedEventArgs(groupId : string) =
+    inherit EventArgs()
+
+    /// The group id
+    member __.GroupId = groupId
+
 /// High level kafka consumer using the group management features of Kafka.
 type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) = 
     let mutable disposed = false
     let groupCts = new CancellationTokenSource()
     let messageQueue = new MessageQueue()
     let onConnected = new Event<ConnectedEventArgs>()
-    
+    let onDisconnected = new Event<DisconnectedEventArgs>()
+
     let consumer = 
         if options.TcpTimeout < options.HeartbeatInterval then 
             invalidOp "TCP timeout must be greater than heartbeat interval"
@@ -1478,6 +1486,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                                         |> not
                     then 
                         try 
+                            onDisconnected.Trigger(new DisconnectedEventArgs(options.GroupId))
                             consumer.OffsetManager.Commit(options.GroupId, currentPosition)
                         with e -> 
                             LogConfiguration.Logger.Error.Invoke("Could not save offsets before rejoining group", e)
@@ -1651,6 +1660,10 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
     /// Event raised the consumer has connected to group
     [<CLIEvent>]
     member __.OnConnected = onConnected.Publish
+    
+    /// Event raised the consumer has left the group
+    [<CLIEvent>]
+    member __.OnDisconnected = onDisconnected.Publish
     
     /// Releases all connections and disposes the consumer
     member __.Dispose() = 
