@@ -70,6 +70,7 @@
     <Compile Include="Zookeeper.fs" />
     <Compile Include="Brokers.fs" />
     <Compile Include="Producer.fs" />
+    <Compile Include="OffsetManager.fs" />
     <Compile Include="Consumer.fs" />
     <None Include="paket.references" />
     <None Include="paket.template" />
