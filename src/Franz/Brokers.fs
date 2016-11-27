@@ -7,6 +7,13 @@ open System.IO
 open Franz.Stream
 open Franz.Zookeeper
 
+type KafkaVersion =
+    | V0_8_1 = 1
+    | V0_8_2 = 2
+    | V0_9 = 3
+    | V0_10 = 4
+    | V0_10_1 = 5
+
 type NoBrokerFoundForTopicPartitionException(topic : string, partition : int) = 
     inherit Exception()
     member __.Topic = topic
