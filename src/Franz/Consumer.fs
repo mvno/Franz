@@ -105,10 +105,13 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
         | OffsetStorage.Zookeeper -> 
             (new ConsumerOffsetManagerV0(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
         | OffsetStorage.Kafka -> 
+            if consumerOptions.KafkaVersion |> int < 2 then invalidOp "Cannot save offsets on Kafka versions prior to 0.8.2"
             (new ConsumerOffsetManagerV1(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
         | OffsetStorage.KafkaV2 -> 
+            if consumerOptions.KafkaVersion |> int < 3 then invalidOp "Cannot use KafkaV2 offset storage on Kafka versions prior to 0.9"
             (new ConsumerOffsetManagerV2(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
         | OffsetStorage.DualCommit -> 
+            if consumerOptions.KafkaVersion |> int < 2 then invalidOp "Cannot save offsets on Kafka versions prior to 0.8.2"
             (new ConsumerOffsetManagerDualCommit(consumerOptions.Topic, brokerRouter)) :> IConsumerOffsetManager
         | _ -> (new DisabledConsumerOffsetManager()) :> IConsumerOffsetManager
     
