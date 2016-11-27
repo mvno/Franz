@@ -92,6 +92,9 @@ type ConsumerOptions() =
     /// Gets or sets the consumer topic
     member val Topic = "" with get, set
 
+    /// Gets or sets the Kafka version. This is used to determine what version of the protocol to use. The default version is V0.9
+    member val KafkaVersion = KafkaVersion.V0_9
+
 /// Base class for consumers, containing shared functionality
 [<AbstractClass>]
 type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOptions) = 
