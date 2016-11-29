@@ -1,7 +1,5 @@
 ﻿module ClusterControlTest
 
-open Xunit
-open Swensen.Unquote
 open Cluster
 
 [<FranzFact>]

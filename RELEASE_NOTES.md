@@ -1,3 +1,17 @@
+### 4.0.0
+**Breaking changes**
+
+* Topic has been moved to consumer options, meaning that consumers no longer needs this argument in the constructor.
+* Consumers now all take arguments in the same order.
+* Brokerseeds are now defined be IEnumerable of EndPoint instead of array
+
+**Other changes**
+
+* Support for the group membership features in Kafka. To use these features, make sure to use the GroupConsumer.
+* Added support a request to a random broker and to a specific broker specified by broker id.
+* IConsumer.SetPosition now takes an IEnumerable instead of an array
+* A consumer now exposes a property to get the used BrokerRouter.
+
 ### 3.0.1
 * Fixed a bug where sending messages without null key, would result in an exception
 
