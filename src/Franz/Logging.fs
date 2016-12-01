@@ -24,16 +24,16 @@ type DefaultLogger() =
     member val Info = new Action<string>(fun x -> printfn "INFO: %s" x) with get, set
     
     member val Warning = new Action<string, exn>(fun x y -> 
-    if y <> null then eprintfn "WARNING: %s\r\n%s" x (y.ToString())
-    else eprintfn "WARNING: %s" x) with get, set
+        if y <> null then eprintfn "WARNING: %s\r\n%s" x (y.ToString())
+        else eprintfn "WARNING: %s" x) with get, set
     
     member val Error = new Action<string, exn>(fun x y -> 
-    if y <> null then eprintfn "ERROR: %s\r\n%s" x (y.ToString())
-    else eprintfn "ERROR: %s" x) with get, set
+        if y <> null then eprintfn "ERROR: %s\r\n%s" x (y.ToString())
+        else eprintfn "ERROR: %s" x) with get, set
     
     member val Fatal = new Action<string, exn>(fun x y -> 
-    if y <> null then eprintfn "FATAL: %s\r\n%s" x (y.ToString())
-    else eprintfn "FATAL: %s" x) with get, set
+        if y <> null then eprintfn "FATAL: %s\r\n%s" x (y.ToString())
+        else eprintfn "FATAL: %s" x) with get, set
     
     interface ILogger with
         
