@@ -152,7 +152,7 @@ let ensureClusterIsRunning() =
         executeCommandOutsideShell virtualBoxPath "unregistervm kafka_cluster --delete" |> ignore
     performVagrantCommand "destroy -f"
     if File.Exists("Vagrantfile") then File.Delete("Vagrantfile")
-    performVagrantCommand "init ChristianTrolleMikkelsen/kafkacluster"
+    performVagrantCommand "init ChristianTrolleMikkelsen/kafkacluster_v10"
     performVagrantCommand "box update"
     performVagrantCommand "up"
 
