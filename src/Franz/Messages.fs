@@ -143,6 +143,30 @@ module Messages =
         | GroupAuthorizationFailedCode = 30
         /// Returned by the broker when the client is not authorized to use an inter-broker or administrative API
         | ClusterAuthorizationFailedCode = 31
+        /// The timestamp of the message is out of acceptable range
+        | InvalidTimestamp = 32
+        /// The broker does not support the requested SASL mechanism
+        | UnsupportedSaslMechanism = 33
+        /// Request is not valid given the current SASL state
+        | IllegalSaslState = 34
+        /// The version of API is not supported
+        | UnsupportedVersion = 35
+        /// Topic with this name already exists
+        | TopicAlreadyExists = 36
+        /// Number of partitions is invalid
+        | InvalidPartitions = 37
+        /// Replication-factor is invalid
+        | InvalidReplicationFactor = 38
+        /// Replica assignment is invalid
+        | InvalidReplicationAssignment = 39
+        /// Configuration is invalid
+        | InvalidConfig = 40
+        /// This is not the correct controller for this cluster
+        | NotController = 41
+        /// This most likely occurs because of a request being malformed by the client library or the message was sent to an incompatible broker. See the broker logs for more details
+        | InvalidRequest = 42
+        /// The message format version on the broker does not support the request
+        | UnsupportedMessageFormat = 43
 
     /// Type for broker and partition ids
     type Id = int32
