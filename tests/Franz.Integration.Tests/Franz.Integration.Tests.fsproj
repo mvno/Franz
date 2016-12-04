@@ -243,6 +243,7 @@
     <Compile Include="ClusterControlTest.fs" />
     <Compile Include="BasicTest.fs" />
     <Compile Include="ConsumerGroupTest.fs" />
+    <Compile Include="ApiVersionTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
