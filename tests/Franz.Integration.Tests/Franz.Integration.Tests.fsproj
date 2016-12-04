@@ -241,6 +241,7 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Cluster.fs" />
     <Compile Include="ClusterControlTest.fs" />
+    <Compile Include="RecoveryTest.fs" />
     <Compile Include="BasicTest.fs" />
     <Compile Include="ConsumerGroupTest.fs" />
     <Compile Include="ApiVersionTest.fs" />
