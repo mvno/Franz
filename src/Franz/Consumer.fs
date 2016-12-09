@@ -81,6 +81,12 @@ type ConsumerOptions() =
     
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
+
+    /// The backoff in ms, used when getting a retriable error. The default value is 1000.
+    member val ErrorRetryBackoff = 1000 with get, set
+
+    /// The maximum number of times to retry on retriable errors. 0 means infinite retries, which is the default.
+    member val MaximumNumberOfRetriesOnErrors = 0 with get, set
     
     /// The partitions to consume messages from
     member __.PartitionWhitelist 
