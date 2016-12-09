@@ -47,6 +47,22 @@ module ErrorCodeExtensions =
         
         /// Check if error code is success
         member self.IsSuccess() = not <| self.IsError()
+        
+        /// Check if error code is retriable
+        member self.IsRetriable() =
+            match self with
+            | Messages.ErrorCode.InvalidMessage
+            | Messages.ErrorCode.UnknownTopicOrPartition
+            | Messages.ErrorCode.LeaderNotAvailable
+            | Messages.ErrorCode.NotLeaderForPartition
+            | Messages.ErrorCode.RequestTimedOut
+            | Messages.ErrorCode.NetworkException
+            | Messages.ErrorCode.GroupLoadInProgressCode
+            | Messages.ErrorCode.ConsumerCoordinatorNotAvailable
+            | Messages.ErrorCode.NotCoordinatorForConsumer
+            | Messages.ErrorCode.NotEnoughReplicasCode
+            | Messages.ErrorCode.NotController -> true
+            | _ -> false
 
 /// Type containing which nodes is leaders for which topic and partition
 type TopicPartitionLeader = 
