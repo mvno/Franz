@@ -51,6 +51,8 @@ module Messages =
         | DescribeGroupRequest = 15
         /// Indicates a list groups request
         | ListGroupsRequest = 16
+        /// Indicates a request for supported API versions
+        | ApiVersions = 18
     
     /// API versions, currently valid values are 0 and 1
     type ApiVersion = int16
@@ -141,6 +143,30 @@ module Messages =
         | GroupAuthorizationFailedCode = 30
         /// Returned by the broker when the client is not authorized to use an inter-broker or administrative API
         | ClusterAuthorizationFailedCode = 31
+        /// The timestamp of the message is out of acceptable range
+        | InvalidTimestamp = 32
+        /// The broker does not support the requested SASL mechanism
+        | UnsupportedSaslMechanism = 33
+        /// Request is not valid given the current SASL state
+        | IllegalSaslState = 34
+        /// The version of API is not supported
+        | UnsupportedVersion = 35
+        /// Topic with this name already exists
+        | TopicAlreadyExists = 36
+        /// Number of partitions is invalid
+        | InvalidPartitions = 37
+        /// Replication-factor is invalid
+        | InvalidReplicationFactor = 38
+        /// Replica assignment is invalid
+        | InvalidReplicationAssignment = 39
+        /// Configuration is invalid
+        | InvalidConfig = 40
+        /// This is not the correct controller for this cluster
+        | NotController = 41
+        /// This most likely occurs because of a request being malformed by the client library or the message was sent to an incompatible broker. See the broker logs for more details
+        | InvalidRequest = 42
+        /// The message format version on the broker does not support the request
+        | UnsupportedMessageFormat = 43
 
     /// Type for broker and partition ids
     type Id = int32
@@ -1415,3 +1441,47 @@ module Messages =
         
         /// Deserialize the response
         override __.DeserializeResponse(stream) = DescribeGroupResponse.Deserialize(stream)
+
+   /// The supported versions for a specific request
+    type ApiKeyVersion = 
+        { ApiKey : int16
+          MinVersion : int16
+          MaxVersion : int16 }
+    
+    /// Response with all the supported versions for each request
+    type ApiVersionsResponse = 
+        { CorrelationId : CorrelationId
+          ErrorCode : ErrorCode
+          ApiKeyVersions : ApiKeyVersion array }
+        
+        static member private readApiKeyVersions list count stream = 
+            match count with
+            | 0 -> list
+            | _ -> 
+                let av = 
+                    { ApiKey = stream |> BigEndianReader.ReadInt16
+                      MinVersion = stream |> BigEndianReader.ReadInt16
+                      MaxVersion = stream |> BigEndianReader.ReadInt16 }
+                ApiVersionsResponse.readApiKeyVersions (av :: list) (count - 1) stream
+        
+        /// Deserialize the response
+        static member Deserialize(stream) = 
+            { CorrelationId = stream |> BigEndianReader.ReadInt32
+              ErrorCode = stream |> BigEndianReader.ReadInt16 |> int |> enum<ErrorCode>
+              ApiKeyVersions = 
+                  stream
+                  |> ApiVersionsResponse.readApiKeyVersions [] (stream |> BigEndianReader.ReadInt32)
+                  |> Seq.toArray }
+    
+    /// Request to get all the supported versions for the possible requests
+    type ApiVersionsRequest() = 
+        inherit Request<ApiVersionsResponse>()
+        
+        /// The API key
+        override __.ApiKey = ApiKey.ApiVersions
+        
+        /// Deserialize the response
+        override __.DeserializeResponse(stream) = ApiVersionsResponse.Deserialize(stream)
+        
+        /// Serialize the message
+        override __.SerializeMessage(_) = ()
