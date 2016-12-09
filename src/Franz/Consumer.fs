@@ -286,8 +286,8 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
                     return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
                 | e -> 
                     LogConfiguration.Logger.Error.Invoke
-                    (sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" 
-                         consumerOptions.Topic partitionId consumerOptions.ConnectionRetryInterval, e)
+                        (sprintf "Got exception while consuming from topic '%s' partition '%i'" 
+                             consumerOptions.Topic partitionId, e)
                     do! Async.Sleep consumerOptions.ConnectionRetryInterval
                     return Seq.empty<_>
             }
