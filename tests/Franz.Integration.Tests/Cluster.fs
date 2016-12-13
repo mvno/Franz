@@ -130,6 +130,7 @@ let kill_a_kafka (id : int) = performSSHCommand (sprintf "sudo ./kill_a_kafka.sh
 let kill_a_zookeeper (id : int) = performSSHCommand (sprintf "sudo ./kill_a_zookeeper.sh %i" id)
 let shutdown_a_kafka (id : int) = performSSHCommand (sprintf "sudo ./shutdown_a_kafka.sh %i" id)
 let shutdown_a_zookeeper (id : int) = performSSHCommand (sprintf "sudo ./shutdown_a_zookeeper.sh %i" id)
+let start_a_kafka (id : int) = performSSHCommand (sprintf "sudo ./start_a_kafka.sh %i" id)
 
 let installPrerequest (name : string) (expectedFile : string) (version : string) = 
     if File.Exists(expectedFile) then executeCommandOutsideShell "choco" ("upgrade " + name + " -y") |> ignore
