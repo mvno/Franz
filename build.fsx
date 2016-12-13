@@ -135,12 +135,15 @@ Target "Build" (fun _ ->
 // --------------------------------------------------------------------------------------
 // Run the unit tests using test runner
 
-Target "RunTests" (fun _ ->
+Target "RunUnitTests" (fun _ ->
     !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
     |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
 )
 
 Target "RunIntegrationTests" (fun _ ->
+    "win32-openssh" |> Choco.Install id
+    "virtualbox" |> Choco.Install id
+    "vagrant" |> Choco.Install id
     let appveyorRun = environVarOrDefault "APPVEYOR" "false"
 
     if appveyorRun = "false" then
@@ -330,16 +333,21 @@ Target "BuildPackage" DoNothing
 
 Target "All" DoNothing
 
+Target "RunTests" DoNothing
+
 "Clean"
   ==> "AssemblyInfo"
   ==> "Build"
   ==> "CopyBinaries"
   ==> "RunTests"
-  ==> "RunIntegrationTests"
   ==> "GenerateReferenceDocs"
   ==> "GenerateDocs"
   ==> "All"
   =?> ("ReleaseDocs",isLocalBuild)
+
+"RunUnitTests"
+  =?> ("RunIntegrationTests", Choco.IsAvailable)
+  ==> "RunTests"
 
 "All" 
 #if MONO
