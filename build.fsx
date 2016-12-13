@@ -82,7 +82,7 @@ Target "AssemblyInfo" (fun _ ->
         [ Attribute.Title (projectName)
           Attribute.Product project
           Attribute.Description summary
-          Attribute.Version ((string release.SemVer.Major) + ".1.0")
+          Attribute.Version ((string release.SemVer.Major) + ".0.0")
           Attribute.FileVersion release.AssemblyVersion ]
 
     let getProjectDetails projectPath =
