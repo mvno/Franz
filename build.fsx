@@ -136,15 +136,18 @@ Target "Build" (fun _ ->
 // Run the unit tests using test runner
 
 Target "RunTests" (fun _ ->
-    let appveyorPrNumber = environVarOrDefault "APPVEYOR_PULL_REQUEST_NUMBER" "-1"
+    !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
+    |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
+)
+
+Target "RunIntegrationTests" (fun _ ->
     let appveyorRun = environVarOrDefault "APPVEYOR" "false"
 
     if appveyorRun = "false" then
-        !! testAssemblies
+        !! "tests/Franz.Integration.Tests/bin/Release/*Tests*.dll"
         |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
     else
-        !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
-        |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
+        traceImportant "skipped integration tests because running on AppVeyor"
 )
 
 #if MONO
@@ -332,6 +335,7 @@ Target "All" DoNothing
   ==> "Build"
   ==> "CopyBinaries"
   ==> "RunTests"
+  ==> "RunIntegrationTests"
   ==> "GenerateReferenceDocs"
   ==> "GenerateDocs"
   ==> "All"
