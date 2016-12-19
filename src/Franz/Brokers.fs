@@ -263,8 +263,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             
             let tps = 
                 topicPartitions
-                |> Seq.map (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
-                |> Seq.concat
+                |> Seq.collect (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
                 |> Seq.map (fun (topic, pid) -> (topic, pid, getAndWatchTopicPartitionStateInformation topic pid))
                 |> Seq.toArray
             
@@ -506,11 +505,9 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
     member __.GetAvailablePartitionIds(topic) = 
         raiseIfDisposed disposed
         agent.PostAndReply(GetAllBrokers)
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.LeaderFor)
         |> Seq.filter (fun x -> x.TopicName = topic)
-        |> Seq.map (fun x -> x.PartitionIds)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.PartitionIds)
         |> Seq.toArray
     
     /// Get broker by topic and partition id
@@ -873,11 +870,9 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
         raiseIfDisposed (disposed)
         let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
         brokers
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.LeaderFor)
         |> Seq.filter (fun x -> x.TopicName = topicName)
-        |> Seq.map (fun x -> x.PartitionIds)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.PartitionIds)
         |> Seq.toArray
     
     /// Try to send a request to a specific broker.
