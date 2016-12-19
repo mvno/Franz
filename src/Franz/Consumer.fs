@@ -219,7 +219,7 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     override self.ConsumeInChunks(partitionId, maxBytes : int option) = 
-        let consume numberOfRetries =
+        let rec consume numberOfRetries =
             async { 
                 try 
                     let (_, offset) = partitionOffsets.TryGetValue(partitionId)
@@ -271,7 +271,7 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
                         LogConfiguration.Logger.Info.Invoke(sprintf "Got retriable error '%s'. Retrying in %i ms" (x.ToString()) consumerOptions.ErrorRetryBackoff)
                         do! Async.Sleep consumerOptions.ErrorRetryBackoff
                         brokerRouter.RefreshMetadata()
-                        return! self.ConsumeInChunks(partitionId, maxBytes)
+                        return! consume (numberOfRetries + 1)
                     | _ -> 
                         if numberOfRetries > consumerOptions.MaximumNumberOfRetriesOnErrors then
                             LogConfiguration.Logger.Info.Invoke "Maxmimum number of retries exceeded"
