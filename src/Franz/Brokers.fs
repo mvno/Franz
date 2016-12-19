@@ -77,8 +77,7 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
     member self.IsLeaderFor(topic, partitionId) = 
         self.LeaderFor
         |> Seq.filter (fun x -> x.TopicName = topic)
-        |> Seq.map (fun x -> x.PartitionIds)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.PartitionIds)
         |> Seq.exists (fun x -> x = partitionId)
     
     member internal self.SetAsLeaderFor(topic, partitionId) = 
