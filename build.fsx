@@ -141,12 +141,12 @@ Target "RunUnitTests" (fun _ ->
 )
 
 Target "RunIntegrationTests" (fun _ ->
-    "win32-openssh" |> Choco.Install id
-    "virtualbox" |> Choco.Install id
-    "vagrant" |> Choco.Install id
     let appveyorRun = environVarOrDefault "APPVEYOR" "false"
 
     if appveyorRun = "false" then
+        "win32-openssh" |> Choco.Install id
+        "virtualbox" |> Choco.Install id
+        "vagrant" |> Choco.Install id
         !! "tests/Franz.Integration.Tests/bin/Release/*Tests*.dll"
         |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
     else
