@@ -55,7 +55,7 @@ type TopicPartitionLeader =
 
 /// Broker information and actions
 type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array, tcpTimeout : int) = 
-    let _sendLock = new Object()
+    let sendLock = new Object()
     let mutable disposed = false
     let mutable leaderFor = leaderFor
     let mutable client : TcpClient = null
@@ -143,7 +143,7 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
     member self.Send(request : Request<'TResponse>) = 
         raiseIfDisposed (disposed)
         let rawResponseStream = 
-            lock _sendLock (fun () -> 
+            lock sendLock (fun () -> 
                 try 
                     send self request
                 with
