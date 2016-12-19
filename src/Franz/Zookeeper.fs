@@ -145,16 +145,16 @@ type GetChildrenResponse(header : ReplyHeader, children : string array, stat : S
     /// The reply header
     member __.Header = header
     
-    static member private readChildren list count stream : string list = 
+    static member private ReadChildren list count stream : string list = 
         match count with
         | 0 -> list
         | _ -> 
             let child = stream |> BigEndianReader.ReadZKString
-            GetChildrenResponse.readChildren (child :: list) (count - 1) stream
+            GetChildrenResponse.ReadChildren (child :: list) (count - 1) stream
     
     static member Deserialize(replyHeader, stream) = 
         let numberOfChildren = stream |> BigEndianReader.ReadInt32
-        let children = GetChildrenResponse.readChildren [] numberOfChildren stream
+        let children = GetChildrenResponse.ReadChildren [] numberOfChildren stream
         new GetChildrenResponse(replyHeader, children |> List.toArray, stream |> Stat.Deserialize)
 
 /// The ping response
@@ -354,10 +354,7 @@ type Watcher =
         match self.Type with
         | Child -> agent.PostAndReply(fun reply -> GetChildrenWithWatcher(self, reply))
         | Data -> agent.PostAndReply(fun reply -> GetDataWithWatcher(self, reply))
-        |> either (fun x -> 
-               x
-               |> Async.Ignore
-               |> Async.Start) 
+        |> either (Async.Ignore >> Async.Start) 
                (fun x -> 
                LogConfiguration.Logger.Error.Invoke(sprintf "Could not reregister watcher for %s" self.Path, x))
 
@@ -530,9 +527,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
                 |> sendConnectRequest sessionTimeout (int64 0) (Array.zeroCreate (16))
             
             let getChildren path watcher state = 
-                let shouldWatch = 
-                    if watcher |> Option.isSome then true
-                    else false
+                let shouldWatch = watcher |> Option.isSome
                 
                 let request = new GetChildrenRequest(path, shouldWatch)
                 if shouldWatch then childWatchers.TryAdd(path, watcher.Value) |> ignore
@@ -541,9 +536,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
             let getChildrenWithoutWatcher path = getChildren path None
             
             let getData path watcher state = 
-                let shouldWatch = 
-                    if watcher |> Option.isSome then true
-                    else false
+                let shouldWatch = watcher |> Option.isSome
                 
                 let request = new GetDataRequest(path, shouldWatch)
                 if shouldWatch then dataWatchers.TryAdd(path, watcher.Value) |> ignore
@@ -565,7 +558,7 @@ type ZookeeperClient(connectionLossCallback : Action) =
                         let newClient = state.TcpClient |> TcpClient.reconnect
                         sendConnectRequest state.SessionTimeout state.SessionId state.Password 
                             { state with TcpClient = newClient }
-                    catch reconnect state |> either (fun x -> x) (fun x -> 
+                    catch reconnect state |> either id (fun x -> 
                                                  LogConfiguration.Logger.Error.Invoke("Could not reconnect", x)
                                                  connectionLossCallback.Invoke()
                                                  state)
@@ -851,5 +844,5 @@ type ZookeeperManager(endpoints : EndPoint seq, sessionTimeout : int) =
     interface IDisposable with
         member __.Dispose() = 
             if not disposed then 
-                if client <> null then (client :> IDisposable).Dispose()
+                if client |> isNull then (client :> IDisposable).Dispose()
                 disposed <- true
