@@ -147,7 +147,7 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
                     send self request
                 with
                 | :? IOException as ioe -> 
-                    if ioe.InnerException <> null then LogConfiguration.Logger.Info.Invoke(ioe.InnerException.Message)
+                    if ioe.InnerException |> isNull then LogConfiguration.Logger.Info.Invoke(ioe.InnerException.Message)
                     LogConfiguration.Logger.Info.Invoke(ioe.Message)
                     LogConfiguration.Logger.Info.Invoke("Retrying send...")
                     send self request
