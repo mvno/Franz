@@ -288,7 +288,6 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
                     LogConfiguration.Logger.Error.Invoke
                         (sprintf "Got exception while consuming from topic '%s' partition '%i'" 
                              consumerOptions.Topic partitionId, e)
-                    do! Async.Sleep consumerOptions.ConnectionRetryInterval
                     return Seq.empty<_>
             }
         consume 0
