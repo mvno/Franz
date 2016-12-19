@@ -90,8 +90,7 @@ type Compression private () =
     /// Decompress multiple messagesets
     static member DecompressMessageSets(messageSets : MessageSet seq) = 
         messageSets
-        |> Seq.map Compression.DecompressMessageSet
-        |> Seq.concat
+        |> Seq.collect Compression.DecompressMessageSet
     
     /// Compress messages, using the specified compression codec
     static member CompressMessages(compressionCodec, messageSets : MessageSet array) = 
