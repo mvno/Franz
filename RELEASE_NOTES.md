@@ -1,5 +1,19 @@
-### 3.1.0
+### 4.0.0
+**Breaking changes**
+
+* Topic has been moved to consumer options, meaning that consumers no longer needs this argument in the constructor.
+* Consumers now all take arguments in the same order.
+* Brokerseeds are now defined be IEnumerable of EndPoint instead of array
+
+**Other changes**
+
 * Implemented ObservableConsumer, to allow consuming messages using push based frameworks like [Reactive Extensions](http://reactivex.io/).
+* Support for the group membership features in Kafka. To use these features, make sure to use the GroupConsumer.
+* Added support a request to a random broker and to a specific broker specified by broker id.
+* IConsumer.SetPosition now takes an IEnumerable instead of an array
+* A consumer now exposes a property to get the used BrokerRouter.
+* Fixed bug where consumer could not handle a broker being closed while consuming from it
+* Retry on all messages defined as retriable in the Kafka protocol documentation, and allow defining retry options in ConsumerOptions. The ErrorRetryBackoff options defines the retry backoff in milliseconds, and the MaximumNumberOfRetriesOnErrors defines the maximum number of retries in a row, 0 means infinite.
 
 ### 3.0.1
 * Fixed a bug where sending messages without null key, would result in an exception
