@@ -4,6 +4,7 @@
 * Topic has been moved to consumer options, meaning that consumers no longer needs this argument in the constructor.
 * Consumers now all take arguments in the same order.
 * Brokerseeds are now defined be IEnumerable of EndPoint instead of array
+* EndPoint is move into Franz namespace instead of Franz.Internal
 
 **Other changes**
 
