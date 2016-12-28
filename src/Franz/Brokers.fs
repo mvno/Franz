@@ -71,7 +71,7 @@ type TopicPartitionLeader =
 
 /// Broker information and actions
 type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader array, tcpTimeout : int) = 
-    let _sendLock = new Object()
+    let sendLock = new Object()
     let mutable disposed = false
     let mutable leaderFor = leaderFor
     let mutable client : TcpClient = null
@@ -93,8 +93,7 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
     member self.IsLeaderFor(topic, partitionId) = 
         self.LeaderFor
         |> Seq.filter (fun x -> x.TopicName = topic)
-        |> Seq.map (fun x -> x.PartitionIds)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.PartitionIds)
         |> Seq.exists (fun x -> x = partitionId)
     
     member internal self.SetAsLeaderFor(topic, partitionId) = 
@@ -159,12 +158,12 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
     member self.Send(request : Request<'TResponse>) = 
         raiseIfDisposed (disposed)
         let rawResponseStream = 
-            lock _sendLock (fun () -> 
+            lock sendLock (fun () -> 
                 try 
                     send self request
                 with
                 | :? IOException as ioe -> 
-                    if ioe.InnerException <> null then LogConfiguration.Logger.Info.Invoke(ioe.InnerException.Message)
+                    if ioe.InnerException |> isNull then LogConfiguration.Logger.Info.Invoke(ioe.InnerException.Message)
                     LogConfiguration.Logger.Info.Invoke(ioe.Message)
                     LogConfiguration.Logger.Info.Invoke("Retrying send...")
                     send self request
@@ -283,8 +282,7 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
             
             let tps = 
                 topicPartitions
-                |> Seq.map (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
-                |> Seq.concat
+                |> Seq.collect (fun x -> x.Value |> Seq.map (fun id -> (x.Key, id)))
                 |> Seq.map (fun (topic, pid) -> (topic, pid, getAndWatchTopicPartitionStateInformation topic pid))
                 |> Seq.toArray
             
@@ -526,11 +524,9 @@ type ZookeeperBrokerRouter(zookeeperManager : ZookeeperManager, brokerTcpTimeout
     member __.GetAvailablePartitionIds(topic) = 
         raiseIfDisposed disposed
         agent.PostAndReply(GetAllBrokers)
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.LeaderFor)
         |> Seq.filter (fun x -> x.TopicName = topic)
-        |> Seq.map (fun x -> x.PartitionIds)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.PartitionIds)
         |> Seq.toArray
     
     /// Get broker by topic and partition id
@@ -893,11 +889,9 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
         raiseIfDisposed (disposed)
         let brokers = router.PostAndReply(fun reply -> GetAllBrokers(reply))
         brokers
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.LeaderFor)
         |> Seq.filter (fun x -> x.TopicName = topicName)
-        |> Seq.map (fun x -> x.PartitionIds)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.PartitionIds)
         |> Seq.toArray
     
     /// Try to send a request to a specific broker.

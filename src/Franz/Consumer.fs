@@ -92,7 +92,7 @@ type ConsumerOptions() =
     member __.PartitionWhitelist 
         with get () = partitionWhitelist
         and set x = 
-            if x = null then partitionWhitelist <- [||]
+            if x |> isNull then partitionWhitelist <- [||]
             else partitionWhitelist <- x
     
     /// Gets or sets the consumer topic
@@ -125,17 +125,15 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
     
     let updateTopicPartitions (brokers : Broker seq) = 
         brokers
-        |> Seq.map (fun x -> x.LeaderFor)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.LeaderFor)
         |> Seq.filter (fun x -> x.TopicName = consumerOptions.Topic)
-        |> Seq.map 
+        |> Seq.collect
                (fun x -> 
                match consumerOptions.PartitionWhitelist with
                | [||] -> x.PartitionIds
                | _ -> 
                    Set.intersect (Set.ofArray x.PartitionIds) (Set.ofArray consumerOptions.PartitionWhitelist) 
                    |> Set.toArray)
-        |> Seq.concat
         |> Seq.iter 
                (fun id -> 
                partitionOffsets.AddOrUpdate(id, new Func<Id, Offset>(fun _ -> int64 0), fun _ value -> value) |> ignore)
@@ -152,11 +150,9 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
         let response = broker.Send(request)
         response.Topics
         |> Seq.filter (fun x -> x.Name = topicName)
-        |> Seq.map (fun x -> x.Partitions)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.Partitions)
         |> Seq.filter (fun x -> x.Id = partitionId && x.ErrorCode.IsSuccess())
-        |> Seq.map (fun x -> x.Offsets)
-        |> Seq.concat
+        |> Seq.collect (fun x -> x.Offsets)
         |> Seq.min
     
     let getThePartitionOffsetsWeWantToAddOrUpdate (offsets : HighLevel.PartitionOffset seq) = 
@@ -236,8 +232,7 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
                 
                     let partitionResponse = 
                         response.Topics
-                        |> Seq.map (fun x -> x.Partitions)
-                        |> Seq.concat
+                        |> Seq.collect (fun x -> x.Partitions)
                         |> Seq.head
                     match partitionResponse.ErrorCode with
                     | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> 
@@ -646,8 +641,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
         let assignedPartitions = 
             partitionAssignments
             |> Seq.filter (fun x -> x.Topic = options.Topic)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
+            |> Seq.collect (fun x -> x.Partitions)
             |> Seq.toArray
         
         let offsetsForAssignedPartitions = 

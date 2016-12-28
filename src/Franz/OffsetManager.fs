@@ -76,8 +76,7 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
         let offsets = 
             response.Topics
             |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
+            |> Seq.collect (fun x -> x.Partitions)
             |> Seq.filter (fun x -> x.ErrorCode.IsSuccess())
             |> Seq.map (fun x -> 
                    { PartitionId = x.Id
@@ -91,15 +90,14 @@ type ConsumerOffsetManagerV0(topicName, brokerRouter : IBrokerRouter) =
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) 
         (consumerGroup : string) (managerName : string) = 
         let errorCodes = 
-            Seq.concat 
-                (offsetCommitResponse.Topics 
-                 |> Seq.map 
-                        (fun t -> 
-                        t.Partitions
-                        |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError)
-                        |> Seq.map 
-                               (fun p -> 
-                               sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
+            offsetCommitResponse.Topics 
+            |> Seq.collect 
+                (fun t -> 
+                    t.Partitions
+                    |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError)
+                    |> Seq.map 
+                        (fun p -> 
+                            sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString())))
         
         let topic = 
             match offsetCommitResponse.Topics |> Seq.tryHead with
@@ -212,8 +210,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
         let partitions = 
             response.Topics
             |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
+            |> Seq.collect (fun x -> x.Partitions)
             |> Seq.toArray
         match partitions with
         | ErrorHelper.HasError ErrorCode.ConsumerCoordinatorNotAvailable true | ErrorHelper.HasError ErrorCode.GroupLoadInProgressCode 
@@ -237,15 +234,14 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) 
         (consumerGroup : string) (managerName : string) = 
         let errorCodes = 
-            Seq.concat 
-                (offsetCommitResponse.Topics 
-                 |> Seq.map 
-                        (fun t -> 
-                        t.Partitions
-                        |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError)
-                        |> Seq.map 
-                               (fun p -> 
-                               sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
+            offsetCommitResponse.Topics 
+            |> Seq.collect 
+                (fun t -> 
+                    t.Partitions
+                    |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError)
+                    |> Seq.map 
+                        (fun p -> 
+                            sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString())))
         
         let topic = (offsetCommitResponse.Topics |> Seq.head).Name
         match Seq.isEmpty errorCodes with
@@ -277,8 +273,7 @@ type ConsumerOffsetManagerV1(topicName, brokerRouter : IBrokerRouter) =
         let partitions = 
             response.Topics
             |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
+            |> Seq.collect (fun x -> x.Partitions)
             |> Seq.toArray
         match partitions with
         | ErrorHelper.HasError ErrorCode.ConsumerCoordinatorNotAvailable true | ErrorHelper.HasError ErrorCode.GroupLoadInProgressCode 
@@ -362,8 +357,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
         let partitions = 
             response.Topics
             |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
+            |> Seq.collect (fun x -> x.Partitions)
             |> Seq.toArray
         match partitions with
         | ErrorHelper.HasError ErrorCode.ConsumerCoordinatorNotAvailable true | ErrorHelper.HasError ErrorCode.GroupLoadInProgressCode 
@@ -387,15 +381,14 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
     let handleOffsetCommitResponseCodes (offsetCommitResponse : OffsetCommitResponse) (offsets : seq<PartitionOffset>) 
         (consumerGroup : string) (managerName : string) = 
         let errorCodes = 
-            Seq.concat 
-                (offsetCommitResponse.Topics 
-                 |> Seq.map 
-                        (fun t -> 
-                        t.Partitions
-                        |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError)
-                        |> Seq.map 
-                               (fun p -> 
-                               sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString()))))
+            offsetCommitResponse.Topics 
+            |> Seq.collect 
+                (fun t -> 
+                    t.Partitions
+                    |> Seq.filter (fun p -> p.ErrorCode <> ErrorCode.NoError)
+                    |> Seq.map 
+                        (fun p -> 
+                        sprintf "Topic: %s Partition: %i ErrorCode: %s" t.Name p.Id (p.ErrorCode.ToString())))
         
         let topic = (offsetCommitResponse.Topics |> Seq.head).Name
         match Seq.isEmpty errorCodes with
@@ -426,8 +419,7 @@ type ConsumerOffsetManagerV2(topicName, brokerRouter : IBrokerRouter) =
         let partitions = 
             response.Topics
             |> Seq.filter (fun x -> x.Name = topicName)
-            |> Seq.map (fun x -> x.Partitions)
-            |> Seq.concat
+            |> Seq.collect (fun x -> x.Partitions)
             |> Seq.toArray
         match partitions with
         | ErrorHelper.HasError ErrorCode.ConsumerCoordinatorNotAvailable true | ErrorHelper.HasError ErrorCode.GroupLoadInProgressCode 
