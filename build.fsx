@@ -82,7 +82,7 @@ Target "AssemblyInfo" (fun _ ->
         [ Attribute.Title (projectName)
           Attribute.Product project
           Attribute.Description summary
-          Attribute.Version ((string release.SemVer.Major) + ".1.0")
+          Attribute.Version ((string release.SemVer.Major) + ".0.0")
           Attribute.FileVersion release.AssemblyVersion ]
 
     let getProjectDetails projectPath =
@@ -135,16 +135,22 @@ Target "Build" (fun _ ->
 // --------------------------------------------------------------------------------------
 // Run the unit tests using test runner
 
-Target "RunTests" (fun _ ->
-    let appveyorPrNumber = environVarOrDefault "APPVEYOR_PULL_REQUEST_NUMBER" "-1"
+Target "RunUnitTests" (fun _ ->
+    !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
+    |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
+)
+
+Target "RunIntegrationTests" (fun _ ->
     let appveyorRun = environVarOrDefault "APPVEYOR" "false"
 
     if appveyorRun = "false" then
-        !! testAssemblies
+        "win32-openssh" |> Choco.Install id
+        "virtualbox" |> Choco.Install id
+        "vagrant" |> Choco.Install id
+        !! "tests/Franz.Integration.Tests/bin/Release/*Tests*.dll"
         |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
     else
-        !! "tests/Franz.Tests/bin/Release/*Tests*.dll"
-        |> xUnit2 (fun p -> { p with TimeOut = TimeSpan.FromMinutes 40. })
+        traceImportant "skipped integration tests because running on AppVeyor"
 )
 
 #if MONO
@@ -327,6 +333,8 @@ Target "BuildPackage" DoNothing
 
 Target "All" DoNothing
 
+Target "RunTests" DoNothing
+
 "Clean"
   ==> "AssemblyInfo"
   ==> "Build"
@@ -336,6 +344,10 @@ Target "All" DoNothing
   ==> "GenerateDocs"
   ==> "All"
   =?> ("ReleaseDocs",isLocalBuild)
+
+"RunUnitTests"
+  =?> ("RunIntegrationTests", Choco.IsAvailable)
+  ==> "RunTests"
 
 "All" 
 #if MONO

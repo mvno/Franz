@@ -74,13 +74,14 @@ type BaseProducer(brokerRouter : IBrokerRouter, compressionCodec, partitionSelec
             |> Seq.head
         match partitionResponse.ErrorCode with
         | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> ()
-        | ErrorCode.NotLeaderForPartition -> 
-            brokerRouter.RefreshMetadata()
-            send key topicName messages requiredAcks brokerProcessingTimeout 0
         | ErrorCode.RequestTimedOut -> 
             retryOnRequestTimedOut 
                 (fun () -> send key topicName messages requiredAcks (brokerProcessingTimeout * 2) (retryCount + 1)) 
                 retryCount
+        | x when x.IsRetriable() ->
+            LogConfiguration.Logger.Info.Invoke (sprintf "Got retriable error, '%s', while sending message..." (x.ToString()))
+            brokerRouter.RefreshMetadata()
+            send key topicName messages requiredAcks brokerProcessingTimeout 0
         | _ -> raiseWithErrorLog (BrokerReturnedErrorException partitionResponse.ErrorCode)
     
     let sendMessages key topic requiredAcks brokerProcessingTimeout messages = 
