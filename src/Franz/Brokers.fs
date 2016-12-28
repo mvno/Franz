@@ -47,6 +47,22 @@ module ErrorCodeExtensions =
         
         /// Check if error code is success
         member self.IsSuccess() = not <| self.IsError()
+        
+        /// Check if error code is retriable
+        member self.IsRetriable() =
+            match self with
+            | Messages.ErrorCode.InvalidMessage
+            | Messages.ErrorCode.UnknownTopicOrPartition
+            | Messages.ErrorCode.LeaderNotAvailable
+            | Messages.ErrorCode.NotLeaderForPartition
+            | Messages.ErrorCode.RequestTimedOut
+            | Messages.ErrorCode.NetworkException
+            | Messages.ErrorCode.GroupLoadInProgressCode
+            | Messages.ErrorCode.ConsumerCoordinatorNotAvailable
+            | Messages.ErrorCode.NotCoordinatorForConsumer
+            | Messages.ErrorCode.NotEnoughReplicasCode
+            | Messages.ErrorCode.NotController -> true
+            | _ -> false
 
 /// Type containing which nodes is leaders for which topic and partition
 type TopicPartitionLeader = 
@@ -156,6 +172,9 @@ type Broker(brokerId : Id, endPoint : EndPoint, leaderFor : TopicPartitionLeader
                     LogConfiguration.Logger.Info.Invoke(ucce.Message)
                     LogConfiguration.Logger.Info.Invoke("Retrying send...")
                     send self request
+                | :? SocketException as se ->
+                    if se.ErrorCode = 10061 then LogConfiguration.Logger.Info.Invoke (sprintf "Connection to broker %i was lost" brokerId)
+                    reraise()
                 | e -> 
                     LogConfiguration.Logger.Warning.Invoke
                         ("An unexpected exception occured during send. Please investigate.", e)
@@ -716,7 +735,7 @@ type BrokerRouter(brokerSeeds : EndPoint seq, tcpTimeout) as self =
         with e -> 
             LogConfiguration.Logger.Info.Invoke
                 (sprintf "Unable to get metadata from broker %i due to (%s), retrying." broker.Id e.Message)
-            if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) lastRoundRobinIndex topics
+            if attempt < (brokers |> Seq.length) then getMetadata brokers (attempt + 1) index topics
             else raiseWithFatalLog (UnableToConnectToAnyBrokerException())
     
     let rec findBroker brokers lastRoundRobinIndex attempt topic partitionId = 

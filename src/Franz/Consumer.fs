@@ -81,6 +81,12 @@ type ConsumerOptions() =
     
     /// The number of milliseconds to wait before retrying, when the connection is lost during consuming. The default values is 5000.
     member val ConnectionRetryInterval = 5000 with get, set
+
+    /// The backoff in ms, used when getting a retriable error. The default value is 1000.
+    member val ErrorRetryBackoff = 1000 with get, set
+
+    /// The maximum number of times to retry on retriable errors. 0 means infinite retries, which is the default.
+    member val MaximumNumberOfRetriesOnErrors = 0 with get, set
     
     /// The partitions to consume messages from
     member __.PartitionWhitelist 
@@ -213,73 +219,78 @@ type BaseConsumer(brokerRouter : IBrokerRouter, consumerOptions : ConsumerOption
     /// Consume messages from the topic specified in the consumer. This function returns a sequence of messages, the size is defined by the chunk size.
     /// Multiple calls to this method consumes the next chunk of messages.
     override self.ConsumeInChunks(partitionId, maxBytes : int option) = 
-        async { 
-            try 
-                let (_, offset) = partitionOffsets.TryGetValue(partitionId)
+        let rec consume numberOfRetries =
+            async { 
+                try 
+                    let (_, offset) = partitionOffsets.TryGetValue(partitionId)
                 
-                let request = 
-                    new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, 
-                                     [| { Name = consumerOptions.Topic
-                                          Partitions = 
-                                              [| { FetchOffset = offset
-                                                   Id = partitionId
-                                                   MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
+                    let request = 
+                        new FetchRequest(-1, consumerOptions.MaxWaitTime, consumerOptions.MinBytes, 
+                                         [| { Name = consumerOptions.Topic
+                                              Partitions = 
+                                                  [| { FetchOffset = offset
+                                                       Id = partitionId
+                                                       MaxBytes = defaultArg maxBytes consumerOptions.MaxBytes } |] } |])
                 
-                let response = brokerRouter.TrySendToBroker(consumerOptions.Topic, partitionId, request)
+                    let response = brokerRouter.TrySendToBroker(consumerOptions.Topic, partitionId, request)
                 
-                let partitionResponse = 
-                    response.Topics
-                    |> Seq.map (fun x -> x.Partitions)
-                    |> Seq.concat
-                    |> Seq.head
-                match partitionResponse.ErrorCode with
-                | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> 
-                    let messages = 
-                        partitionResponse.MessageSets
-                        |> Compression.DecompressMessageSets
-                        |> Seq.map (fun x -> 
-                               { Message = x.Message
-                                 Offset = x.Offset
-                                 PartitionId = partitionId })
-                    if partitionResponse.MessageSets
-                       |> Seq.isEmpty
-                       |> not
-                    then 
-                        let nextOffset = 
-                            (partitionResponse.MessageSets
-                             |> Seq.map (fun x -> x.Offset)
-                             |> Seq.max)
-                            + int64 1
+                    let partitionResponse = 
+                        response.Topics
+                        |> Seq.map (fun x -> x.Partitions)
+                        |> Seq.concat
+                        |> Seq.head
+                    match partitionResponse.ErrorCode with
+                    | ErrorCode.NoError | ErrorCode.ReplicaNotAvailable -> 
+                        let messages = 
+                            partitionResponse.MessageSets
+                            |> Compression.DecompressMessageSets
+                            |> Seq.map (fun x -> 
+                                   { Message = x.Message
+                                     Offset = x.Offset
+                                     PartitionId = partitionId })
+                        if partitionResponse.MessageSets
+                           |> Seq.isEmpty
+                           |> not
+                        then 
+                            let nextOffset = 
+                                (partitionResponse.MessageSets
+                                 |> Seq.map (fun x -> x.Offset)
+                                 |> Seq.max)
+                                + int64 1
+                            partitionOffsets.AddOrUpdate
+                                (partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
+                        return messages
+                    | ErrorCode.OffsetOutOfRange -> 
+                        let broker = brokerRouter.GetBroker(consumerOptions.Topic, partitionId)
+                        let earliestOffset = handleOffsetOutOfRangeError broker partitionId consumerOptions.Topic
                         partitionOffsets.AddOrUpdate
-                            (partitionId, new Func<Id, Offset>(fun _ -> nextOffset), fun _ _ -> nextOffset) |> ignore
-                    return messages
-                | ErrorCode.NotLeaderForPartition -> 
-                    brokerRouter.RefreshMetadata()
-                    return! self.ConsumeInChunks(partitionId, maxBytes)
-                | ErrorCode.OffsetOutOfRange -> 
-                    let broker = brokerRouter.GetBroker(consumerOptions.Topic, partitionId)
-                    let earliestOffset = handleOffsetOutOfRangeError broker partitionId consumerOptions.Topic
-                    partitionOffsets.AddOrUpdate
-                        (partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) 
-                    |> ignore
-                    return! self.ConsumeInChunks(partitionId, maxBytes)
-                | _ -> 
-                    raise (BrokerReturnedErrorException partitionResponse.ErrorCode)
+                            (partitionId, new Func<Id, Offset>(fun _ -> earliestOffset), fun _ _ -> earliestOffset) 
+                        |> ignore
+                        return! self.ConsumeInChunks(partitionId, maxBytes)
+                    | x when x.IsRetriable() && numberOfRetries <= consumerOptions.MaximumNumberOfRetriesOnErrors -> 
+                        LogConfiguration.Logger.Info.Invoke(sprintf "Got retriable error '%s'. Retrying in %i ms" (x.ToString()) consumerOptions.ErrorRetryBackoff)
+                        do! Async.Sleep consumerOptions.ErrorRetryBackoff
+                        brokerRouter.RefreshMetadata()
+                        return! consume (numberOfRetries + 1)
+                    | _ -> 
+                        if numberOfRetries > consumerOptions.MaximumNumberOfRetriesOnErrors then
+                            LogConfiguration.Logger.Info.Invoke "Maxmimum number of retries exceeded"
+                        raise (BrokerReturnedErrorException partitionResponse.ErrorCode)
+                        return Seq.empty<_>
+                with
+                | :? BufferOverflowException -> 
+                    let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
+                    LogConfiguration.Logger.Info.Invoke
+                        (sprintf "Temporarily increasing fetch size to %i to accommodate increased message size." 
+                             increasedFetchSize)
+                    return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
+                | e -> 
+                    LogConfiguration.Logger.Error.Invoke
+                        (sprintf "Got exception while consuming from topic '%s' partition '%i'" 
+                             consumerOptions.Topic partitionId, e)
                     return Seq.empty<_>
-            with
-            | :? BufferOverflowException -> 
-                let increasedFetchSize = (defaultArg maxBytes consumerOptions.MaxBytes) * 2
-                LogConfiguration.Logger.Info.Invoke
-                    (sprintf "Temporarily increasing fetch size to %i to accommodate increased message size." 
-                         increasedFetchSize)
-                return! self.ConsumeInChunks(partitionId, Some increasedFetchSize)
-            | e -> 
-                LogConfiguration.Logger.Error.Invoke
-                    (sprintf "Got exception while consuming from topic '%s' partition '%i'. Retrying in %i milliseconds" 
-                         consumerOptions.Topic partitionId consumerOptions.ConnectionRetryInterval, e)
-                do! Async.Sleep consumerOptions.ConnectionRetryInterval
-                return Seq.empty<_>
-        }
+            }
+        consume 0
     
     /// Dispose the consumer
     member __.Dispose() = 
@@ -744,7 +755,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
             and failedJoinState (commitOffsets : bool) (errorCode : ErrorCode) = 
                 async { 
                     match errorCode with
-                    | ErrorCode.ConsumerCoordinatorNotAvailable | ErrorCode.GroupLoadInProgressCode | ErrorCode.NotCoordinatorForConsumer | ErrorCode.UnknownMemberIdCode -> 
+                    | x when x.IsRetriable() || x = ErrorCode.UnknownMemberIdCode ->
                         LogConfiguration.Logger.Info.Invoke
                             (sprintf "Joining group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! delayedReconnectState commitOffsets
@@ -788,7 +799,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
             and failedSyncState (errorCode : ErrorCode) = 
                 async { 
                     match errorCode with
-                    | ErrorCode.ConsumerCoordinatorNotAvailable | ErrorCode.NotCoordinatorForConsumer | ErrorCode.IllegalGenerationCode | ErrorCode.UnknownMemberIdCode | ErrorCode.RebalanceInProgressCode -> 
+                    | x when x.IsRetriable() || x = ErrorCode.UnknownMemberIdCode || x = ErrorCode.RebalanceInProgressCode ->
                         LogConfiguration.Logger.Info.Invoke
                             (sprintf "Sync for group '%s' failed with %O. Trying to rejoin..." options.GroupId errorCode)
                         return! delayedReconnectState true
@@ -846,7 +857,7 @@ type GroupConsumer(brokerRouter : BrokerRouter, options : GroupConsumerOptions) 
                 async { 
                     stopConsuming cts
                     match errorCode with
-                    | ErrorCode.ConsumerCoordinatorNotAvailable | ErrorCode.NotCoordinatorForConsumer | ErrorCode.IllegalGenerationCode | ErrorCode.UnknownMemberIdCode -> 
+                    | x when x.IsRetriable() || x = ErrorCode.IllegalGenerationCode || x = ErrorCode.UnknownMemberIdCode ->
                         LogConfiguration.Logger.Trace.Invoke
                             (sprintf "Heartbeat failed with %O. Trying to rejoin..." errorCode)
                         return! delayedReconnectState true

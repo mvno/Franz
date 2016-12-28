@@ -130,6 +130,7 @@ let kill_a_kafka (id : int) = performSSHCommand (sprintf "sudo ./kill_a_kafka.sh
 let kill_a_zookeeper (id : int) = performSSHCommand (sprintf "sudo ./kill_a_zookeeper.sh %i" id)
 let shutdown_a_kafka (id : int) = performSSHCommand (sprintf "sudo ./shutdown_a_kafka.sh %i" id)
 let shutdown_a_zookeeper (id : int) = performSSHCommand (sprintf "sudo ./shutdown_a_zookeeper.sh %i" id)
+let start_a_kafka (id : int) = performSSHCommand (sprintf "sudo ./start_a_kafka.sh %i" id)
 
 let installPrerequest (name : string) (expectedFile : string) (version : string) = 
     if File.Exists(expectedFile) then executeCommandOutsideShell "choco" ("upgrade " + name + " -y") |> ignore
@@ -145,9 +146,6 @@ let createTopic topic replicationFactor partitions =
 
 let ensureClusterIsRunning() = 
     System.AppDomain.CurrentDomain.DomainUnload.Add(fun x -> performVagrantCommand "destroy -f")
-    installPrerequest "win32-openssh" sshPath "2016.05.15"
-    installPrerequest "virtualbox" virtualBoxPath "5.0.16.105871"
-    installPrerequest "vagrant" vagrantPath "1.8.1.20160318"
     if (executeCommandOutsideShell virtualBoxPath "showvminfo kafka_cluster") = 1 then 
         executeCommandOutsideShell virtualBoxPath "unregistervm kafka_cluster --delete" |> ignore
     performVagrantCommand "destroy -f"
