@@ -5,7 +5,7 @@ open System.Diagnostics
 open System.IO
 open System.Threading
 open System.Text
-open Franz.Internal
+open Franz
 
 let kafka_brokers = 
     [| { Address = "192.168.100.100"
