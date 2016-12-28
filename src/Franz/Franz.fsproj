@@ -69,11 +69,10 @@
     <Compile Include="Compression.fs" />
     <Compile Include="Zookeeper.fs" />
     <Compile Include="Brokers.fs" />
-    <Compile Include="HighLevel.fs" />
-    <Compile Include="Observable.fs" />
     <Compile Include="Producer.fs" />
     <Compile Include="OffsetManager.fs" />
     <Compile Include="Consumer.fs" />
+    <Compile Include="Observable.fs" />
     <None Include="paket.references" />
     <None Include="paket.template" />
     <None Include="Script.fsx" />

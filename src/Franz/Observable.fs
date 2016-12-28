@@ -42,9 +42,15 @@ and ObservableConsumer(consumer : ChunkedConsumer) =
 
     let pushToAllObsevers messages reply = Push(messages, reply)
 
-    new (brokerSeeds, topicName, consumerOptions : ConsumerOptions) = new ObservableConsumer(new ChunkedConsumer(topicName, consumerOptions, new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout)))
-    new (brokerSeeds, topicName) = new ObservableConsumer(new ChunkedConsumer(brokerSeeds, topicName, new ConsumerOptions()))
-    new (brokerRouter, topicName) = new ObservableConsumer(new ChunkedConsumer(topicName, new ConsumerOptions(), brokerRouter))
+    new (brokerSeeds, consumerOptions : ConsumerOptions) = new ObservableConsumer(new ChunkedConsumer(new BrokerRouter(brokerSeeds, consumerOptions.TcpTimeout), consumerOptions))
+    new (brokerSeeds : EndPoint array, topicName) =
+        let options = new ConsumerOptions()
+        options.Topic <- topicName
+        new ObservableConsumer(new ChunkedConsumer(brokerSeeds, options))
+    new (brokerRouter : BrokerRouter, topicName) =
+        let options = new ConsumerOptions()
+        options.Topic <- topicName
+        new ObservableConsumer(new ChunkedConsumer(brokerRouter, options))
 
     member __.Subscribe(observer : IObserver<MessageWithMetadata>) =
         consumer.CheckDisposedState()
