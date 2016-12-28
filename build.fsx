@@ -345,7 +345,8 @@ Target "RunTests" DoNothing
   ==> "All"
   =?> ("ReleaseDocs",isLocalBuild)
 
-"RunUnitTests"
+"Build"
+  ==> "RunUnitTests"
   =?> ("RunIntegrationTests", Choco.IsAvailable)
   ==> "RunTests"
 
