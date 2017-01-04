@@ -245,6 +245,7 @@
     <Compile Include="BasicTest.fs" />
     <Compile Include="ConsumerGroupTest.fs" />
     <Compile Include="ApiVersionTest.fs" />
+    <Compile Include="ConsumerTest.fs" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
