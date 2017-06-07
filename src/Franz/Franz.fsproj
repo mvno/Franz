@@ -72,6 +72,7 @@
     <Compile Include="Producer.fs" />
     <Compile Include="OffsetManager.fs" />
     <Compile Include="Consumer.fs" />
+    <Compile Include="Observable.fs" />
     <None Include="paket.references" />
     <None Include="paket.template" />
     <None Include="Script.fsx" />

@@ -8,6 +8,7 @@
 
 **Other changes**
 
+* Implemented ObservableConsumer, to allow consuming messages using push based frameworks like [Reactive Extensions](http://reactivex.io/).
 * Support for the group membership features in Kafka. To use these features, make sure to use the GroupConsumer.
 * Added support a request to a random broker and to a specific broker specified by broker id.
 * IConsumer.SetPosition now takes an IEnumerable instead of an array
